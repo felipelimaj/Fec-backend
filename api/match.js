@@ -135,8 +135,7 @@ export default async function handler(req, res) {
       acc.b5 += s.velocity_band5_total_distance || 0;
       acc.b6 += s.velocity_band6_total_distance || 0;
       acc.b7 += s.velocity_band7_total_distance || 0;
-      acc.accB2 += s.acceleration_band2_total_effort_count || 0;
-      acc.accB3 += s.acceleration_band3_total_effort_count || 0;
+      acc.accB23 += s.gen2_acceleration_band7plus_total_effort_count || 0;
       acc.decB3 += s.gen2_acceleration_band1_total_effort_count || 0;
       acc.decB2 += s.gen2_acceleration_band2_total_effort_count || 0;
       acc.pl += s.total_player_load || 0;
@@ -173,7 +172,7 @@ export default async function handler(req, res) {
 function emptyHalf() {
   return {
     dur: 0, dist: 0, b5: 0, b6: 0, b7: 0,
-    accB2: 0, accB3: 0, decB2: 0, decB3: 0,
+    accB23: 0, decB2: 0, decB3: 0,
     pl: 0, expl: 0, sprints: 0,
     maxVel: 0, hrMaxPct: 0, hrAvgSum: 0, hrAvgDur: 0,
   };
@@ -189,7 +188,7 @@ function finalizePlayer(a) {
   const distTotal = a.t1.dist + a.t2.dist;
   const altIntTotal = a.t1.b5 + a.t1.b6 + a.t1.b7 + a.t2.b5 + a.t2.b6 + a.t2.b7;
   const sprintTotal = a.t1.b6 + a.t1.b7 + a.t2.b6 + a.t2.b7;
-  const accTotal = a.t1.accB2 + a.t1.accB3 + a.t2.accB2 + a.t2.accB3;
+  const accTotal = a.t1.accB23 + a.t2.accB23;
   const decTotal = a.t1.decB2 + a.t1.decB3 + a.t2.decB2 + a.t2.decB3;
   const explTotal = a.t1.expl + a.t2.expl;
   const plTotal = a.t1.pl + a.t2.pl;
@@ -231,8 +230,8 @@ function finalizePlayer(a) {
     t2_distMin: round(dens(a.t2.dist, a.t2.dur), 2),
     t1_altMin:  round(dens(a.t1.b5 + a.t1.b6 + a.t1.b7, a.t1.dur), 3),
     t2_altMin:  round(dens(a.t2.b5 + a.t2.b6 + a.t2.b7, a.t2.dur), 3),
-    t1_accMin:  round(dens(a.t1.accB2 + a.t1.accB3, a.t1.dur), 3),
-    t2_accMin:  round(dens(a.t2.accB2 + a.t2.accB3, a.t2.dur), 3),
+    t1_accMin:  round(dens(a.t1.accB23, a.t1.dur), 3),
+    t2_accMin:  round(dens(a.t2.accB23, a.t2.dur), 3),
     t1_decMin:  round(dens(a.t1.decB2 + a.t1.decB3, a.t1.dur), 3),
     t2_decMin:  round(dens(a.t2.decB2 + a.t2.decB3, a.t2.dur), 3),
   };
