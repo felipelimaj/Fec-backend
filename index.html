@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>FEC Performance API</title>
+<style>
+  body{font-family:-apple-system,sans-serif;max-width:720px;margin:60px auto;padding:0 20px;color:#1A1E2E;background:#F0F2F7;line-height:1.6}
+  h1{color:#1A56A0;border-left:5px solid #E8360A;padding-left:14px}
+  code{background:#fff;padding:2px 8px;border-radius:4px;border:1px solid #DDE2EC;font-size:13px;font-family:"SF Mono",monospace}
+  .card{background:#fff;border:1px solid #DDE2EC;border-radius:10px;padding:18px 22px;margin:14px 0}
+  .ok{color:#15803d;font-weight:600}
+  a{color:#1A56A0;text-decoration:none;border-bottom:1px solid #1A56A0}
+</style>
+</head>
+<body>
+<h1>FEC Performance API</h1>
+<div class="card">
+  <p><span class="ok">●</span> Backend rodando.</p>
+  <p>Endpoints disponíveis:</p>
+  <ul>
+    <li><code>/api/atletas</code> — lista de atletas Catapult com ID Cadastro</li>
+    <li><code>/api/match?date=DD/MM/YYYY</code> — relatório de jogo da data</li>
+  </ul>
+</div>
+<div class="card">
+  <strong>Teste rápido:</strong><br>
+  <a href="/api/atletas">→ /api/atletas</a><br>
+  <a href="/api/match?date=27/05/2026">→ /api/match?date=27/05/2026</a>
+</div>
+</body>
+</html>

@@ -1,0 +1,12 @@
+{
+  "name": "fec-performance-backend",
+  "version": "0.1.0",
+  "description": "Backend API para integração Catapult — Fortaleza EC",
+  "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "author": "Felipe Lima <performance@fortalezaecsaf.com.br>",
+  "license": "UNLICENSED",
+  "private": true
+}
