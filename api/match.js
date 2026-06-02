@@ -53,13 +53,16 @@ async function catapultPOST(path, token, body) {
   return r.json();
 }
 
-// Converte "27/05/2026" em timestamps Unix do dia inteiro
 function dateToUnixRange(dateStr) {
-  const [d, m, y] = dateStr.split('/').map(Number);
-  const start = Math.floor(new Date(y, m - 1, d, 0, 0, 0).getTime() / 1000);
-  const end = Math.floor(new Date(y, m - 1, d, 23, 59, 59).getTime() / 1000);
+// Converte "27/05/2026" em timestamps Unix do dia inteiro
+const [d, m, y] = dateStr.split('/').map(Number);
+  // Data informada é em Brasília (UTC-3). Convertendo para UTC:
+  // "DD/MM/YYYY 00:00 BRT" = "DD/MM/YYYY 03:00 UTC"
+  // "DD/MM/YYYY 23:59:59 BRT" = "(DD+1)/MM/YYYY 02:59:59 UTC"
+  const start = Math.floor(Date.UTC(y, m - 1, d, 3, 0, 0) / 1000);
+  const end = Math.floor(Date.UTC(y, m - 1, d + 1, 2, 59, 59) / 1000);
   return { start, end };
-}
+  }
 
 // Identifica se um período é parte do 1° ou 2° tempo (incluindo subdivisões)
 function classifyPeriod(name) {
