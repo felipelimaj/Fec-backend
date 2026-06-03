@@ -207,7 +207,7 @@ function finalizePlayer(a) {
     decN: decTotal,
     expl: explTotal,
     pload: round(plTotal, 1),
-    vmax: round(maxVelMS * 3.6, 1),    // m/s → km/h
+    vmax: round(maxVelMS, 1),    // já em km/h
     hrPct: round(a.t1.hrAvgSum / (a.t1.hrAvgDur || 1), 1),
     // Densidades agregadas
     distMin: round(distTotal / safeMin, 2),
