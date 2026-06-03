@@ -14,8 +14,7 @@ const PARAMETERS = [
   'velocity_band5_total_distance',
   'velocity_band6_total_distance',
   'velocity_band7_total_distance',
-  'acceleration_band2_total_effort_count',
-  'acceleration_band3_total_effort_count',
+  'gen2_acceleration_band7plus_total_effort_count',
   'gen2_acceleration_band1_total_effort_count', // = Decel B3 (severa)
   'gen2_acceleration_band2_total_effort_count', // = Decel B2 (média)
   'total_player_load',
