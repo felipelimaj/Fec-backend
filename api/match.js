@@ -82,10 +82,36 @@ function buildChunks(fromUnix, toUnix) {
 }
 
 // Tenta extrair o nome do adversário a partir do nome da atividade.
-// Os nomes na Catapult variam, então isto é um "melhor esforço": devolve
-// o nome cru da atividade se não conseguir limpar nada.
-function guessOpponent(activityName) {
-  return (activityName || '').trim();
+// Os nomes na Catapult variam muito; cobrimos os padrões observados:
+//   "Jogo x Vitória", "Jogo x. AMÉRICA RN", "Jogo s Juventude",
+//   "Fortaleza x Botafogo", "X GREMiO", "Jogo x Sport 21-02-24",
+//   "Jogo x CRB2", "Jogo x Ceará - Final 2"
+// Quando não há adversário identificável ("Jogo", "Tático", "26 jul 06:13 PM",
+// "Activity 2024..."), devolve null — e o handler usa o nome cru como fallback,
+// para o jogo nunca sumir do seletor.
+function cleanOpponent(activityName) {
+  let s = (activityName || '').trim();
+
+  // Casos sem adversário identificável
+  if (/^\d{1,2}\s/.test(s)) return null;             // "26 jul 06:13 PM"
+  if (/^Activity\s/i.test(s)) return null;            // "Activity 2024..."
+  if (/^(jogo|t[aá]tico)\s*$/i.test(s)) return null;  // só "Jogo" ou "Tático"
+
+  // Remove prefixos: "Jogo x", "Jogo x.", "Jogo s", "Fortaleza x", "X "
+  s = s.replace(/^(jogo|fortaleza)\s*[xs]\.?\s+/i, '');
+  s = s.replace(/^x\s+/i, '');
+
+  // Remove sufixo de data: "26-10", "21-02-24", "20 03", "30-03-2024"
+  s = s.replace(/\s+\d{1,2}[\s\-]\d{1,2}([\s\-]\d{2,4})?\s*$/, '');
+
+  // Remove sufixo "- Final 2" e similares
+  s = s.replace(/\s*-\s*final.*$/i, '');
+
+  // Remove número de desambiguação no fim: "CRB2", "Vasco 2"
+  s = s.replace(/\s*\d+\s*$/, '');
+
+  s = s.trim();
+  return s || null;
 }
 
 // =============================================================================
@@ -152,11 +178,13 @@ export default async function handler(req, res) {
       const startUnix = a.start_time || a.start || null;
       const date = startUnix ? unixToBrtDate(startUnix) : null;
 
+      const adv = cleanOpponent(a.name) || (a.name || '').trim() || '—';
+
       games.push({
         date,
         id: a.id,
         name: a.name || '',
-        adv: guessOpponent(a.name),
+        adv,
         hasT1: halves.includes('t1'),
         hasT2: halves.includes('t2'),
         periodCount: periods.length,
