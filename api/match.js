@@ -1,31 +1,26 @@
 // =============================================================================
 //  Fortaleza EC — Performance API
-//  Endpoint: GET /api/match?date=DD/MM/YYYY
-//  Retorna o relatório de jogo daquela data, com dados da Catapult Connect API
+//  Endpoint: GET /api/games
+//  Retorna a lista de TODOS os jogos disponíveis na Catapult Connect API.
+//  Um "jogo" é uma atividade que tem pelo menos um período "1tempo" ou "2tempo".
+//
+//  Parâmetros opcionais:
+//    ?from=DD/MM/YYYY   data inicial da varredura (default: 01/01/2024)
+//    ?to=DD/MM/YYYY     data final da varredura  (default: hoje)
+//
+//  Resposta:
+//    {
+//      from, to, total,
+//      games: [ { date, id, name, adv, hasT1, hasT2, periodCount }, ... ]
+//    }
+//  Ordenado da data mais recente para a mais antiga.
 // =============================================================================
 
 const CATAPULT_BASE = 'https://connect-us.catapultsports.com/api/v6';
 
-// Parâmetros que vamos pedir à Catapult em cada chamada /stats
-const PARAMETERS = [
-  'total_distance',
-  'total_duration',
-  'max_vel',
-  'velocity_band5_total_distance',
-  'velocity_band6_total_distance',
-  'velocity_band7_total_distance',
-  'gen2_acceleration_band7plus_total_effort_count',
-  'gen2_acceleration_band1_total_effort_count', // = Decel B3 (severa)
-  'gen2_acceleration_band2_total_effort_count', // = Decel B2 (média)
-  'total_player_load',
-  'player_load_per_minute',
-  'meterage_per_minute',
-  'percentage_max_heart_rate',
-  'percentage_avg_heart_rate',
-  'mean_heart_rate',
-  'explosive_efforts_gk',
-  'sprint_efforts',
-];
+// Janela máxima por chamada à Catapult, em dias.
+// A API limita o tamanho do intervalo; varremos em blocos deste tamanho.
+const CHUNK_DAYS = 60;
 
 // CORS — permite que o dashboard chame esta API do navegador
 function setCORS(res) {
@@ -42,28 +37,7 @@ async function catapultGET(path, token) {
   return r.json();
 }
 
-async function catapultPOST(path, token, body) {
-  const r = await fetch(`${CATAPULT_BASE}${path}`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (!r.ok) throw new Error(`Catapult POST ${path} → HTTP ${r.status}`);
-  return r.json();
-}
-
-function dateToUnixRange(dateStr) {
-// Converte "27/05/2026" em timestamps Unix do dia inteiro
-const [d, m, y] = dateStr.split('/').map(Number);
-  // Data informada é em Brasília (UTC-3). Convertendo para UTC:
-  // "DD/MM/YYYY 00:00 BRT" = "DD/MM/YYYY 03:00 UTC"
-  // "DD/MM/YYYY 23:59:59 BRT" = "(DD+1)/MM/YYYY 02:59:59 UTC"
-  const start = Math.floor(Date.UTC(y, m - 1, d, 3, 0, 0) / 1000);
-  const end = Math.floor(Date.UTC(y, m - 1, d + 1, 2, 59, 59) / 1000);
-  return { start, end };
-  }
-
-// Identifica se um período é parte do 1° ou 2° tempo (incluindo subdivisões)
+// Identifica se um período pertence ao 1° ou 2° tempo (mesma regra do match.js)
 function classifyPeriod(name) {
   const n = (name || '').trim();
   if (n.startsWith('1tempo')) return 't1';
@@ -71,12 +45,47 @@ function classifyPeriod(name) {
   return null;
 }
 
-// Extrai o ID do Cadastro a partir do athlete_name no formato "96 PIERRE"
-function parseAthleteName(athleteName) {
-  const s = (athleteName || '').trim();
-  const m = s.match(/^(F?)(\d+)\s+(.+)$/);
-  if (m) return { cadastroId: parseInt(m[2], 10), name: m[3] };
-  return { cadastroId: null, name: s };
+// "DD/MM/YYYY 00:00 BRT" → timestamp Unix (UTC). BRT = UTC-3.
+function brtMidnightToUnix(y, m, d) {
+  return Math.floor(Date.UTC(y, m - 1, d, 3, 0, 0) / 1000);
+}
+
+// Converte um timestamp de início de atividade (Unix, UTC) na data BRT "DD/MM/YYYY"
+function unixToBrtDate(unixSeconds) {
+  // BRT = UTC-3, então subtraímos 3h antes de extrair a data
+  const dt = new Date((unixSeconds - 3 * 3600) * 1000);
+  const d = String(dt.getUTCDate()).padStart(2, '0');
+  const m = String(dt.getUTCMonth() + 1).padStart(2, '0');
+  const y = dt.getUTCFullYear();
+  return `${d}/${m}/${y}`;
+}
+
+// Parse de "DD/MM/YYYY" → {y, m, d}. Retorna null se inválido.
+function parseDateBR(s) {
+  const parts = (s || '').split('/').map(Number);
+  if (parts.length !== 3 || parts.some(isNaN)) return null;
+  const [d, m, y] = parts;
+  return { y, m, d };
+}
+
+// Gera os blocos [start,end] em Unix cobrindo de fromUnix até toUnix
+function buildChunks(fromUnix, toUnix) {
+  const chunks = [];
+  const chunkSec = CHUNK_DAYS * 24 * 3600;
+  let s = fromUnix;
+  while (s < toUnix) {
+    const e = Math.min(s + chunkSec - 1, toUnix);
+    chunks.push({ start: s, end: e });
+    s = e + 1;
+  }
+  return chunks;
+}
+
+// Tenta extrair o nome do adversário a partir do nome da atividade.
+// Os nomes na Catapult variam, então isto é um "melhor esforço": devolve
+// o nome cru da atividade se não conseguir limpar nada.
+function guessOpponent(activityName) {
+  return (activityName || '').trim();
 }
 
 // =============================================================================
@@ -89,154 +98,84 @@ export default async function handler(req, res) {
   const token = process.env.CATAPULT_TOKEN;
   if (!token) return res.status(500).json({ error: 'CATAPULT_TOKEN não configurado' });
 
-  const date = req.query.date; // ex: "27/05/2026"
-  if (!date) return res.status(400).json({ error: 'Parâmetro ?date=DD/MM/YYYY é obrigatório' });
+  // Intervalo de varredura (com defaults)
+  const fromParsed = parseDateBR(req.query.from) || { y: 2024, m: 1, d: 1 };
+  let toParsed = parseDateBR(req.query.to);
+  if (!toParsed) {
+    const now = new Date();
+    // "hoje" em BRT: somamos 1 dia para incluir jogos de hoje por inteiro
+    const brtNow = new Date(now.getTime() - 3 * 3600 * 1000);
+    toParsed = {
+      y: brtNow.getUTCFullYear(),
+      m: brtNow.getUTCMonth() + 1,
+      d: brtNow.getUTCDate() + 1,
+    };
+  }
+
+  const fromUnix = brtMidnightToUnix(fromParsed.y, fromParsed.m, fromParsed.d);
+  const toUnix = brtMidnightToUnix(toParsed.y, toParsed.m, toParsed.d);
+
+  if (toUnix <= fromUnix) {
+    return res.status(400).json({ error: 'Intervalo inválido: ?to deve ser depois de ?from' });
+  }
 
   try {
-    // 1. Buscar atividades do dia
-    const { start, end } = dateToUnixRange(date);
-    const activities = await catapultGET(`/activities?start_time=${start}&end_time=${end}`, token);
+    const chunks = buildChunks(fromUnix, toUnix);
 
-    // 2. Encontrar a atividade que é JOGO (tem período 1tempo OU 2tempo)
-    const game = activities.find(a =>
-      (a.periods || []).some(p => classifyPeriod(p.name) !== null)
+    // Busca cada bloco em paralelo
+    const results = await Promise.all(
+      chunks.map(c =>
+        catapultGET(`/activities?start_time=${c.start}&end_time=${c.end}`, token)
+      )
     );
-    if (!game) return res.status(404).json({ error: `Nenhum jogo encontrado em ${date}` });
 
-    // 3. Buscar stats do jogo (por período × atleta)
-    const stats = await catapultPOST('/stats', token, {
-      filters: [{ name: 'activity_id', comparison: '=', values: [game.id] }],
-      parameters: PARAMETERS,
-      group_by: ['period', 'athlete'],
-    });
-
-    // 4. Agregar: somar 1tempo+1tempo1+1tempo2... por atleta, idem 2tempo
-    const byAthlete = {}; // chave = cadastroId ou athlete_name
-
-    for (const s of stats) {
-      const half = classifyPeriod(s.period_name);
-      if (!half) continue; // ignora Aquecimento, Suplentes etc.
-
-      const { cadastroId, name } = parseAthleteName(s.athlete_name);
-      const key = cadastroId ?? `name:${name}`;
-
-      if (!byAthlete[key]) {
-        byAthlete[key] = {
-          cadastroId,
-          atleta: name,
-          t1: emptyHalf(),
-          t2: emptyHalf(),
-        };
+    // Junta todas as atividades e remove duplicatas por id
+    const seen = new Set();
+    const allActivities = [];
+    for (const list of results) {
+      for (const a of list || []) {
+        if (a && a.id != null && !seen.has(a.id)) {
+          seen.add(a.id);
+          allActivities.push(a);
+        }
       }
-      const acc = byAthlete[key][half];
-      acc.dur += s.total_duration || 0;
-      acc.dist += s.total_distance || 0;
-      acc.b5 += s.velocity_band5_total_distance || 0;
-      acc.b6 += s.velocity_band6_total_distance || 0;
-      acc.b7 += s.velocity_band7_total_distance || 0;
-      acc.accB23 += s.gen2_acceleration_band7plus_total_effort_count || 0;
-      acc.decB3 += s.gen2_acceleration_band1_total_effort_count || 0;
-      acc.decB2 += s.gen2_acceleration_band2_total_effort_count || 0;
-      acc.pl += s.total_player_load || 0;
-      acc.expl += s.explosive_efforts_gk || 0;
-      acc.sprints += s.sprint_efforts || 0;
-      acc.maxVel = Math.max(acc.maxVel, s.max_vel || 0);
-      acc.hrMaxPct = Math.max(acc.hrMaxPct, s.percentage_max_heart_rate || 0);
-      // FC média ponderada pela duração
-      const dur = s.total_duration || 0;
-      acc.hrAvgSum += (s.percentage_avg_heart_rate || 0) * dur;
-      acc.hrAvgDur += dur;
     }
 
-    // 5. Construir resposta no formato esperado pelo dashboard
-    const players = Object.values(byAthlete)
-      .map(a => finalizePlayer(a))
-      .filter(p => p.mins > 0)
-      .sort((a, b) => b.dist - a.dist);
+    // Filtra só os jogos (têm período 1tempo ou 2tempo) e monta a saída enxuta
+    const games = [];
+    for (const a of allActivities) {
+      const periods = a.periods || [];
+      const halves = periods.map(p => classifyPeriod(p.name)).filter(Boolean);
+      if (halves.length === 0) continue; // não é jogo → ignora
+
+      // start_time da atividade define a data do jogo
+      const startUnix = a.start_time || a.start || null;
+      const date = startUnix ? unixToBrtDate(startUnix) : null;
+
+      games.push({
+        date,
+        id: a.id,
+        name: a.name || '',
+        adv: guessOpponent(a.name),
+        hasT1: halves.includes('t1'),
+        hasT2: halves.includes('t2'),
+        periodCount: periods.length,
+        start_time: startUnix,
+      });
+    }
+
+    // Ordena do mais recente para o mais antigo
+    games.sort((x, y) => (y.start_time || 0) - (x.start_time || 0));
 
     return res.status(200).json({
-      date,
-      game: { id: game.id, name: game.name, periodCount: (game.periods || []).length },
-      params_used: PARAMETERS,
-      n_records: stats.length,
-      n_players: players.length,
-      players,
+      from: `${String(fromParsed.d).padStart(2, '0')}/${String(fromParsed.m).padStart(2, '0')}/${fromParsed.y}`,
+      to: `${String(toParsed.d).padStart(2, '0')}/${String(toParsed.m).padStart(2, '0')}/${toParsed.y}`,
+      chunks: chunks.length,
+      total: games.length,
+      games,
     });
   } catch (err) {
-    console.error('Erro:', err);
+    console.error('Erro /api/games:', err);
     return res.status(500).json({ error: err.message });
   }
-}
-
-function emptyHalf() {
-  return {
-    dur: 0, dist: 0, b5: 0, b6: 0, b7: 0,
-    accB23: 0, decB2: 0, decB3: 0,
-    pl: 0, expl: 0, sprints: 0,
-    maxVel: 0, hrMaxPct: 0, hrAvgSum: 0, hrAvgDur: 0,
-  };
-}
-
-function finalizePlayer(a) {
-  const t1DurMin = a.t1.dur / 60;
-  const t2DurMin = a.t2.dur / 60;
-  const totalMin = t1DurMin + t2DurMin;
-  const safeMin = totalMin || 1;
-
-  // Totais combinados
-  const distTotal = a.t1.dist + a.t2.dist;
-  const altIntTotal = a.t1.b5 + a.t1.b6 + a.t1.b7 + a.t2.b5 + a.t2.b6 + a.t2.b7;
-  const sprintTotal = a.t1.b6 + a.t1.b7 + a.t2.b6 + a.t2.b7;
-  const accTotal = a.t1.accB23 + a.t2.accB23;
-  const decTotal = a.t1.decB2 + a.t1.decB3 + a.t2.decB2 + a.t2.decB3;
-  const explTotal = a.t1.expl + a.t2.expl;
-  const plTotal = a.t1.pl + a.t2.pl;
-  const maxVelMS = Math.max(a.t1.maxVel, a.t2.maxVel);
-
-  // Densidades por tempo
-  const dens = (val, durSec) => durSec > 0 ? val / (durSec / 60) : 0;
-
-  return {
-    cadastro_id: a.cadastroId,
-    atleta_catapult: a.atleta,
-    mins: round(totalMin, 1),
-    dist: round(distTotal, 1),
-    altInt: round(altIntTotal, 1),
-    sprintDist: round(sprintTotal, 1),
-    accN: accTotal,
-    decN: decTotal,
-    expl: explTotal,
-    pload: round(plTotal, 1),
-    vmax: round(maxVelMS, 1),    // já em km/h
-    hrPct: round(a.t1.hrAvgSum / (a.t1.hrAvgDur || 1), 1),
-    // Densidades agregadas
-    distMin: round(distTotal / safeMin, 2),
-    altMin: round(altIntTotal / safeMin, 3),
-    accMin: round(accTotal / safeMin, 3),
-    decMin: round(decTotal / safeMin, 3),
-    // Por tempo
-    has_t1: t1DurMin > 0,
-    has_t2: t2DurMin > 0,
-    t1_dur: round(t1DurMin, 1),
-    t2_dur: round(t2DurMin, 1),
-    t1_dist: round(a.t1.dist, 1),
-    t2_dist: round(a.t2.dist, 1),
-    t1_altInt: round(a.t1.b5 + a.t1.b6 + a.t1.b7, 1),
-    t2_altInt: round(a.t2.b5 + a.t2.b6 + a.t2.b7, 1),
-    t1_expl: a.t1.expl,
-    t2_expl: a.t2.expl,
-    t1_distMin: round(dens(a.t1.dist, a.t1.dur), 2),
-    t2_distMin: round(dens(a.t2.dist, a.t2.dur), 2),
-    t1_altMin:  round(dens(a.t1.b5 + a.t1.b6 + a.t1.b7, a.t1.dur), 3),
-    t2_altMin:  round(dens(a.t2.b5 + a.t2.b6 + a.t2.b7, a.t2.dur), 3),
-    t1_accMin:  round(dens(a.t1.accB23, a.t1.dur), 3),
-    t2_accMin:  round(dens(a.t2.accB23, a.t2.dur), 3),
-    t1_decMin:  round(dens(a.t1.decB2 + a.t1.decB3, a.t1.dur), 3),
-    t2_decMin:  round(dens(a.t2.decB2 + a.t2.decB3, a.t2.dur), 3),
-  };
-}
-
-function round(v, d) {
-  const f = Math.pow(10, d);
-  return Math.round(v * f) / f;
 }
