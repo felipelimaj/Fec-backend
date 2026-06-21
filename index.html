@@ -1,31 +1,772 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-<meta charset="UTF-8">
-<title>FEC Performance API</title>
+<html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FEC — Relatório de Jogo</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800;900&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-  body{font-family:-apple-system,sans-serif;max-width:720px;margin:60px auto;padding:0 20px;color:#1A1E2E;background:#F0F2F7;line-height:1.6}
-  h1{color:#1A56A0;border-left:5px solid #E8360A;padding-left:14px}
-  code{background:#fff;padding:2px 8px;border-radius:4px;border:1px solid #DDE2EC;font-size:13px;font-family:"SF Mono",monospace}
-  .card{background:#fff;border:1px solid #DDE2EC;border-radius:10px;padding:18px 22px;margin:14px 0}
-  .ok{color:#15803d;font-weight:600}
-  a{color:#1A56A0;text-decoration:none;border-bottom:1px solid #1A56A0}
-</style>
-</head>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--az:#1A56A0;--vm:#E8360A;--az2:#0d3870;--az3:#4a86c8;--bg:#F0F2F7;--card:#fff;--bdr:#DDE2EC;--txt:#1A1E2E;--mt:#64748B;--lt:#EEF2F9}
+body{font-family:'Barlow',sans-serif;background:var(--bg);color:var(--txt);font-size:14px}
+.top{background:var(--az);height:54px;display:flex;align-items:center;padding:0 20px;gap:12px;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+.top img{height:40px;flex-shrink:0;background:#fff;border-radius:6px;padding:2px}
+.top-ttl{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:17px;color:#fff;text-transform:uppercase;letter-spacing:.5px}
+.top-sub{font-size:11px;color:#90b8e8}
+.badge{background:var(--vm);color:#fff;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:11px;padding:4px 12px;border-radius:20px;margin-left:auto}
+.tabs{background:#fff;border-bottom:2px solid var(--bdr);display:flex;padding:0 20px;position:sticky;top:54px;z-index:99;overflow-x:auto}
+.tab{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.5px;padding:10px 15px;cursor:pointer;border:none;background:none;color:var(--mt);border-bottom:3px solid transparent;margin-bottom:-2px;white-space:nowrap}
+.tab.on{color:var(--az);border-bottom-color:var(--vm)}
+.main{padding:14px 20px;max-width:1500px;margin:0 auto}
+.pg{display:none}.pg.on{display:block}
+.card{background:var(--card);border:1px solid var(--bdr);border-radius:10px;padding:14px 16px;margin-bottom:12px}
+.ctitle{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:14px;text-transform:uppercase;letter-spacing:.5px;color:var(--az);border-left:4px solid var(--vm);padding-left:9px;margin-bottom:12px}
+.capa-grid{display:grid;grid-template-columns:1fr 220px 1fr;gap:16px;margin-bottom:14px}
+.team-card{background:linear-gradient(160deg,var(--az),var(--az2));border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;gap:12px;min-height:220px}
+.team-card img{height:90px;width:auto;object-fit:contain}
+.team-name{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:22px;color:#fff;text-transform:uppercase;letter-spacing:1px;text-align:center}
+.score-box{background:linear-gradient(160deg,var(--az),var(--az2));border-radius:10px;padding:16px;text-align:center}
+.score-val{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:56px;color:#fff;line-height:1;letter-spacing:4px}
+.score-camp{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;color:#90b8e8;margin-top:5px;text-transform:uppercase}
+.info-box{background:var(--card);border:1px solid var(--bdr);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.info-row{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:500}
+.rbadge{display:inline-block;padding:4px 14px;border-radius:6px;font-weight:800;font-size:13px;text-transform:uppercase}
+.rv{background:#dcfce7;color:#15803d}.re{background:#fef9c3;color:#92400e}.rd{background:#fee2e2;color:#dc2626}
+select{border:1px solid var(--bdr);border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;background:#fff;cursor:pointer;outline:none}
+.rrow{display:flex;align-items:center;gap:8px;padding:5px 2px;border-bottom:1px solid #f0f2f6}
+.rrow:last-child{border-bottom:none}
+.rname{min-width:108px;font-size:13px;font-weight:600}
+.rbt{flex:1;position:relative;height:22px;background:#e8ecf2;border-radius:5px;overflow:hidden}
+.rbf{height:100%;border-radius:5px;display:flex;align-items:center;justify-content:flex-end;padding-right:7px}
+.rbv{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:12px;color:#fff}
+.rb2{position:absolute;top:0;left:0;height:100%;border-radius:5px}
+.pos-dot{width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:9px;background:#94a3b8;color:#fff;flex-shrink:0}
+.av{width:30px;height:30px;border-radius:50%;object-fit:cover;object-position:top center;flex-shrink:0;border:1.5px solid var(--bdr)}
+.av-txt{width:30px;height:30px;border-radius:50%;background:var(--lt);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--az);flex-shrink:0}
+.dual-row{display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid #f5f6f8}
+.dname{min-width:108px;font-size:13px;font-weight:600}
+.dbars{flex:1;display:flex;flex-direction:column;gap:3px}
+.dbar{display:flex;align-items:center;gap:5px}
+.dlbl{font-size:10px;color:var(--mt);font-weight:700;width:16px}
+.dtrack{flex:1;height:15px;background:#e8ecf2;border-radius:3px;overflow:hidden}
+.dfill{height:100%;border-radius:3px;display:flex;align-items:center;justify-content:flex-end;padding-right:5px}
+.dval{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:11px;color:#fff}
+.dtotal{min-width:52px;text-align:right;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:14px;color:var(--az)}
+.metric-title{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:16px;text-transform:uppercase;color:var(--az);border-left:4px solid var(--vm);padding-left:10px;margin:12px 0 10px}
+.pos-cols{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.pos-card{background:var(--card);border:1px solid var(--bdr);border-radius:10px;padding:10px 12px;border-top:3px solid}
+.pos-hdr{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:12px;color:#fff;border-radius:5px;padding:3px 9px;display:inline-block;margin-bottom:8px;text-transform:uppercase}
+.zrow{display:flex;align-items:center;gap:7px;margin-bottom:5px}
+.zname{min-width:72px;font-size:11px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ztrack{flex:1;height:18px;background:#e8ecf2;border-radius:4px;overflow:hidden}
+.zfill{height:100%;border-radius:4px;display:flex;align-items:center;justify-content:space-between;padding:0 6px}
+.zval,.zsig{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:10px}
+.acum-filter{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;background:var(--card);border:1px solid var(--bdr);border-radius:10px;padding:10px 14px}
+input[type=range]{accent-color:var(--az);width:110px}
+.min-row{display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:1px solid #f0f2f6}
+.min-av{width:44px;height:44px;border-radius:50%;object-fit:cover;object-position:top center;border:2px solid var(--bdr)}
+.min-av-txt{width:44px;height:44px;border-radius:50%;background:var(--lt);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:var(--az)}
+.min-name{min-width:130px;font-size:13px;font-weight:600}
+.fad-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+@media(max-width:900px){.fad-grid{grid-template-columns:1fr 1fr}.pos-cols{grid-template-columns:1fr 1fr}}
+.vc-outer{overflow-x:auto;padding-top:24px}
+.vc-inner{display:flex;align-items:flex-end;width:100%;min-width:600px}
+.vc-athlete{flex:1;display:flex;flex-direction:column;align-items:center;padding:0 2px}
+.vc-bars{display:flex;gap:2px;align-items:flex-end;width:100%;position:relative}
+.vc-b{flex:1;border-radius:3px 3px 0 0;position:relative}
+.vc-lbl{position:absolute;top:-17px;left:50%;transform:translateX(-50%);font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:10px;white-space:nowrap}
+.tip{position:fixed;background:#1a1e2e;color:#fff;font-size:11px;padding:9px 14px;border-radius:6px;pointer-events:none;z-index:200;display:none;line-height:1.6;border-left:3px solid var(--vm)}
+@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+@media print{
+  .top{position:relative!important;print-color-adjust:exact;-webkit-print-color-adjust:exact}
+  .tabs{display:none!important}
+  .pg{display:block!important;page-break-after:always}
+  .pg:last-child{page-break-after:auto}
+  #btn-refresh,#btn-pdf,#game-sel,.acum-filter{display:none!important}
+  body{background:#fff}
+  .card{break-inside:avoid}
+}
+</style></head>
 <body>
-<h1>FEC Performance API</h1>
-<div class="card">
-  <p><span class="ok">●</span> Backend rodando.</p>
-  <p>Endpoints disponíveis:</p>
-  <ul>
-    <li><code>/api/atletas</code> — lista de atletas Catapult com ID Cadastro</li>
-    <li><code>/api/match?date=DD/MM/YYYY</code> — relatório de jogo da data</li>
-  </ul>
+<div class="top">
+  <img id="fec-shield" src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/22/Fortaleza_EsporteClube_2018.png/240px-Fortaleza_EsporteClube_2018.png" alt="FEC" onerror="this.style.display='none'">
+  <div><div class="top-ttl">Relatório de Jogo</div><div class="top-sub">Departamento de Fisiologia · Adriano Lima &amp; Felipe Lima</div></div>
+  <button id="btn-refresh" onclick="fetchMatch()" style="background:var(--vm);color:#fff;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:11px;padding:6px 14px;border-radius:20px;border:none;cursor:pointer;text-transform:uppercase;letter-spacing:.5px;display:flex;align-items:center;gap:6px">
+  <span id="btn-icon">↻</span>
+  <span id="btn-txt">Atualizar dados</span>
+</button>
+<span class="badge" id="topbadge" style="background:#0d3870">Sport · 20/05/2026</span>
+  <button id="btn-pdf" onclick="window.print()" style="background:#0d3870;color:#fff;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:11px;padding:6px 14px;border-radius:20px;border:1px solid #4a86c8;cursor:pointer;text-transform:uppercase;letter-spacing:.5px">⬇ Exportar PDF</button>
 </div>
-<div class="card">
-  <strong>Teste rápido:</strong><br>
-  <a href="/api/atletas">→ /api/atletas</a><br>
-  <a href="/api/match?date=27/05/2026">→ /api/match?date=27/05/2026</a>
+<div class="tabs">
+  <button class="tab on" onclick="show('capa',this)">Capa</button>
+  <button class="tab" onclick="show('totais',this)">Dados Totais</button>
+  <button class="tab" onclick="show('tempos',this)">1° e 2° Tempo</button>
+  <button class="tab" onclick="show('posicao',this)">Por Posição</button>
+  <button class="tab" onclick="show('acumulado',this)">Acumulado</button>
+  <button class="tab" onclick="show('minutos',this)">Minutos</button>
+  <button class="tab" onclick="show('fadiga',this)">Fadiga 1T→2T</button>
+  <button class="tab" onclick="show('pse',this)">PSE</button>
+  <button class="tab" onclick="show('refs',this)">Valores Referenciais</button>
 </div>
-</body>
-</html>
+<div class="main">
+
+<div class="pg on" id="pg-capa">
+  <div style="margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <label style="font-size:11px;font-weight:600;color:var(--mt);text-transform:uppercase">Selecionar Jogo</label>
+    <select id="game-sel" style="min-width:280px" onchange="loadGame(this.value)"></select>
+  </div>
+  <div class="capa-grid">
+    <div class="team-card">
+      <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/22/Fortaleza_EsporteClube_2018.png/240px-Fortaleza_EsporteClube_2018.png" alt="Fortaleza" onerror="this.style.display='none'">
+      <div class="team-name">Fortaleza</div>
+    </div>
+    <div>
+      <div class="score-box">
+        <div class="score-val" id="c-placar">1x2</div>
+        <div class="score-camp" id="c-camp">Copa do Nordeste</div>
+      </div>
+      <div class="info-box">
+        <div class="info-row"><span style="width:22px;text-align:center">📅</span><span id="c-date">20/05/2026</span></div>
+        <div class="info-row"><span style="width:22px;text-align:center">🏟</span><span id="c-estadio">Arena Castelão</span></div>
+        <div class="info-row"><span style="width:22px;text-align:center">🌡</span><span id="c-temp">27°C · 92% UR</span></div>
+        <div class="info-row"><span style="width:22px;text-align:center">📍</span><span id="c-result"></span></div>
+      </div>
+    </div>
+    <div class="team-card">
+      <img id="adv-img" alt="" onerror="this.style.display='none';document.getElementById('adv-emoji').style.display='block'">
+      <div id="adv-emoji" style="font-size:64px;display:none">⚽</div>
+      <div class="team-name" id="c-adv">Sport</div>
+    </div>
+  </div>
+</div>
+
+<div class="pg" id="pg-totais">
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px">
+    <div class="card"><div class="ctitle">Distância Total (m)</div><div id="r-dist"></div></div>
+    <div class="card"><div class="ctitle">Alta Int. &amp; Sprints B6+B7</div><div id="r-alt"></div></div>
+    <div class="card"><div class="ctitle">Acelerações &amp; Desacelerações</div><div id="r-acc"></div></div>
+    <div class="card"><div class="ctitle">Esforços Explosivos</div><div id="r-expl"></div></div>
+  </div>
+  <div class="card"><div class="ctitle">Velocidade Máxima (km/h)</div><div id="r-vmax"></div></div>
+</div>
+
+<div class="pg" id="pg-tempos">
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px">
+    <div class="card"><div class="ctitle">Distância Percorrida (m)</div><div id="d-dist"></div></div>
+    <div class="card"><div class="ctitle">Alta Intensidade B5+B6+B7 (m)</div><div id="d-alt"></div></div>
+    <div class="card"><div class="ctitle">Esforços Explosivos (nº)</div><div id="d-expl"></div></div>
+  </div>
+  <div class="card">
+    <div class="ctitle">Densidade Dist/min — 1° vs 2° Tempo</div>
+    <div style="font-size:11px;color:var(--mt);margin-bottom:10px">
+      <span style="display:inline-block;width:12px;height:12px;background:var(--az);border-radius:2px;vertical-align:middle;margin-right:4px"></span>1° Tempo
+      <span style="display:inline-block;width:12px;height:12px;background:var(--az3);border-radius:2px;vertical-align:middle;margin:0 4px 0 10px"></span>2° Tempo
+    </div>
+    <div class="vc-outer" style="padding-bottom:60px"><div class="vc-inner" id="dens-vert"></div></div>
+  </div>
+</div>
+
+<div class="pg" id="pg-posicao">
+  <div style="font-size:12px;color:var(--mt);margin-bottom:12px;padding:8px 12px;background:var(--lt);border-radius:8px;border:1px solid var(--bdr)">
+    <b>Z-score vs norma individual</b> (≥85min):
+    <span style="background:#14532d;color:#fff;padding:1px 7px;border-radius:3px;font-size:11px;font-weight:700;margin-left:4px">+2Z</span>
+    <span style="background:#4ade80;color:#14532d;padding:1px 7px;border-radius:3px;font-size:11px;font-weight:700;margin-left:2px">+1Z</span>
+    <span style="background:#fde68a;color:#78350f;padding:1px 7px;border-radius:3px;font-size:11px;font-weight:700;margin-left:2px">0Z</span>
+    <span style="background:#fb923c;color:#fff;padding:1px 7px;border-radius:3px;font-size:11px;font-weight:700;margin-left:2px">-1Z</span>
+    <span style="background:#dc2626;color:#fff;padding:1px 7px;border-radius:3px;font-size:11px;font-weight:700;margin-left:2px">-2Z</span>
+    <span style="background:#94a3b8;color:#fff;padding:1px 7px;border-radius:3px;font-size:11px;font-weight:700;margin-left:2px">sem norma/&lt;85min</span>
+  </div>
+  <div id="pos-sections"></div>
+</div>
+
+<div class="pg" id="pg-acumulado">
+  <div class="acum-filter">
+    <label style="font-size:11px;font-weight:600;color:var(--mt);text-transform:uppercase">Campeonato</label>
+    <select id="acum-camp" onchange="renderAcum()"><option value="">Todos</option></select>
+    <label style="font-size:11px;font-weight:600;color:var(--mt);text-transform:uppercase">Últimos</label>
+    <input type="range" id="acum-n" min="5" max="50" value="20" oninput="document.getElementById('acum-nl').textContent=this.value;renderAcum()">
+    <span id="acum-nl" style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:16px;color:var(--az);min-width:28px">20</span>
+    <span style="font-size:12px;color:var(--mt)">jogos · Clique para destacar</span>
+  </div>
+  <div class="card"><div class="ctitle">Distância Total &amp; Alta Intensidade</div>
+    <div style="overflow-x:auto"><svg id="a-dist" height="290" style="min-width:400px;width:100%"></svg></div></div>
+  <div class="card"><div class="ctitle">Acelerações &amp; Desacelerações</div>
+    <div style="display:flex;gap:16px;margin-bottom:10px;padding:7px 10px;background:var(--lt);border-radius:6px;border:1px solid var(--bdr);font-size:11px;font-weight:700">
+      <span><span style="display:inline-block;width:14px;height:14px;background:var(--az);border-radius:3px;vertical-align:middle;margin-right:5px"></span>Acelerações B2+B3</span>
+      <span><span style="display:inline-block;width:14px;height:14px;background:var(--az3);border-radius:3px;vertical-align:middle;margin-right:5px"></span>Desacelerações B2+B3</span>
+    </div>
+    <div style="overflow-x:auto"><svg id="a-acc" height="250" style="min-width:400px;width:100%"></svg></div></div>
+</div>
+
+<div class="pg" id="pg-minutos">
+  <div style="margin-bottom:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <label style="font-size:11px;font-weight:600;color:var(--mt);text-transform:uppercase">Jogo</label>
+    <select id="min-sel" style="min-width:280px" onchange="renderMin(this.value)"></select>
+  </div>
+  <div class="card"><div class="ctitle">Minutos jogados — <span id="min-date"></span></div><div id="min-bars"></div></div>
+</div>
+
+<div class="pg" id="pg-fadiga">
+  <div style="font-size:12px;color:var(--mt);margin-bottom:10px;padding:8px 12px;background:var(--lt);border-radius:8px;border:1px solid var(--bdr)">
+    Densidades por período. <span style="color:#15803d;font-weight:600">Verde</span> = manteve/melhorou. <span style="color:var(--vm);font-weight:600">Vermelho</span> = queda.
+  </div>
+  <div class="fad-grid" id="fad-grid"></div>
+</div>
+
+<div class="pg" id="pg-pse">
+  <div class="card"><div class="ctitle">PSE da Sessão</div>
+    <div style="display:grid;grid-template-columns:auto 1fr;gap:16px">
+      <div style="background:var(--az);border-radius:8px;padding:12px 14px;min-width:180px">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:11px;color:#90b8e8;text-transform:uppercase;margin-bottom:8px">Escala CR-10 Borg</div>
+        <div id="pse-scale"></div>
+      </div>
+      <div style="font-size:13px;color:var(--mt);padding:20px;background:var(--lt);border-radius:8px;border:1px solid var(--bdr)">Conecte a planilha de PSE via Google Sheets.</div>
+    </div></div>
+</div>
+
+</div>
+
+<div class="pg" id="pg-refs">
+  <div style="margin-bottom:12px;padding:8px 12px;background:var(--lt);border-radius:8px;border:1px solid var(--bdr);font-size:12px;color:var(--mt)">
+    Normas individuais calculadas sobre jogos com <strong>≥85 min</strong>. Métricas por minuto (densidades).
+  </div>
+  <div id="refs-grid"></div>
+</div>
+
+<div class="tip" id="tip"></div>
+
+<script>
+let PLAYERS=[{"id": 96, "atleta": "PIERRE", "posicao": "MEIO CAMPO", "pos_group": "Meias", "foto": "https://i.postimg.cc/637SnFPN/pierre.png", "grupo": "", "mins": 100.3, "has_t1": true, "has_t2": true, "dist": 10726.1, "altInt": 296.9, "sprintDist": 32.3, "accN": 28, "decN": 26, "vmax": 27.6, "expl": 67, "hrPct": 89.4, "distMin": 106.94, "altMin": 2.96, "accMin": 0.279, "decMin": 0.259, "ei": 1.196, "z_distMin": -0.72, "z_altMin": -1.13, "z_accMin": -0.12, "z_decMin": -1.32, "t1_dist": 5571.3, "t1_altInt": 95.9, "t1_expl": 34, "t1_dur": 47.82, "t1_distMin": 116.51, "t1_altMin": 2.005, "t1_accMin": 0.314, "t1_decMin": 0.251, "t2_dist": 5154.8, "t2_altInt": 201.0, "t2_expl": 33, "t2_dur": 52.5, "t2_distMin": 98.19, "t2_altMin": 3.829, "t2_accMin": 0.248, "t2_decMin": 0.267}, {"id": 99, "atleta": "L.GAZAL", "posicao": "ZAGUEIRO", "pos_group": "Zagueiros", "foto": "https://i.postimg.cc/HsGG4sdD/lucas-gazal.png", "grupo": "", "mins": 100.3, "has_t1": true, "has_t2": true, "dist": 8684.5, "altInt": 191.4, "sprintDist": 13.5, "accN": 17, "decN": 14, "vmax": 28.2, "expl": 43, "hrPct": 37.2, "distMin": 86.59, "altMin": 1.908, "accMin": 0.169, "decMin": 0.14, "ei": 2.328, "z_distMin": 0.03, "z_altMin": -0.76, "z_accMin": 0.05, "z_decMin": -0.72, "t1_dist": 4278.0, "t1_altInt": 49.3, "t1_expl": 22, "t1_dur": 47.82, "t1_distMin": 89.46, "t1_altMin": 1.031, "t1_accMin": 0.167, "t1_decMin": 0.188, "t2_dist": 4406.5, "t2_altInt": 142.1, "t2_expl": 21, "t2_dur": 52.5, "t2_distMin": 83.93, "t2_altMin": 2.707, "t2_accMin": 0.171, "t2_decMin": 0.095}, {"id": 100, "atleta": "MAILTON", "posicao": "LATERAL", "pos_group": "Laterais", "foto": "https://i.postimg.cc/zGj9rChQ/mailton.png", "grupo": "", "mins": 100.3, "has_t1": true, "has_t2": true, "dist": 9163.0, "altInt": 442.8, "sprintDist": 148.2, "accN": 16, "decN": 29, "vmax": 33.3, "expl": 73, "hrPct": 78.5, "distMin": 91.36, "altMin": 4.415, "accMin": 0.16, "decMin": 0.289, "ei": 1.164, "z_distMin": 0.44, "z_altMin": -0.58, "z_accMin": -1.58, "z_decMin": -0.71, "t1_dist": 4647.5, "t1_altInt": 259.2, "t1_expl": 36, "t1_dur": 47.82, "t1_distMin": 97.19, "t1_altMin": 5.42, "t1_accMin": 0.146, "t1_decMin": 0.335, "t2_dist": 4515.5, "t2_altInt": 183.6, "t2_expl": 37, "t2_dur": 52.5, "t2_distMin": 86.01, "t2_altMin": 3.497, "t2_accMin": 0.171, "t2_decMin": 0.248}, {"id": 102, "atleta": "LUAN F.", "posicao": "ZAGUEIRO", "pos_group": "Zagueiros", "foto": "https://i.postimg.cc/g0MFvVkv/luan-freitas.png", "grupo": "", "mins": 47.8, "has_t1": true, "has_t2": false, "dist": 4243.8, "altInt": 132.1, "sprintDist": 34.1, "accN": 10, "decN": 16, "vmax": 28.2, "expl": 35, "hrPct": 70.3, "distMin": 88.78, "altMin": 2.764, "accMin": 0.209, "decMin": 0.335, "ei": 1.263, "z_distMin": null, "z_altMin": null, "z_accMin": null, "z_decMin": null, "t1_dist": 4243.8, "t1_altInt": 132.1, "t1_expl": 35, "t1_dur": 47.82, "t1_distMin": 88.75, "t1_altMin": 2.762, "t1_accMin": 0.209, "t1_decMin": 0.335, "t2_dist": 0, "t2_altInt": 0, "t2_expl": 0, "t2_dur": 0, "t2_distMin": 0, "t2_altMin": 0, "t2_accMin": 0, "t2_decMin": 0}, {"id": 6, "atleta": "E. BRÍTEZ", "posicao": "ZAGUEIRO", "pos_group": "Zagueiros", "foto": "https://i.postimg.cc/gjXMLRnZ/britez.png", "grupo": "", "mins": 100.3, "has_t1": true, "has_t2": true, "dist": 9111.5, "altInt": 305.8, "sprintDist": 16.8, "accN": 16, "decN": 22, "vmax": 26.1, "expl": 53, "hrPct": 72.6, "distMin": 90.84, "altMin": 3.049, "accMin": 0.16, "decMin": 0.219, "ei": 1.251, "z_distMin": 0.11, "z_altMin": -0.45, "z_accMin": 0.29, "z_decMin": -1.12, "t1_dist": 4764.4, "t1_altInt": 175.2, "t1_expl": 30, "t1_dur": 47.82, "t1_distMin": 99.63, "t1_altMin": 3.664, "t1_accMin": 0.167, "t1_decMin": 0.251, "t2_dist": 4347.1, "t2_altInt": 130.6, "t2_expl": 23, "t2_dur": 52.5, "t2_distMin": 82.8, "t2_altMin": 2.488, "t2_accMin": 0.152, "t2_decMin": 0.19}, {"id": 103, "atleta": "RYAN", "posicao": "VOLANTE", "pos_group": "Meias", "foto": "https://i.postimg.cc/B68yHRz1/ryan.png", "grupo": "", "mins": 47.8, "has_t1": true, "has_t2": false, "dist": 5545.8, "altInt": 170.2, "sprintDist": 3.8, "accN": 13, "decN": 19, "vmax": 25.7, "expl": 43, "hrPct": 82.2, "distMin": 116.02, "altMin": 3.561, "accMin": 0.272, "decMin": 0.397, "ei": 1.411, "z_distMin": null, "z_altMin": null, "z_accMin": null, "z_decMin": null, "t1_dist": 5545.8, "t1_altInt": 170.2, "t1_expl": 43, "t1_dur": 47.82, "t1_distMin": 115.97, "t1_altMin": 3.559, "t1_accMin": 0.272, "t1_decMin": 0.397, "t2_dist": 0, "t2_altInt": 0, "t2_expl": 0, "t2_dur": 0, "t2_distMin": 0, "t2_altMin": 0, "t2_accMin": 0, "t2_decMin": 0}, {"id": 108, "atleta": "VITINHO", "posicao": "EXTREMO", "pos_group": "Atacantes", "foto": "https://i.postimg.cc/tgkvKpKj/vitinho.png", "grupo": "", "mins": 52.5, "has_t1": false, "has_t2": true, "dist": 4821.6, "altInt": 469.0, "sprintDist": 97.2, "accN": 17, "decN": 37, "vmax": 30.6, "expl": 58, "hrPct": 79.7, "distMin": 91.84, "altMin": 8.933, "accMin": 0.324, "decMin": 0.705, "ei": 1.152, "z_distMin": null, "z_altMin": null, "z_accMin": null, "z_decMin": null, "t1_dist": 0, "t1_altInt": 0, "t1_expl": 0, "t1_dur": 0, "t1_distMin": 0, "t1_altMin": 0, "t1_accMin": 0, "t1_decMin": 0, "t2_dist": 4821.6, "t2_altInt": 469.0, "t2_expl": 58, "t2_dur": 52.5, "t2_distMin": 91.84, "t2_altMin": 8.933, "t2_accMin": 0.324, "t2_decMin": 0.705}, {"id": 109, "atleta": "RODRIGUINHO", "posicao": "MEIO CAMPO", "pos_group": "Meias", "foto": "https://i.postimg.cc/90ZnNZCh/rodriguinho.jpg", "grupo": "", "mins": 23.6, "has_t1": false, "has_t2": true, "dist": 2486.1, "altInt": 208.1, "sprintDist": 5.4, "accN": 5, "decN": 9, "vmax": 25.9, "expl": 18, "hrPct": 85.4, "distMin": 105.34, "altMin": 8.818, "accMin": 0.212, "decMin": 0.381, "ei": 1.233, "z_distMin": null, "z_altMin": null, "z_accMin": null, "z_decMin": null, "t1_dist": 0, "t1_altInt": 0, "t1_expl": 0, "t1_dur": 0, "t1_distMin": 0, "t1_altMin": 0, "t1_accMin": 0, "t1_decMin": 0, "t2_dist": 2486.1, "t2_altInt": 208.1, "t2_expl": 18, "t2_dur": 23.62, "t2_distMin": 105.25, "t2_altMin": 8.81, "t2_accMin": 0.212, "t2_decMin": 0.381}, {"id": 110, "atleta": "LUIZ FERNANDO", "posicao": "EXTREMO", "pos_group": "Atacantes", "foto": "https://i.postimg.cc/jdyp80Sc/luis-fernando.png", "grupo": "", "mins": 76.2, "has_t1": true, "has_t2": true, "dist": 7957.0, "altInt": 418.3, "sprintDist": 64.6, "accN": 16, "decN": 30, "vmax": 29.2, "expl": 61, "hrPct": 61.1, "distMin": 104.42, "altMin": 5.49, "accMin": 0.21, "decMin": 0.394, "ei": 1.709, "z_distMin": null, "z_altMin": null, "z_accMin": null, "z_decMin": null, "t1_dist": 5211.3, "t1_altInt": 318.5, "t1_expl": 42, "t1_dur": 47.82, "t1_distMin": 108.98, "t1_altMin": 6.66, "t1_accMin": 0.251, "t1_decMin": 0.418, "t2_dist": 2745.7, "t2_altInt": 99.8, "t2_expl": 19, "t2_dur": 28.43, "t2_distMin": 96.58, "t2_altMin": 3.51, "t2_accMin": 0.141, "t2_decMin": 0.352}, {"id": 14, "atleta": "LUCAS CRISPIM", "posicao": "MEIO CAMPO", "pos_group": "Meias", "foto": "https://i.postimg.cc/kG0TQ4bY/crispim.png", "grupo": "", "mins": 23.6, "has_t1": false, "has_t2": true, "dist": 2470.7, "altInt": 347.3, "sprintDist": 63.5, "accN": 9, "decN": 19, "vmax": 28.5, "expl": 34, "hrPct": 65.9, "distMin": 104.69, "altMin": 14.716, "accMin": 0.381, "decMin": 0.805, "ei": 1.589, "z_distMin": null, "z_altMin": null, "z_accMin": null, "z_decMin": null, "t1_dist": 0, "t1_altInt": 0, "t1_expl": 0, "t1_dur": 0, "t1_distMin": 0, "t1_altMin": 0, "t1_accMin": 0, "t1_decMin": 0, "t2_dist": 2470.7, "t2_altInt": 347.3, "t2_expl": 34, "t2_dur": 23.62, "t2_distMin": 104.6, "t2_altMin": 14.704, "t2_accMin": 0.381, "t2_decMin": 0.804}, {"id": 115, "atleta": "WELLITON", "posicao": "EXTREMO", "pos_group": "Atacantes", "foto": "https://i.postimg.cc/0QL4fcgz/welliton.jpg", "grupo": "", "mins": 52.5, "has_t1": false, "has_t2": true, "dist": 4505.3, "altInt": 221.2, "sprintDist": 56.7, "accN": 15, "decN": 16, "vmax": 29.5, "expl": 38, "hrPct": 86.5, "distMin": 85.82, "altMin": 4.213, "accMin": 0.286, "decMin": 0.305, "ei": 0.992, "z_distMin": null, "z_altMin": null, "z_accMin": null, "z_decMin": null, "t1_dist": 0, "t1_altInt": 0, "t1_expl": 0, "t1_dur": 0, "t1_distMin": 0, "t1_altMin": 0, "t1_accMin": 0, "t1_decMin": 0, "t2_dist": 4505.3, "t2_altInt": 221.2, "t2_expl": 38, "t2_dur": 52.5, "t2_distMin": 85.82, "t2_altMin": 4.213, "t2_accMin": 0.286, "t2_decMin": 0.305}, {"id": 116, "atleta": "J.MIRITELLO", "posicao": "CENTROAVANTE", "pos_group": "Atacantes", "foto": "https://i.postimg.cc/fL3Fm1PD/miritello.png", "grupo": "", "mins": 100.3, "has_t1": true, "has_t2": true, "dist": 9313.7, "altInt": 339.6, "sprintDist": 31.7, "accN": 13, "decN": 19, "vmax": 28.2, "expl": 60, "hrPct": 72.4, "distMin": 92.86, "altMin": 3.386, "accMin": 0.13, "decMin": 0.189, "ei": 1.283, "z_distMin": -0.69, "z_altMin": -1.0, "z_accMin": -0.56, "z_decMin": -0.81, "t1_dist": 4940.4, "t1_altInt": 220.9, "t1_expl": 39, "t1_dur": 47.82, "t1_distMin": 103.31, "t1_altMin": 4.619, "t1_accMin": 0.167, "t1_decMin": 0.251, "t2_dist": 4373.3, "t2_altInt": 118.7, "t2_expl": 21, "t2_dur": 52.5, "t2_distMin": 83.3, "t2_altMin": 2.261, "t2_accMin": 0.095, "t2_decMin": 0.133}, {"id": 85, "atleta": "RODRIGO", "posicao": "MEIO CAMPO", "pos_group": "Meias", "foto": "https://i.postimg.cc/T1sr2Lxj/RODRIGO.png", "grupo": "", "mins": 52.5, "has_t1": false, "has_t2": true, "dist": 5022.7, "altInt": 221.9, "sprintDist": 34.1, "accN": 15, "decN": 25, "vmax": 27.8, "expl": 56, "hrPct": 82.5, "distMin": 95.67, "altMin": 4.227, "accMin": 0.286, "decMin": 0.476, "ei": 1.16, "z_distMin": null, "z_altMin": null, "z_accMin": null, "z_decMin": null, "t1_dist": 0, "t1_altInt": 0, "t1_expl": 0, "t1_dur": 0, "t1_distMin": 0, "t1_altMin": 0, "t1_accMin": 0, "t1_decMin": 0, "t2_dist": 5022.7, "t2_altInt": 221.9, "t2_expl": 56, "t2_dur": 52.5, "t2_distMin": 95.67, "t2_altMin": 4.227, "t2_accMin": 0.286, "t2_decMin": 0.476}, {"id": 118, "atleta": "MAURÍCIO", "posicao": "LATERAL", "pos_group": "Laterais", "foto": "https://i.postimg.cc/yN82YDXh/mauricio.png", "grupo": "", "mins": 76.2, "has_t1": true, "has_t2": true, "dist": 7892.2, "altInt": 375.2, "sprintDist": 37.2, "accN": 16, "decN": 27, "vmax": 28.6, "expl": 57, "hrPct": 91.3, "distMin": 103.57, "altMin": 4.924, "accMin": 0.21, "decMin": 0.354, "ei": 1.134, "z_distMin": null, "z_altMin": null, "z_accMin": null, "z_decMin": null, "t1_dist": 5117.3, "t1_altInt": 288.8, "t1_expl": 40, "t1_dur": 47.82, "t1_distMin": 107.01, "t1_altMin": 6.039, "t1_accMin": 0.272, "t1_decMin": 0.376, "t2_dist": 2774.9, "t2_altInt": 86.4, "t2_expl": 17, "t2_dur": 28.43, "t2_distMin": 97.6, "t2_altMin": 3.039, "t2_accMin": 0.106, "t2_decMin": 0.317}, {"id": 28, "atleta": "T.POCHETTINO", "posicao": "MEIO CAMPO", "pos_group": "Meias", "foto": "https://i.postimg.cc/0N0pXW0j/POCHETTINO.png", "grupo": "", "mins": 47.8, "has_t1": true, "has_t2": false, "dist": 5255.2, "altInt": 392.7, "sprintDist": 26.0, "accN": 23, "decN": 24, "vmax": 29.4, "expl": 54, "hrPct": 84.6, "distMin": 109.94, "altMin": 8.215, "accMin": 0.481, "decMin": 0.502, "ei": 1.3, "z_distMin": null, "z_altMin": null, "z_accMin": null, "z_decMin": null, "t1_dist": 5255.2, "t1_altInt": 392.7, "t1_expl": 54, "t1_dur": 47.82, "t1_distMin": 109.9, "t1_altMin": 8.212, "t1_accMin": 0.481, "t1_decMin": 0.502, "t2_dist": 0, "t2_altInt": 0, "t2_expl": 0, "t2_dur": 0, "t2_distMin": 0, "t2_altMin": 0, "t2_accMin": 0, "t2_decMin": 0}];
+const HISTORY={"18/01/2025": {"adv": "Miami United", "camp": "Pré Temporada", "n": 17, "dist": 94987.0, "altInt": 4642.0, "acc": 217, "dec": 294}, "19/01/2025": {"adv": "Chicago Fire", "camp": "Pré Temporada", "n": 17, "dist": 102705.0, "altInt": 7771.0, "acc": 236, "dec": 371}, "26/11/2024": {"adv": "FLAMENGO (C) 26-11", "camp": "Brasileirão", "n": 15, "dist": 96593.0, "altInt": 5452.0, "acc": 197, "dec": 362}, "22/11/2024": {"adv": "FLUMINENSE (F) 22-11", "camp": "Brasileirão", "n": 15, "dist": 101899.0, "altInt": 6078.0, "acc": 218, "dec": 392}, "11/09/2024": {"adv": "INTER (F) 11-09", "camp": "Brasileirão", "n": 15, "dist": 98172.0, "altInt": 5978.0, "acc": 223, "dec": 353}, "23/01/2025": {"adv": "Moto Club", "camp": "Copa do Nordeste", "n": 14, "dist": 90814.0, "altInt": 6815.0, "acc": 198, "dec": 316}, "26/10/2024": {"adv": "PALMEIRAS (F) 26-10", "camp": "Brasileirão", "n": 15, "dist": 94437.0, "altInt": 4789.0, "acc": 254, "dec": 312}, "16/10/2024": {"adv": "ATL-MG (C) 16-10", "camp": "Brasileirão", "n": 15, "dist": 94038.0, "altInt": 5608.0, "acc": 210, "dec": 334}, "30/03/2024": {"adv": "CEARÁ (C) 30-03", "camp": "Cearense", "n": 15, "dist": 92464.0, "altInt": 5688.0, "acc": 189, "dec": 325}, "29/09/2024": {"adv": "CUIABÁ (C) 29/09", "camp": "Brasileirão", "n": 15, "dist": 100544.0, "altInt": 4828.0, "acc": 236, "dec": 338}, "24/09/2024": {"adv": "CORINTHIANS (F) 24-09", "camp": "Sul-Americana", "n": 15, "dist": 93586.0, "altInt": 5237.0, "acc": 225, "dec": 320}, "21/09/2024": {"adv": "BAHIA (C) 21-09", "camp": "Brasileirão", "n": 15, "dist": 103831.0, "altInt": 5721.0, "acc": 236, "dec": 434}, "17/09/2024": {"adv": "CORINTHIANS (C) 17/09", "camp": "Sul-Americana", "n": 15, "dist": 100179.0, "altInt": 6679.0, "acc": 234, "dec": 323}, "14/09/2024": {"adv": "ATHLETICO (F) 14/09", "camp": "Brasileirão", "n": 15, "dist": 75515.0, "altInt": 1326.0, "acc": 169, "dec": 202}, "31/08/2024": {"adv": "BOTAFOGO (F) 31-08", "camp": "Brasileirão", "n": 15, "dist": 107897.0, "altInt": 7783.0, "acc": 271, "dec": 403}, "25/08/2024": {"adv": "CORINTHIANS (C) 25-08", "camp": "Brasileirão", "n": 15, "dist": 102575.0, "altInt": 6280.0, "acc": 255, "dec": 343}, "21/08/2024": {"adv": "ROSÁRIO (C) 21-08", "camp": "Sul-Americana", "n": 15, "dist": 92742.0, "altInt": 5113.0, "acc": 197, "dec": 265}, "17/08/2024": {"adv": "BRAGANTINO (F) 17-08", "camp": "Brasileirão", "n": 15, "dist": 105999.0, "altInt": 7955.0, "acc": 252, "dec": 381}, "14/08/2024": {"adv": "ROSÁRIO C. (F) 14-08", "camp": "Sul-Americana", "n": 15, "dist": 99823.0, "altInt": 5860.0, "acc": 270, "dec": 370}, "27/07/2024": {"adv": "SÃO PAULO (C) 27-07", "camp": "Brasileirão", "n": 15, "dist": 98252.0, "altInt": 5708.0, "acc": 239, "dec": 308}, "24/07/2024": {"adv": "CRICIUMA (F) 24/07", "camp": "Brasileirão", "n": 15, "dist": 100182.0, "altInt": 6428.0, "acc": 236, "dec": 349}, "17/07/2024": {"adv": "VITÓRIA (C) 17-07", "camp": "Brasileirão", "n": 15, "dist": 99788.0, "altInt": 6349.0, "acc": 240, "dec": 346}, "30/06/2024": {"adv": "JUVENTUDE (C) 30-06", "camp": "Brasileirão", "n": 14, "dist": 99587.0, "altInt": 5791.0, "acc": 234, "dec": 320}, "26/06/2024": {"adv": "PALMEIRAS (C) 26-06", "camp": "Brasileirão", "n": 14, "dist": 99283.0, "altInt": 5624.0, "acc": 244, "dec": 347}, "23/06/2024": {"adv": "ATL-MG (F) 23-06", "camp": "Brasileirão", "n": 15, "dist": 101574.0, "altInt": 5520.0, "acc": 248, "dec": 353}, "19/06/2024": {"adv": "GRÊMIO (C) 19-06", "camp": "Brasileirão", "n": 15, "dist": 103338.0, "altInt": 5541.0, "acc": 214, "dec": 328}, "16/06/2024": {"adv": "CUIABÁ (F) 16-06", "camp": "Brasileirão", "n": 15, "dist": 85055.0, "altInt": 3476.0, "acc": 189, "dec": 266}, "13/06/2024": {"adv": "BAHIA (F) 13-06", "camp": "Brasileirão", "n": 15, "dist": 104319.0, "altInt": 5970.0, "acc": 185, "dec": 399}, "02/06/2024": {"adv": "ATHL.(C) 02-06 ", "camp": "Brasileirão", "n": 15, "dist": 103366.0, "altInt": 6000.0, "acc": 235, "dec": 370}, "29/05/2024": {"adv": "TRINIDENSE (C) 29-05", "camp": "Sul-Americana", "n": 15, "dist": 95551.0, "altInt": 5669.0, "acc": 269, "dec": 335}, "26/05/2024": {"adv": "SPORT (F) 26-05", "camp": "Copa do Nordeste", "n": 15, "dist": 105678.0, "altInt": 6149.0, "acc": 239, "dec": 344}, "21/05/2024": {"adv": "Vasco (F) 21-05", "camp": "Copa do Brasil", "n": 15, "dist": 98523.0, "altInt": 7300.0, "acc": 266, "dec": 329}, "15/05/2024": {"adv": "Boca Jrs. (F) 15-05", "camp": "Sul-Americana", "n": 15, "dist": 102648.0, "altInt": 7316.0, "acc": 302, "dec": 438}, "12/05/2024": {"adv": "Botafogo (C) 12-05", "camp": "Brasileirão", "n": 15, "dist": 98732.0, "altInt": 6132.0, "acc": 206, "dec": 313}, "23/03/2024": {"adv": "VITÓRIA (C) 23-03", "camp": "Copa do Nordeste", "n": 21, "dist": 147316.0, "altInt": 6337.0, "acc": 324, "dec": 523}, "28/04/2024": {"adv": "BRAGANTINO (C) 28-04", "camp": "Brasileirão", "n": 15, "dist": 98747.0, "altInt": 6340.0, "acc": 219, "dec": 334}, "25/04/2024": {"adv": "BOCA JR. (C) 25-04", "camp": "Sul-Americana", "n": 15, "dist": 97534.0, "altInt": 5583.0, "acc": 227, "dec": 343}, "21/04/2024": {"adv": "ALTOS-PI (C) 21-04", "camp": "Copa do Nordeste", "n": 15, "dist": 92431.0, "altInt": 4561.0, "acc": 206, "dec": 281}, "17/04/2024": {"adv": "CRUZEIRO (C) 17-04", "camp": "Brasileirão", "n": 15, "dist": 94232.0, "altInt": 5144.0, "acc": 191, "dec": 327}, "13/04/2024": {"adv": "SÃO PAULO (F) 13-04", "camp": "Brasileirão", "n": 15, "dist": 104642.0, "altInt": 6553.0, "acc": 264, "dec": 440}, "10/04/2024": {"adv": "N.POTOSÍ (C) 10-04", "camp": "Sul-Americana", "n": 15, "dist": 91932.0, "altInt": 5329.0, "acc": 232, "dec": 315}, "04/03/2024": {"adv": "2T FLU-PI (F) 04-03", "camp": "", "n": 15, "dist": 97405.0, "altInt": 5558.0, "acc": 241, "dec": 322}, "27/03/2024": {"adv": "MARANHÃO (F) 27-03", "camp": "Copa do Nordeste", "n": 15, "dist": 97358.0, "altInt": 5851.0, "acc": 218, "dec": 297}, "20/03/2024": {"adv": "CEARÁ (C) 20-03", "camp": "Copa do Nordeste", "n": 15, "dist": 97143.0, "altInt": 5604.0, "acc": 227, "dec": 314}, "25/01/2025": {"adv": "Horizonte", "camp": "Cearense", "n": 15, "dist": 84429.0, "altInt": 3926.0, "acc": 190, "dec": 247}, "27/01/2025": {"adv": "Cariri", "camp": "Cearense", "n": 15, "dist": 99626.0, "altInt": 6234.0, "acc": 232, "dec": 338}, "30/01/2025": {"adv": "Maracanã", "camp": "Cearense", "n": 14, "dist": 92032.0, "altInt": 4929.0, "acc": 234, "dec": 301}, "04/02/2025": {"adv": "Sport", "camp": "Copa do Nordeste", "n": 15, "dist": 107376.0, "altInt": 6863.0, "acc": 225, "dec": 420}, "19/02/2025": {"adv": "Vitória", "camp": "Copa do Nordeste", "n": 15, "dist": 98838.0, "altInt": 5622.0, "acc": 198, "dec": 321}, "01/03/2025": {"adv": "Ferroviário", "camp": "Cearense", "n": 15, "dist": 100533.0, "altInt": 6587.0, "acc": 217, "dec": 369}, "08/03/2025": {"adv": "Ferroviário", "camp": "Cearense", "n": 15, "dist": 97552.0, "altInt": 5510.0, "acc": 230, "dec": 364}, "15/03/2025": {"adv": "Ceará ", "camp": "Cearense", "n": 15, "dist": 96047.0, "altInt": 5666.0, "acc": 191, "dec": 344}, "19/03/2025": {"adv": "Sousa", "camp": "Copa do Nordeste", "n": 15, "dist": 96182.0, "altInt": 6167.0, "acc": 241, "dec": 318}, "22/03/2025": {"adv": "Ceará", "camp": "Cearense", "n": 15, "dist": 92914.0, "altInt": 4686.0, "acc": 218, "dec": 333}, "26/03/2025": {"adv": "CRB", "camp": "Copa do Nordeste", "n": 15, "dist": 102564.0, "altInt": 5904.0, "acc": 237, "dec": 352}, "29/03/2025": {"adv": "Fluminense", "camp": "Brasileirão", "n": 15, "dist": 105728.0, "altInt": 5506.0, "acc": 236, "dec": 410}, "01/04/2025": {"adv": "Racing", "camp": "Libertadores", "n": 15, "dist": 96708.0, "altInt": 6044.0, "acc": 189, "dec": 339}, "06/04/2025": {"adv": "Mirassol", "camp": "Brasileirão", "n": 14, "dist": 106770.0, "altInt": 6763.0, "acc": 240, "dec": 450}, "10/04/2025": {"adv": "Colo Colo", "camp": "Libertadores", "n": 12, "dist": 77320.0, "altInt": 5753.0, "acc": 228, "dec": 370}, "13/04/2025": {"adv": "Internacional", "camp": "Brasileirão", "n": 15, "dist": 95906.0, "altInt": 5961.0, "acc": 218, "dec": 342}, "16/04/2025": {"adv": "Vitória", "camp": "Brasileirão", "n": 15, "dist": 103012.0, "altInt": 5603.0, "acc": 211, "dec": 352}, "20/04/2025": {"adv": "Palmeiras", "camp": "Brasileirão", "n": 15, "dist": 99998.0, "altInt": 5130.0, "acc": 233, "dec": 357}, "23/04/2025": {"adv": "A.Bucaramanga", "camp": "Libertadores", "n": 16, "dist": 103213.0, "altInt": 5848.0, "acc": 227, "dec": 432}, "26/04/2025": {"adv": "Sport", "camp": "Brasileirão", "n": 15, "dist": 99829.0, "altInt": 5747.0, "acc": 235, "dec": 367}, "05/03/2025": {"adv": "Ferroviário", "camp": "Copa do Nordeste ", "n": 15, "dist": 97214.0, "altInt": 5790.0, "acc": 206, "dec": 300}, "29/04/2025": {"adv": "Retrô", "camp": "Copa do Brasil", "n": 15, "dist": 97466.0, "altInt": 5556.0, "acc": 162, "dec": 312}, "02/05/2025": {"adv": "São Paulo", "camp": "Brasileirão", "n": 14, "dist": 105048.0, "altInt": 8547.0, "acc": 240, "dec": 422}, "06/05/2025": {"adv": "Colo Colo", "camp": "Libertadores", "n": 15, "dist": 97633.0, "altInt": 5993.0, "acc": 238, "dec": 339}, "10/05/2025": {"adv": "Juventude", "camp": "Brasileirão", "n": 15, "dist": 94985.0, "altInt": 6267.0, "acc": 222, "dec": 322}, "13/05/2025": {"adv": "A.Bucaramanga", "camp": "Libertadores", "n": 15, "dist": 97425.0, "altInt": 4605.0, "acc": 249, "dec": 371}, "17/05/2025": {"adv": "Vasco", "camp": "Brasileirão", "n": 15, "dist": 99642.0, "altInt": 8155.0, "acc": 244, "dec": 397}, "21/05/2025": {"adv": "Retrô", "camp": "Copa do Brasil", "n": 15, "dist": 94579.0, "altInt": 5860.0, "acc": 200, "dec": 319}, "25/05/2025": {"adv": "Cruzeiro", "camp": "Brasileirão", "n": 15, "dist": 101188.0, "altInt": 6315.0, "acc": 225, "dec": 348}, "29/05/2025": {"adv": "Racing", "camp": "Libertadores", "n": 14, "dist": 101468.0, "altInt": 6868.0, "acc": 308, "dec": 425}, "01/06/2025": {"adv": "Flamengo", "camp": "Brasileirão", "n": 15, "dist": 100269.0, "altInt": 6809.0, "acc": 210, "dec": 397}, "12/06/2025": {"adv": "Santos", "camp": "Brasileirão", "n": 14, "dist": 97763.0, "altInt": 5264.0, "acc": 200, "dec": 343}, "09/07/2025": {"adv": "Bahia", "camp": "Copa do Nordeste", "n": 15, "dist": 104489.0, "altInt": 6305.0, "acc": 270, "dec": 383}, "13/07/2025": {"adv": "Ceará", "camp": "Brasileirão", "n": 15, "dist": 97300.0, "altInt": 5240.0, "acc": 212, "dec": 345}, "19/07/2025": {"adv": "Bahia", "camp": "Brasileirão", "n": 15, "dist": 100746.0, "altInt": 6706.0, "acc": 210, "dec": 401}, "26/07/2025": {"adv": "Bragantino", "camp": "Brasileirão", "n": 15, "dist": 106437.0, "altInt": 6936.0, "acc": 240, "dec": 332}, "29/07/2025": {"adv": "Grêmio", "camp": "Brasileirão", "n": 15, "dist": 99834.0, "altInt": 4310.0, "acc": 242, "dec": 233}, "03/08/2025": {"adv": "Corinthians", "camp": "Brasileirão", "n": 15, "dist": 109244.0, "altInt": 5985.0, "acc": 232, "dec": 411}, "09/08/2025": {"adv": "Botafogo", "camp": "Brasileirão", "n": 15, "dist": 85517.0, "altInt": 5349.0, "acc": 196, "dec": 335}, "12/08/2025": {"adv": "Vélez Sarsfield", "camp": "Libertadores", "n": 15, "dist": 95598.0, "altInt": 6543.0, "acc": 241, "dec": 360}, "16/08/2025": {"adv": "Fluminense", "camp": "Brasileirão", "n": 15, "dist": 108004.0, "altInt": 7992.0, "acc": 272, "dec": 428}, "19/08/2025": {"adv": "Vélez Sarsfield", "camp": "Libertadores", "n": 15, "dist": 101002.0, "altInt": 6591.0, "acc": 278, "dec": 402}, "24/08/2025": {"adv": "Mirassol", "camp": "Brasileirão", "n": 15, "dist": 106544.0, "altInt": 6573.0, "acc": 230, "dec": 434}, "31/08/2025": {"adv": "Internacional", "camp": "Brasileirão", "n": 14, "dist": 103789.0, "altInt": 6044.0, "acc": 247, "dec": 376}, "31/01/2024": {"adv": "IGUATU (C) 31-01", "camp": "Cearense", "n": 1, "dist": 3194.0, "altInt": 219.0, "acc": 13, "dec": 16}, "28/01/2024": {"adv": "BARBALHA (F) 28-01", "camp": "Cearense", "n": 1, "dist": 3069.0, "altInt": 194.0, "acc": 12, "dec": 16}, "07/02/2024": {"adv": "FERROVIÁRIO (F) 07-02", "camp": "Cearense", "n": 1, "dist": 6692.0, "altInt": 430.0, "acc": 40, "dec": 47}, "11/02/2024": {"adv": "CRB (F) 11-02", "camp": "Copa do Nordeste", "n": 1, "dist": 1003.0, "altInt": 81.0, "acc": 5, "dec": 5}, "14/02/2024": {"adv": "RIV-PI (C) 14-02", "camp": "Copa do Nordeste", "n": 1, "dist": 1913.0, "altInt": 125.0, "acc": 10, "dec": 13}, "21/02/2024": {"adv": "SPORT (F) 21-02", "camp": "Copa do Nordeste", "n": 1, "dist": 3565.0, "altInt": 214.0, "acc": 19, "dec": 27}, "07/03/2024": {"adv": "BOT-PB (F) 07-03", "camp": "Copa do Nordeste", "n": 15, "dist": 102697.0, "altInt": 5373.0, "acc": 236, "dec": 339}, "13/09/2025": {"adv": "Vitória", "camp": "Brasileirão", "n": 15, "dist": 99527.0, "altInt": 6250.0, "acc": 233, "dec": 399}, "20/09/2025": {"adv": "Palmeiras", "camp": "Brasileirão", "n": 15, "dist": 96397.0, "altInt": 3874.0, "acc": 199, "dec": 237}, "27/09/2025": {"adv": "Sport", "camp": "Brasileirão", "n": 15, "dist": 103744.0, "altInt": 6273.0, "acc": 237, "dec": 323}, "02/10/2025": {"adv": "São Paulo", "camp": "Brasileirão", "n": 15, "dist": 96938.0, "altInt": 4602.0, "acc": 229, "dec": 322}, "05/10/2025": {"adv": "Juventude", "camp": "Brasileirão", "n": 15, "dist": 102155.0, "altInt": 6752.0, "acc": 211, "dec": 372}, "15/10/2025": {"adv": "Vasco", "camp": "Brasileirão", "n": 15, "dist": 98283.0, "altInt": 6602.0, "acc": 240, "dec": 390}, "18/10/2025": {"adv": "Cruzeiro", "camp": "Brasileirão", "n": 15, "dist": 100904.0, "altInt": 7071.0, "acc": 241, "dec": 394}, "25/10/2025": {"adv": "Flamengo", "camp": "Brasileirão", "n": 15, "dist": 98526.0, "altInt": 5680.0, "acc": 253, "dec": 409}, "01/11/2025": {"adv": "Santos", "camp": "Brasileirão", "n": 15, "dist": 97541.0, "altInt": 6469.0, "acc": 226, "dec": 389}, "06/11/2025": {"adv": "Ceará", "camp": "Brasileirão", "n": 15, "dist": 89702.0, "altInt": 4977.0, "acc": 200, "dec": 313}, "09/11/2025": {"adv": "Grêmio", "camp": "Brasileirão", "n": 15, "dist": 92785.0, "altInt": 5576.0, "acc": 214, "dec": 294}, "12/11/2025": {"adv": "Atlético-MG", "camp": "Brasileirão", "n": 15, "dist": 92059.0, "altInt": 4806.0, "acc": 196, "dec": 232}, "20/11/2025": {"adv": "Bahia", "camp": "Brasileirão", "n": 15, "dist": 97148.0, "altInt": 5740.0, "acc": 211, "dec": 316}, "26/11/2025": {"adv": "Bragantino", "camp": "Brasileirão", "n": 15, "dist": 99426.0, "altInt": 7184.0, "acc": 220, "dec": 385}, "30/11/2025": {"adv": "Atlético-MG", "camp": "Brasileirão", "n": 15, "dist": 97170.0, "altInt": 5162.0, "acc": 236, "dec": 338}, "03/12/2025": {"adv": "Corinthians", "camp": "Brasileirão", "n": 15, "dist": 97389.0, "altInt": 5366.0, "acc": 255, "dec": 374}, "07/12/2025": {"adv": "Botafogo", "camp": "Brasileirão", "n": 15, "dist": 99265.0, "altInt": 4109.0, "acc": 200, "dec": 326}, "14/02/2026": {"adv": "Ferroviário", "camp": "Cearense", "n": 14, "dist": 95222.0, "altInt": 5694.0, "acc": 219, "dec": 353}, "11/01/2026": {"adv": "Ferroviário", "camp": "Cearense", "n": 14, "dist": 99854.0, "altInt": 5690.0, "acc": 273, "dec": 372}, "15/01/2026": {"adv": "Quixadá", "camp": "Cearense", "n": 15, "dist": 99050.0, "altInt": 5965.0, "acc": 224, "dec": 345}, "18/01/2026": {"adv": "Maracanã", "camp": "Cearense", "n": 15, "dist": 97181.0, "altInt": 5456.0, "acc": 250, "dec": 371}, "22/01/2026": {"adv": "Horizonte", "camp": "Cearense", "n": 15, "dist": 95327.0, "altInt": 4791.0, "acc": 248, "dec": 301}, "26/01/2026": {"adv": "Floresta", "camp": "Cearense", "n": 14, "dist": 94703.0, "altInt": 4827.0, "acc": 247, "dec": 325}, "31/01/2026": {"adv": "Iguatu", "camp": "Cearense", "n": 14, "dist": 92638.0, "altInt": 5090.0, "acc": 252, "dec": 310}, "08/02/2026": {"adv": "Ceará", "camp": "Cearense", "n": 15, "dist": 92002.0, "altInt": 4516.0, "acc": 213, "dec": 332}, "21/02/2026": {"adv": "Ferroviário", "camp": "Cearense", "n": 15, "dist": 92624.0, "altInt": 5636.0, "acc": 235, "dec": 370}, "24/02/2026": {"adv": "Maguary", "camp": "Copa do Brasil", "n": 14, "dist": 101527.0, "altInt": 5523.0, "acc": 262, "dec": 350}, "01/03/2026": {"adv": "Ceará", "camp": "Cearense", "n": 14, "dist": 89899.0, "altInt": 4937.0, "acc": 222, "dec": 319}, "08/03/2026": {"adv": "Ceará", "camp": "Cearense", "n": 14, "dist": 90488.0, "altInt": 4601.0, "acc": 246, "dec": 379}, "11/03/2026": {"adv": "Manauara", "camp": "Copa do Brasil", "n": 15, "dist": 97022.0, "altInt": 5529.0, "acc": 220, "dec": 321}, "17/03/2026": {"adv": "Nova Iguaçu", "camp": "Copa do Brasil", "n": 15, "dist": 103633.0, "altInt": 6208.0, "acc": 256, "dec": 386}, "21/03/2026": {"adv": "Botafogo/SP", "camp": "Série B", "n": 15, "dist": 100592.0, "altInt": 5981.0, "acc": 264, "dec": 369}, "24/03/2026": {"adv": "Ferroviário", "camp": "Copa do Nordeste", "n": 15, "dist": 106240.0, "altInt": 6740.0, "acc": 291, "dec": 375}, "28/03/2026": {"adv": "Imperatriz", "camp": "Copa do Nordeste", "n": 14, "dist": 100520.0, "altInt": 5762.0, "acc": 297, "dec": 386}, "31/03/2026": {"adv": "Cuiabá", "camp": "Série B", "n": 15, "dist": 99492.0, "altInt": 4441.0, "acc": 223, "dec": 330}, "04/04/2026": {"adv": "Juventude", "camp": "Série B", "n": 16, "dist": 98366.0, "altInt": 6180.0, "acc": 184, "dec": 376}, "08/04/2026": {"adv": "Ceará", "camp": "Copa do Nordeste", "n": 15, "dist": 94904.0, "altInt": 5278.0, "acc": 232, "dec": 301}, "12/04/2026": {"adv": "São Bernardo", "camp": "Série B", "n": 15, "dist": 96591.0, "altInt": 6629.0, "acc": 243, "dec": 440}, "16/04/2026": {"adv": "América-RN", "camp": "Copa do Nordeste", "n": 15, "dist": 101674.0, "altInt": 5186.0, "acc": 241, "dec": 372}, "19/04/2026": {"adv": "Criciúma", "camp": "Série B", "n": 15, "dist": 98879.0, "altInt": 6122.0, "acc": 234, "dec": 356}, "22/04/2026": {"adv": "CRB", "camp": "Copa do Brasil", "n": 16, "dist": 104266.0, "altInt": 5127.0, "acc": 231, "dec": 298}, "26/04/2026": {"adv": "Operário", "camp": "Série B", "n": 15, "dist": 94611.0, "altInt": 6715.0, "acc": 201, "dec": 337}, "29/04/2026": {"adv": "Sport", "camp": "Copa do Nordeste", "n": 15, "dist": 101942.0, "altInt": 5808.0, "acc": 231, "dec": 354}, "02/05/2026": {"adv": "Goiás", "camp": "Série B", "n": 15, "dist": 99033.0, "altInt": 5548.0, "acc": 251, "dec": 376}, "07/05/2026": {"adv": "Confiança", "camp": "Copa do Nordeste", "n": 15, "dist": 98136.0, "altInt": 5911.0, "acc": 222, "dec": 312}, "10/05/2026": {"adv": "Avaí", "camp": "Série B", "n": 15, "dist": 104518.0, "altInt": 6399.0, "acc": 275, "dec": 404}, "14/05/2026": {"adv": "CRB", "camp": "Copa do Brasil", "n": 15, "dist": 101192.0, "altInt": 4924.0, "acc": 236, "dec": 370}, "17/05/2026": {"adv": "Ceará", "camp": "Série B", "n": 14, "dist": 96864.0, "altInt": 5199.0, "acc": 215, "dec": 293}, "20/05/2026": {"adv": "Sport", "camp": "Copa do Nordeste", "n": 15, "dist": 97199.0, "altInt": 4532.0, "acc": 229, "dec": 332}};
+let META={"adv": "Sport", "camp": "Copa do Nordeste", "placar": "1x2", "result": "Derrota", "mando": "Casa", "estadio": "Arena Castelão"};
+const ALL_META={"20/01/2024": {"adv": "Horizonte", "camp": "Cearense", "placar": "2x0", "result": "Vitória", "mando": "Casa", "estadio": "Castelão"}, "28/01/2024": {"adv": "Barbalha", "camp": "Cearense", "placar": "0x5", "result": "Vitória", "mando": "Fora", "estadio": "Romeirão"}, "31/01/2024": {"adv": "Iguatu", "camp": "Cearense", "placar": "3x1", "result": "Vitória", "mando": "Casa", "estadio": "Castelão"}, "03/02/2024": {"adv": "América - RN", "camp": "Copa do Nordeste", "placar": "2x1", "result": "Vitória", "mando": "Casa", "estadio": "Castelão"}, "07/02/2024": {"adv": "Ferroviário", "camp": "Cearense", "placar": "1x1", "result": "Empate", "mando": "Fora", "estadio": "Presidente Vargas"}, "11/02/2024": {"adv": "CRB", "camp": "Copa do Nordeste", "placar": "1x0", "result": "Derrota", "mando": "Fora", "estadio": "Rei Pelé"}, "14/02/2024": {"adv": "River-PI", "camp": "Copa do Nordeste", "placar": "3x1", "result": "Vitória", "mando": "Casa", "estadio": "Castelão"}, "17/02/2024": {"adv": "Ceará", "camp": "Cearense", "placar": "3x3", "result": "Empate", "mando": "Casa", "estadio": "Castelão"}, "21/02/2024": {"adv": "Sport", "camp": "Copa do Nordeste", "placar": "1x1", "result": "Empate", "mando": "Fora", "estadio": "Arena Pernambuco"}, "03/03/2024": {"adv": "Fluminense-PI", "camp": "Copa do Brasil", "placar": "0x3", "result": "Vitória", "mando": "Fora", "estadio": "Raulino de Oliveira"}, "07/03/2024": {"adv": "Botafogo-PB", "camp": "Copa do Nordeste", "placar": "1x1", "result": "Empate", "mando": "Fora", "estadio": "Almeidão"}, "10/03/2024": {"adv": "Maracanã", "camp": "Cearense", "placar": "1x1", "result": "Empate", "mando": "Fora", "estadio": "Castelão"}, "14/03/2024": {"adv": "Retrô", "camp": "Copa do Brasil", "placar": "0x0", "result": "Empate", "mando": "Casa", "estadio": "Castelão"}, "17/03/2024": {"adv": "Maracanã", "camp": "Cearense", "placar": "3x0", "result": "Vitória", "mando": "Casa", "estadio": "Castelão"}, "20/03/2024": {"adv": "Ceará", "camp": "Copa do Nordeste", "placar": "0x1", "result": "Derrota", "mando": "Casa", "estadio": "Castelão"}, "23/03/2024": {"adv": "Vitória", "camp": "Copa do Nordeste", "placar": "0x1", "result": "Derrota", "mando": "Casa", "estadio": "Castelão"}, "27/03/2024": {"adv": "Maranhão", "camp": "Copa do Nordeste", "placar": "2x3", "result": "Derrota", "mando": "Fora", "estadio": "Estádio Castelão-MA"}, "30/03/2024": {"adv": "Ceará", "camp": "Cearense", "placar": "0x0", "result": "Empate", "mando": "Casa", "estadio": "Castelão"}, "03/04/2024": {"adv": "Sp.Trinidense", "camp": "Sul-Americana", "placar": "0x2", "result": "Vitória", "mando": "Fora", "estadio": "Defensores del Chaco"}, "06/04/2024": {"adv": "Ceará", "camp": "Cearense", "placar": "1x1", "result": "Empate", "mando": "Fora", "estadio": "Castelão"}, "10/04/2024": {"adv": "Nacional Potosí", "camp": "Sul-Americana", "placar": "5x0", "result": "Vitória", "mando": "Casa", "estadio": "Castelão"}, "13/04/2024": {"adv": "São Paulo", "camp": "Brasileirão", "placar": "1x2", "result": "Vitória ", "mando": "Fora", "estadio": "Morumbi"}, "17/04/2024": {"adv": "Cruzeiro", "camp": "Brasileirão", "placar": "1x1", "result": "Empate", "mando": "Casa", "estadio": "Castelão"}, "21/04/2024": {"adv": "Altos-PI", "camp": "Copa do Nordeste", "placar": "5x0", "result": "Vitória", "mando": "Casa", "estadio": "Castelão"}, "25/04/2024": {"adv": "Boca Juniors", "camp": "Sul-Americana", "placar": "4x2", "result": "Vitória", "mando": "Casa", "estadio": "Castelão"}, "28/04/2024": {"adv": "RB Bragantino", "camp": "Brasileirão", "placar": "1x1", "result": "Empate", "mando": "Casa", "estadio": "Castelão"}, "01/05/2024": {"adv": "Vasco", "camp": "Copa do Brasil", "placar": "0x0", "result": "Empate", "mando": "Casa", "estadio": "Castelão"}, "04/05/2024": {"adv": "Corinthians", "camp": "Brasileirão", "placar": "0x0", "result": "Empate", "mando": "Fora", "estadio": "Arena Corinthians"}, "08/05/2024": {"adv": "Nacional Potosí", "camp": "Sul-Americana", "placar": "4x1", "result": "Derrota", "mando": "Fora", "estadio": "Victor Ugarte "}, "12/05/2024": {"adv": "Botafogo", "camp": "Brasileirão", "placar": "1x1", "result": "Empate", "mando": "Casa", "estadio": "Castelão"}, "15/05/2024": {"adv": "Boca Juniors", "camp": "Sul-Americana", "placar": "1x1", "result": "Empate", "mando": "Fora", "estadio": "La Bombonera"}, "21/05/2024": {"adv": "Vasco", "camp": "Copa do Brasil", "placar": "3x3", "result": "Empate", "mando": "Fora", "estadio": "São Januário"}, "26/05/2024": {"adv": "Sport", "camp": "Copa do Nordeste", "placar": "1x4", "result": "Vitória", "mando": "Fora", "estadio": "Arena Pernambuco"}, "29/05/2024": {"adv": "Sp.Trinidense", "camp": "Sul-Americana", "placar": "2x1", "result": "Vitória", "mando": "Casa", "estadio": "Castelão"}, "02/06/2024": {"adv": "Athletico Paranaense", "camp": "Brasileirão", "placar": "1x0", "result": "Vitória", "mando": "Casa", "estadio": "Presidente Vargas"}, "05/06/2024": {"adv": "CRB", "camp": "Copa do Nordeste", "placar": "2x0", "result": "Vitória", "mando": "Casa", "estadio": "Castelão"}, "09/06/2024": {"adv": "CRB", "camp": "Copa do Nordeste", "placar": "2x0", "result": "Derrota", "mando": "Fora", "estadio": "Rei Pelé"}, "13/06/2024": {"adv": "Bahia", "camp": "Brasileirão", "placar": "1x0", "result": "Derrota", "mando": "Fora", "estadio": "Arena Fonte Nova"}, "16/06/2024": {"adv": "Cuiabá", "camp": "Brasileirão", "placar": "5x0", "result": "Derrota", "mando": "Fora", "estadio": "Arena Pantanal"}, "19/06/2024": {"adv": "Grêmio", "camp": "Brasileirão", "placar": "1x0", "result": "Vitória", "mando": "Casa", "estadio": "Castelão"}, "23/06/2024": {"adv": "Atlético - MG", "camp": "Brasileirão", "placar": "1x1", "result": "Empate", "mando": "Fora", "estadio": "Arena MRV"}, "26/06/2024": {"adv": "Palmeiras", "camp": "Brasileirão", "placar": "3x0", "result": "Vitória", "mando": "Casa", "estadio": "Castelão"}, "30/06/2024": {"adv": "Juventude", "camp": "Brasileirão", "placar": "2x1", "result": "Vitória", "mando": "Casa", "estadio": "Castelão"}, "03/07/2024": {"adv": "Vasco", "camp": "Brasileirão", "placar": "2x0", "result": "Derrota", "mando": "Fora", "estadio": "São Januário"}, "07/07/2024": {"adv": "Fluminense", "camp": "Brasileirão", "placar": "1x0", "result": "Vitória", "mando": "Casa", "estadio": "Castelão"}, "11/07/2024": {"adv": "Flamengo", "camp": "Brasileirão", "placar": "1x2", "result": "Vitória", "mando": "Fora", "estadio": "Maracanã"}, "17/07/2024": {"adv": "Vitória", "camp": "Brasileirão", "placar": "3x1", "result": "Vitória", "mando": "Casa", "estadio": "Castelão"}, "21/07/2024": {"adv": "Atlético - GO", "camp": "Brasileirão", "placar": "3x1", "result": "Vitória", "mando": "Casa", "estadio": "Castelão"}, "24/07/2024": {"adv": "Criciúma", "camp": "Brasileirão", "placar": "1x1", "result": "Empate", "mando": "Fora", "estadio": "Heriberto Hulse"}, "27/07/2024": {"adv": "São Paulo", "camp": "Brasileirão", "placar": "1x0", "result": "Vitória", "mando": "Casa", "estadio": "Castelão"}, "05/08/2024": {"adv": "Cruzeiro", "camp": "Brasileirão", "placar": "1x2", "result": "Vitória", "mando": "Fora", "estadio": "Kleber Andrade"}, "10/08/2024": {"adv": "Criciúma", "camp": "Brasileirão", "placar": "1x0", "result": "Vitória", "mando": "Casa", "estadio": "Castelão"}, "14/08/2024": {"adv": "Rosário Central", "camp": "Sul-Americana", "placar": "1x1", "result": "Empate", "mando": "Fora", "estadio": "Gigante de Arroyito"}, "17/08/2024": {"adv": "RB Bragantino", "camp": "Brasileirão", "placar": "1x2", "result": "Vitória", "mando": "Fora", "estadio": "Nabi Abi Chedid"}, "21/08/2024": {"adv": "Rosário Central", "camp": "Sul-Americana", "placar": "3x1", "result": "Vitória", "mando": "Casa", "estadio": "Castelão"}, "25/08/2024": {"adv": "Corinthians", "camp": "Brasileirão", "placar": "1x0", "result": "Vitória", "mando": "Casa", "estadio": "Castelão"}, "31/08/2024": {"adv": "Botafogo", "camp": "Brasileirão", "placar": "2x0", "result": "Derrota", "mando": "Fora", "estadio": "Nilton Santos"}, "11/09/2024": {"adv": "Internacional", "camp": "Brasileirão", "placar": "2x1", "result": "Derrota", "mando": "Fora", "estadio": "Beira Rio"}, "14/09/2024": {"adv": "Athletico Paranaense", "camp": "Brasileirão", "placar": "1x1", "result": "Empate", "mando": "Fora", "estadio": "Ligga Arena"}, "17/09/2024": {"adv": "Corinthians", "camp": "Sul-Americana", "placar": "0x2", "result": "Derrota", "mando": "Casa", "estadio": "Castelão"}, "21/09/2024": {"adv": "Bahia", "camp": "Brasileirão", "placar": "4x1", "result": "Vitória", "mando": "Casa", "estadio": "Castelão"}, "24/09/2024": {"adv": "Corinthians", "camp": "Sul-Americana", "placar": "3x0", "result": "Derrota", "mando": "Fora", "estadio": "Arena Corinthians"}, "29/09/2024": {"adv": "Cuiabá", "camp": "Brasileirão", "placar": "1x0", "result": "Vitória", "mando": "Casa", "estadio": "Castelão"}, "04/10/2024": {"adv": "Grêmio", "camp": "Brasileirão", "placar": "3x1", "result": "Derrota", "mando": "Fora", "estadio": "Arena do Grêmio"}, "16/10/2024": {"adv": "Atlético - MG", "camp": "Brasileirão", "placar": "1x1", "result": "Empate", "mando": "Casa", "estadio": "Castelão"}, "26/10/2024": {"adv": "Palmeiras", "camp": "Brasileirão", "placar": "2x2", "result": "Empate", "mando": "Fora", "estadio": "Allianz Parque"}, "02/11/2024": {"adv": "Juventude", "camp": "Brasileirão", "placar": "0x3", "result": "Vitória", "mando": "Fora", "estadio": "Alfredo Jaconi"}, "09/11/2024": {"adv": "Vasco", "camp": "Brasileirão", "placar": "3x0", "result": "Vitória", "mando": "Casa", "estadio": "Castelão"}, "22/11/2024": {"adv": "Fluminense", "camp": "Brasileirão", "placar": "2x2", "result": "Empate", "mando": "Fora", "estadio": "Maracanã"}, "26/11/2024": {"adv": "Flamengo", "camp": "Brasileirão", "placar": "0x0", "result": "Empate", "mando": "Casa", "estadio": "Castelão"}, "01/12/2024": {"adv": "Vitória", "camp": "Brasileirão", "placar": "2x0", "result": "Derrota", "mando": "Fora", "estadio": "Barradão"}, "04/12/2024": {"adv": "Atlético - GO", "camp": "Brasileirão", "placar": "3x1", "result": "Derrota", "mando": "Fora", "estadio": "Antônio Accioly"}, "08/12/2024": {"adv": "Internacional", "camp": "Brasileirão", "placar": "3x0", "result": "Vitória", "mando": "Casa", "estadio": "Castelão"}, "18/01/2025": {"adv": "Miami United", "camp": "Pré Temporada", "placar": "1x2", "result": "Derrota", "mando": "Casa", "estadio": "Sandpiper Bay"}, "19/01/2025": {"adv": "Chicago Fire", "camp": "Pré Temporada", "placar": "1x0", "result": "Vitória", "mando": "Casa", "estadio": "Sandpiper Bay"}, "23/01/2025": {"adv": "Moto Club", "camp": "Copa do Nordeste", "placar": "2x0", "result": "Vitória", "mando": "Casa", "estadio": "Presidente Vargas"}, "25/01/2025": {"adv": "Horizonte", "camp": "Cearense", "placar": "1x3", "result": "Vitória", "mando": "Fora", "estadio": "Domingão"}, "27/01/2025": {"adv": "Cariri", "camp": "Cearense", "placar": "7x0", "result": "Vitória", "mando": "Casa", "estadio": "Presidente Vargas"}, "30/01/2025": {"adv": "Maracanã", "camp": "Cearense", "placar": "1x0", "result": "Vitória ", "mando": "Casa", "estadio": "Presidente Vargas"}, "01/02/2025": {"adv": "Floresta", "camp": "Cearense", "placar": "0x1", "result": "Vitória", "mando": "Fora", "estadio": "Presidente Vargas"}, "04/02/2025": {"adv": "Sport", "camp": "Copa do Nordeste", "placar": "0x2", "result": "Vitória", "mando": "Fora", "estadio": "Ilha do Retiro"}, "08/02/2025": {"adv": "Ceará", "camp": "Cearense", "placar": "1x2", "result": "Derrota", "mando": "Casa", "estadio": "Arena Castelão"}, "11/02/2025": {"adv": "Altos", "camp": "Copa do Nordeste", "placar": "2x1", "result": "Derrota", "mando": "Fora", "estadio": "Albertão"}, "19/02/2025": {"adv": "Vitória", "camp": "Copa do Nordeste", "placar": "1x2", "result": "Derrota", "mando": "Casa", "estadio": "Arena Castelão"}, "01/03/2025": {"adv": "Ferroviário", "camp": "Cearense", "placar": "0x0", "result": "Empate", "mando": "Fora", "estadio": "Presidente Vargas"}, "05/03/2025": {"adv": "Ferroviário", "camp": "Copa do Nordeste ", "placar": "4x0", "result": "Vitória", "mando": "Casa", "estadio": "Arena Castelão"}, "08/03/2025": {"adv": "Ferroviário", "camp": "Cearense", "placar": "1x0", "result": "Vitória", "mando": "Casa", "estadio": "Presidente Vargas"}, "15/03/2025": {"adv": "Ceará ", "camp": "Cearense", "placar": "0x1", "result": "Derrota", "mando": "Casa", "estadio": "Arena Castelão"}, "19/03/2025": {"adv": "Sousa", "camp": "Copa do Nordeste", "placar": "2x1", "result": "Derrota", "mando": "Fora", "estadio": "Marizão"}, "22/03/2025": {"adv": "Ceará", "camp": "Cearense", "placar": "1x1", "result": "Empate", "mando": "Fora", "estadio": "Arena Castelão"}, "26/03/2025": {"adv": "CRB", "camp": "Copa do Nordeste", "placar": "0x1", "result": "Derrota", "mando": "Casa", "estadio": "Arena Castelão"}, "29/03/2025": {"adv": "Fluminense", "camp": "Brasileirão", "placar": "2x0", "result": "Vitória", "mando": "Casa", "estadio": "Arena Castelão"}, "01/04/2025": {"adv": "Racing", "camp": "Libertadores", "placar": "0x3", "result": "Derrota", "mando": "Casa", "estadio": "Arena Castelão "}, "06/04/2025": {"adv": "Mirassol", "camp": "Brasileirão", "placar": "1x1", "result": "Empate", "mando": "Fora", "estadio": "Campos Maia"}, "10/04/2025": {"adv": "Colo Colo", "camp": "Libertadores", "placar": "0x0", "result": "Empate", "mando": "Fora", "estadio": "David Arellano"}, "13/04/2025": {"adv": "Internacional", "camp": "Brasileirão", "placar": "0x0", "result": "Empate", "mando": "Casa", "estadio": "Arena Castelão "}, "16/04/2025": {"adv": "Vitória", "camp": "Brasileirão", "placar": "2x1", "result": "Derrota", "mando": "Fora", "estadio": "Barradão"}, "20/04/2025": {"adv": "Palmeiras", "camp": "Brasileirão", "placar": "1x2", "result": "Derrota", "mando": "Casa", "estadio": "Arena Castelão"}, "23/04/2025": {"adv": "A.Bucaramanga", "camp": "Libertadores", "placar": "1x1", "result": "Empate", "mando": "Fora", "estadio": "Américo Montanini"}, "26/04/2025": {"adv": "Sport", "camp": "Brasileirão", "placar": "0x0", "result": "Empate", "mando": "Fora", "estadio": "Ilha do Retiro"}, "29/04/2025": {"adv": "Retrô", "camp": "Copa do Brasil", "placar": "1x1", "result": "Empate", "mando": "Fora", "estadio": "Arena Pernambuco"}, "02/05/2025": {"adv": "São Paulo", "camp": "Brasileirão", "placar": "0x0", "result": "Empate", "mando": "Fora", "estadio": "Morumbi"}, "06/05/2025": {"adv": "Colo Colo", "camp": "Libertadores", "placar": "4x0", "result": "Vitória", "mando": "Casa", "estadio": "Arena Castelão"}, "10/05/2025": {"adv": "Juventude", "camp": "Brasileirão", "placar": "5x0", "result": "Vitória", "mando": "Casa", "estadio": "Presidente Vargas"}, "13/05/2025": {"adv": "A.Bucaramanga", "camp": "Libertadores", "placar": "0x0", "result": "Empate", "mando": "Casa", "estadio": "Arena Castelão"}, "17/05/2025": {"adv": "Vasco", "camp": "Brasileirão", "placar": "3x0", "result": "Derrota", "mando": "Fora", "estadio": "São Januário"}, "21/05/2025": {"adv": "Retrô", "camp": "Copa do Brasil", "placar": "1x1", "result": "Empate", "mando": "Casa", "estadio": "Arena Castelão"}, "25/05/2025": {"adv": "Cruzeiro", "camp": "Brasileirão", "placar": "0x2", "result": "Derrota", "mando": "Casa", "estadio": "Arena Castelão"}, "29/05/2025": {"adv": "Racing", "camp": "Libertadores", "placar": "1x0", "result": "Derrota", "mando": "Fora", "estadio": "El Cilindro"}, "01/06/2025": {"adv": "Flamengo", "camp": "Brasileirão", "placar": "5x0", "result": "Derrota", "mando": "Fora", "estadio": "Maracanã"}, "12/06/2025": {"adv": "Santos", "camp": "Brasileirão", "placar": "2x3", "result": "Derrota", "mando": "Casa", "estadio": "Arena Castelão"}, "09/07/2025": {"adv": "Bahia", "camp": "Copa do Nordeste", "placar": "2x1", "result": "Derrota", "mando": "Fora", "estadio": "Arena Fonte Nova"}, "13/07/2025": {"adv": "Ceará", "camp": "Brasileirão", "placar": "0x1", "result": "Derrota", "mando": "Casa", "estadio": "Arena Castelão"}, "19/07/2025": {"adv": "Bahia", "camp": "Brasileirão", "placar": "1x1", "result": "Empate", "mando": "Casa", "estadio": "Arena Castelão"}, "26/07/2025": {"adv": "Bragantino", "camp": "Brasileirão", "placar": "3x1", "result": "Vitória", "mando": "Casa", "estadio": "Arena Castelão"}, "29/07/2025": {"adv": "Grêmio", "camp": "Brasileirão", "placar": "2x1", "result": "Derrota", "mando": "Fora", "estadio": "Arena do Grêmio"}, "03/08/2025": {"adv": "Corinthians", "camp": "Brasileirão", "placar": "1x1", "result": "Empate", "mando": "Fora", "estadio": "Neo Química Arena"}, "09/08/2025": {"adv": "Botafogo", "camp": "Brasileirão", "placar": "0x5", "result": "Derrota", "mando": "Casa", "estadio": "Arena Castelão"}, "12/08/2025": {"adv": "Vélez Sarsfield", "camp": "Libertadores", "placar": "0x0", "result": "Empate", "mando": "Casa", "estadio": "Arena Castelão"}, "16/08/2025": {"adv": "Fluminense", "camp": "Brasileirão", "placar": "2x1", "result": "Derrota", "mando": "Fora", "estadio": "Maracanã"}, "19/08/2025": {"adv": "Vélez Sarsfield", "camp": "Libertadores", "placar": "2x0", "result": "Derrota", "mando": "Fora", "estadio": "José Amalfitani"}, "24/08/2025": {"adv": "Mirassol", "camp": "Brasileirão", "placar": "0x1", "result": "Derrota", "mando": "Casa", "estadio": "Arena Castelão"}, "31/08/2025": {"adv": "Internacional", "camp": "Brasileirão", "placar": "2x1", "result": "Derrota", "mando": "Fora", "estadio": "Beira Rio"}, "13/09/2025": {"adv": "Vitória", "camp": "Brasileirão", "placar": "2x0", "result": "Vitória", "mando": "Casa", "estadio": "Arena Castelão"}, "20/09/2025": {"adv": "Palmeiras", "camp": "Brasileirão", "placar": "4x1", "result": "Derrota", "mando": "Fora", "estadio": "Allianz Parque"}, "27/09/2025": {"adv": "Sport", "camp": "Brasileirão", "placar": "1x0", "result": "Vitória", "mando": "Casa", "estadio": "Arena Castelão"}, "02/10/2025": {"adv": "São Paulo", "camp": "Brasileirão", "placar": "0x2", "result": "Derrota", "mando": "Casa", "estadio": "Arena Castelão"}, "05/10/2025": {"adv": "Juventude", "camp": "Brasileirão", "placar": "1x2", "result": "Vitória", "mando": "Fora", "estadio": "Alfredo Jaconi"}, "15/10/2025": {"adv": "Vasco", "camp": "Brasileirão", "placar": "0x2", "result": "Derrota", "mando": "Casa", "estadio": "Arena Castelão"}, "18/10/2025": {"adv": "Cruzeiro", "camp": "Brasileirão", "placar": "1x0", "result": "Derrota", "mando": "Fora", "estadio": "Mineirão"}, "25/10/2025": {"adv": "Flamengo", "camp": "Brasileirão", "placar": "1x0", "result": "Vitória", "mando": "Casa", "estadio": "Arena Castelão"}, "01/11/2025": {"adv": "Santos", "camp": "Brasileirão", "placar": "1x1", "result": "Empate", "mando": "Fora", "estadio": "Vila Belmiro"}, "06/11/2025": {"adv": "Ceará", "camp": "Brasileirão", "placar": "1x1", "result": "Empate", "mando": "Fora", "estadio": "Arena Castelão"}, "09/11/2025": {"adv": "Grêmio", "camp": "Brasileirão", "placar": "2x2", "result": "Empate", "mando": "Casa", "estadio": "Arena Castelão"}, "12/11/2025": {"adv": "Atlético-MG", "camp": "Brasileirão", "placar": "3x3", "result": "Empate", "mando": "Fora", "estadio": "Arena MRV"}, "20/11/2025": {"adv": "Bahia", "camp": "Brasileirão", "placar": "2x3", "result": "Vitória", "mando": "Fora", "estadio": "Arena Fonte Nova"}, "26/11/2025": {"adv": "Bragantino", "camp": "Brasileirão", "placar": "0x1", "result": "Vitória", "mando": "Fora", "estadio": "Cicero Souza"}, "30/11/2025": {"adv": "Atlético-MG", "camp": "Brasileirão", "placar": "1x0", "result": "Vitória", "mando": "Casa", "estadio": "Arena Castelão"}, "03/12/2025": {"adv": "Corinthians", "camp": "Brasileirão", "placar": "2x1", "result": "Vitória", "mando": "Casa", "estadio": "Arena Castelão"}, "07/12/2025": {"adv": "Botafogo", "camp": "Brasileirão", "placar": "4x2", "result": "Derrota", "mando": "Fora", "estadio": "Nilton Santos"}, "11/01/2026": {"adv": "Ferroviário", "camp": "Cearense", "placar": "0x0", "result": "Empate", "mando": "Fora", "estadio": "Presidente Vargas"}, "15/01/2026": {"adv": "Quixadá", "camp": "Cearense", "placar": "4x0", "result": "Vitória", "mando": "Casa", "estadio": "Presidente Vargas"}, "18/01/2026": {"adv": "Maracanã", "camp": "Cearense", "placar": "1x0", "result": "Vitória", "mando": "Casa", "estadio": "Presidente Vargas"}, "22/01/2026": {"adv": "Horizonte", "camp": "Cearense", "placar": "0x1", "result": "Vitória", "mando": "Fora", "estadio": "Domingão"}, "26/01/2026": {"adv": "Floresta", "camp": "Cearense", "placar": "1x0", "result": "Vitória", "mando": "Casa", "estadio": "Presidente Vargas"}, "31/01/2026": {"adv": "Iguatu", "camp": "Cearense", "placar": "1x1", "result": "Empate", "mando": "Casa", "estadio": "Presidente Vargas"}, "08/02/2026": {"adv": "Ceará", "camp": "Cearense", "placar": "0x0", "result": "Empate", "mando": "Fora", "estadio": "Arena Castelão"}, "14/02/2026": {"adv": "Ferroviário", "camp": "Cearense", "placar": "0x2", "result": "Vitória", "mando": "Fora", "estadio": "Presidente Vargas"}, "21/02/2026": {"adv": "Ferroviário", "camp": "Cearense", "placar": "2x0", "result": "Vitória", "mando": "Casa", "estadio": "Presidente Vargas"}, "24/02/2026": {"adv": "Maguary", "camp": "Copa do Brasil", "placar": "4x3", "result": "Vitória", "mando": "Casa", "estadio": "Arena Castelão"}, "01/03/2026": {"adv": "Ceará", "camp": "Cearense", "placar": "1x1", "result": "Empate", "mando": "Casa", "estadio": "Arena Castelão"}, "08/03/2026": {"adv": "Ceará", "camp": "Cearense", "placar": "1x1", "result": "Empate", "mando": "Fora", "estadio": "Arena Castelão"}, "11/03/2026": {"adv": "Manauara", "camp": "Copa do Brasil", "placar": "0x1", "result": "Vitória", "mando": "Fora", "estadio": "Arena da Amazônia"}, "17/03/2026": {"adv": "Nova Iguaçu", "camp": "Copa do Brasil", "placar": "0x1", "result": "Vitória", "mando": "Fora", "estadio": "Jânio Moraes"}, "21/03/2026": {"adv": "Botafogo/SP", "camp": "Série B", "placar": "4x0", "result": "Derrota", "mando": "Fora", "estadio": "Santa Cruz"}, "24/03/2026": {"adv": "Ferroviário", "camp": "Copa do Nordeste", "placar": "0x1", "result": "Vitória", "mando": "Fora", "estadio": "Presidente Vargas"}, "28/03/2026": {"adv": "Imperatriz", "camp": "Copa do Nordeste", "placar": "2x1", "result": "Vitória", "mando": "Casa", "estadio": "Presidente Vargas"}, "31/03/2026": {"adv": "Cuiabá", "camp": "Série B", "placar": "0x0", "result": "Empate", "mando": "Casa", "estadio": "Arena Castelão"}, "04/04/2026": {"adv": "Juventude", "camp": "Série B", "placar": "2x1", "result": "Vitória", "mando": "Casa", "estadio": "Arena Castelão"}, "08/04/2026": {"adv": "Ceará", "camp": "Copa do Nordeste", "placar": "2x0", "result": "Derrota", "mando": "Fora", "estadio": "Arena Castelão"}, "12/04/2026": {"adv": "São Bernardo", "camp": "Série B", "placar": "0x1", "result": "Vitória", "mando": "Fora", "estadio": "Estádio 1º de Maio"}, "16/04/2026": {"adv": "América-RN", "camp": "Copa do Nordeste", "placar": "1x1", "result": "Empate", "mando": "Fora", "estadio": "Almeidão"}, "19/04/2026": {"adv": "Criciúma", "camp": "Série B", "placar": "3x2", "result": "Vitória", "mando": "Casa", "estadio": "Presidente Vargas"}, "22/04/2026": {"adv": "CRB", "camp": "Copa do Brasil", "placar": "2x1", "result": "Vitória", "mando": "Casa", "estadio": "Arena Castelão"}, "26/04/2026": {"adv": "Operário", "camp": "Série B", "placar": "0x0", "result": "Empate", "mando": "Fora", "estadio": "Germano Kruger"}, "29/04/2026": {"adv": "Sport", "camp": "Copa do Nordeste", "placar": "2x0", "result": "Vitória", "mando": "Casa", "estadio": "Arena Castelão"}, "02/05/2026": {"adv": "Goiás", "camp": "Série B", "placar": "4x1", "result": "Vitória", "mando": "Casa", "estadio": "Arena Castelão"}, "07/05/2026": {"adv": "Confiança", "camp": "Copa do Nordeste", "placar": "1x2", "result": "Vitória", "mando": "Fora", "estadio": "Batistão"}, "10/05/2026": {"adv": "Avaí", "camp": "Série B", "placar": "0x0", "result": "Empate", "mando": "Fora", "estadio": "Ressacada"}, "14/05/2026": {"adv": "CRB", "camp": "Copa do Brasil", "placar": "0x0", "result": "Empate", "mando": "Fora", "estadio": "Rei Pelé"}, "17/05/2026": {"adv": "Ceará", "camp": "Série B", "placar": "2x1", "result": "Derrota", "mando": "Fora", "estadio": "Arena Castelão"}, "20/05/2026": {"adv": "Sport", "camp": "Copa do Nordeste", "placar": "1x2", "result": "Derrota", "mando": "Casa", "estadio": "Arena Castelão"}, "27/05/2026": {"adv": "Sport", "camp": "Copa do Nordeste", "placar": "—", "result": "—", "mando": "Fora", "estadio": "Arena Pernambuco"}};
+const NORMS={"90": {"jogos": 7, "distMin_mean": 84.5629, "distMin_std": 6.9381, "altMin_mean": 4.765, "altMin_std": 1.2099, "accMin_mean": 0.2339, "accMin_std": 0.0501, "decMin_mean": 0.3713, "decMin_std": 0.0533}, "1": {"jogos": 41, "distMin_mean": 87.2293, "distMin_std": 4.4738, "altMin_mean": 4.6145, "altMin_std": 1.0564, "accMin_mean": 0.2039, "accMin_std": 0.0391, "decMin_mean": 0.2632, "decMin_std": 0.054}, "64": {"jogos": 23, "distMin_mean": 97.0096, "distMin_std": 6.3645, "altMin_mean": 7.427, "altMin_std": 1.5244, "accMin_mean": 0.2444, "accMin_std": 0.0497, "decMin_mean": 0.283, "decMin_std": 0.0733}, "84": {"jogos": 5, "distMin_mean": 94.564, "distMin_std": 4.8369, "altMin_mean": 5.3868, "altMin_std": 1.3985, "accMin_mean": 0.164, "accMin_std": 0.0519, "decMin_mean": 0.2824, "decMin_std": 0.0863}, "72": {"jogos": 19, "distMin_mean": 97.3463, "distMin_std": 5.3588, "altMin_mean": 6.2164, "altMin_std": 1.7881, "accMin_mean": 0.2921, "accMin_std": 0.0612, "decMin_mean": 0.35, "decMin_std": 0.0583}, "69": {"jogos": 40, "distMin_mean": 96.4933, "distMin_std": 4.6095, "altMin_mean": 6.367, "altMin_std": 1.6011, "accMin_mean": 0.2091, "accMin_std": 0.0523, "decMin_mean": 0.3888, "decMin_std": 0.0838}, "61": {"jogos": 16, "distMin_mean": 120.4925, "distMin_std": 5.3626, "altMin_mean": 7.1721, "altMin_std": 2.057, "accMin_mean": 0.1971, "accMin_std": 0.0391, "decMin_mean": 0.5224, "decMin_std": 0.1127}, "77": {"jogos": 20, "distMin_mean": 88.5935, "distMin_std": 5.0852, "altMin_mean": 3.7632, "altMin_std": 1.2374, "accMin_mean": 0.1729, "accMin_std": 0.0364, "decMin_mean": 0.2351, "decMin_std": 0.0533}, "76": {"jogos": 31, "distMin_mean": 84.8865, "distMin_std": 6.6403, "altMin_mean": 3.0693, "altMin_std": 1.3097, "accMin_mean": 0.1188, "accMin_std": 0.0368, "decMin_mean": 0.203, "decMin_std": 0.0563}, "57": {"jogos": 63, "distMin_mean": 89.2865, "distMin_std": 4.3155, "altMin_mean": 4.218, "altMin_std": 1.2847, "accMin_mean": 0.2025, "accMin_std": 0.0486, "decMin_mean": 0.3021, "decMin_std": 0.0698}, "78": {"jogos": 3, "distMin_mean": 108.99, "distMin_std": 3.84, "altMin_mean": 5.7527, "altMin_std": 0.6598, "accMin_mean": 0.288, "accMin_std": 0.0449, "decMin_mean": 0.469, "decMin_std": 0.05}, "16": {"jogos": 57, "distMin_mean": 107.7091, "distMin_std": 6.0277, "altMin_mean": 5.4495, "altMin_std": 1.6328, "accMin_mean": 0.1562, "accMin_std": 0.0424, "decMin_mean": 0.3778, "decMin_std": 0.0771}, "32": {"jogos": 40, "distMin_mean": 97.4357, "distMin_std": 5.6428, "altMin_mean": 7.454, "altMin_std": 1.5213, "accMin_mean": 0.2517, "accMin_std": 0.0459, "decMin_mean": 0.3727, "decMin_std": 0.0725}, "58": {"jogos": 17, "distMin_mean": 109.0912, "distMin_std": 5.4596, "altMin_mean": 5.304, "altMin_std": 1.4715, "accMin_mean": 0.2813, "accMin_std": 0.0555, "decMin_mean": 0.3661, "decMin_std": 0.0729}, "44": {"jogos": 13, "distMin_mean": 101.5754, "distMin_std": 5.282, "altMin_mean": 7.4738, "altMin_std": 1.4839, "accMin_mean": 0.3171, "accMin_std": 0.0617, "decMin_mean": 0.4111, "decMin_std": 0.0687}, "86": {"jogos": 10, "distMin_mean": 107.7, "distMin_std": 5.1081, "altMin_mean": 4.7931, "altMin_std": 1.23, "accMin_mean": 0.2092, "accMin_std": 0.0412, "decMin_mean": 0.3179, "decMin_std": 0.0703}, "20": {"jogos": 24, "distMin_mean": 100.3137, "distMin_std": 5.2647, "altMin_mean": 7.4287, "altMin_std": 1.685, "accMin_mean": 0.3305, "accMin_std": 0.0602, "decMin_mean": 0.3887, "decMin_std": 0.0646}, "85": {"jogos": 4, "distMin_mean": 101.8275, "distMin_std": 8.6574, "altMin_mean": 5.78, "altMin_std": 0.7089, "accMin_mean": 0.2422, "accMin_std": 0.0455, "decMin_mean": 0.401, "decMin_std": 0.0356}, "26": {"jogos": 44, "distMin_mean": 97.3236, "distMin_std": 15.7863, "altMin_mean": 5.2279, "altMin_std": 1.4901, "accMin_mean": 0.1664, "accMin_std": 0.0378, "decMin_mean": 0.2232, "decMin_std": 0.0631}, "92": {"jogos": 2, "distMin_mean": 107.72, "distMin_std": 1.4849, "altMin_mean": 9.4855, "altMin_std": 1.8052, "accMin_mean": 0.388, "accMin_std": 0.0339, "decMin_mean": 0.5535, "decMin_std": 0.0898}, "31": {"jogos": 22, "distMin_mean": 101.7955, "distMin_std": 8.0446, "altMin_mean": 4.2091, "altMin_std": 1.3718, "accMin_mean": 0.1491, "accMin_std": 0.0363, "decMin_mean": 0.27, "decMin_std": 0.0817}, "36": {"jogos": 3, "distMin_mean": 99.1467, "distMin_std": 5.4871, "altMin_mean": 4.4423, "altMin_std": 0.6832, "accMin_mean": 0.1517, "accMin_std": 0.041, "decMin_mean": 0.3353, "decMin_std": 0.0294}, "63": {"jogos": 18, "distMin_mean": 90.3572, "distMin_std": 4.4682, "altMin_mean": 5.1413, "altMin_std": 1.127, "accMin_mean": 0.2252, "accMin_std": 0.0479, "decMin_mean": 0.2151, "decMin_std": 0.0354}, "10": {"jogos": 15, "distMin_mean": 107.0047, "distMin_std": 4.4216, "altMin_mean": 5.7971, "altMin_std": 1.0576, "accMin_mean": 0.2332, "accMin_std": 0.056, "decMin_mean": 0.3278, "decMin_std": 0.05}, "18": {"jogos": 8, "distMin_mean": 95.55, "distMin_std": 5.5266, "altMin_mean": 7.6182, "altMin_std": 2.6065, "accMin_mean": 0.2387, "accMin_std": 0.0595, "decMin_mean": 0.3295, "decMin_std": 0.0543}, "62": {"jogos": 3, "distMin_mean": 101.8867, "distMin_std": 2.6348, "altMin_mean": 6.7027, "altMin_std": 1.3514, "accMin_mean": 0.242, "accMin_std": 0.0531, "decMin_mean": 0.4013, "decMin_std": 0.084}, "53": {"jogos": 32, "distMin_mean": 89.8881, "distMin_std": 4.9488, "altMin_mean": 2.5497, "altMin_std": 0.9567, "accMin_mean": 0.166, "accMin_std": 0.0413, "decMin_mean": 0.2339, "decMin_std": 0.0625}, "28": {"jogos": 31, "distMin_mean": 106.2965, "distMin_std": 6.2748, "altMin_mean": 8.1203, "altMin_std": 1.572, "accMin_mean": 0.289, "accMin_std": 0.0543, "decMin_mean": 0.411, "decMin_std": 0.0752}, "27": {"jogos": 39, "distMin_mean": 85.6762, "distMin_std": 4.631, "altMin_mean": 3.178, "altMin_std": 0.9787, "accMin_mean": 0.1475, "accMin_std": 0.0461, "decMin_mean": 0.3195, "decMin_std": 0.0807}, "6": {"jogos": 84, "distMin_mean": 90.2537, "distMin_std": 5.5427, "altMin_mean": 3.4994, "altMin_std": 1.0087, "accMin_mean": 0.1477, "accMin_std": 0.0429, "decMin_mean": 0.2979, "decMin_std": 0.0702}, "43": {"jogos": 2, "distMin_mean": 109.385, "distMin_std": 2.6658, "altMin_mean": 5.442, "altMin_std": 2.5512, "accMin_mean": 0.302, "accMin_std": 0.1414, "decMin_mean": 0.3625, "decMin_std": 0.0559}, "47": {"jogos": 15, "distMin_mean": 110.7807, "distMin_std": 8.2125, "altMin_mean": 3.2439, "altMin_std": 1.7876, "accMin_mean": 0.1622, "accMin_std": 0.0547, "decMin_mean": 0.2903, "decMin_std": 0.0975}, "71": {"jogos": 9, "distMin_mean": 106.9678, "distMin_std": 4.3575, "altMin_mean": 6.1499, "altMin_std": 1.0289, "accMin_mean": 0.1798, "accMin_std": 0.0264, "decMin_mean": 0.4287, "decMin_std": 0.1077}, "75": {"jogos": 10, "distMin_mean": 81.419, "distMin_std": 3.9734, "altMin_mean": 2.8793, "altMin_std": 0.4753, "accMin_mean": 0.101, "accMin_std": 0.0417, "decMin_mean": 0.1294, "decMin_std": 0.0422}, "5": {"jogos": 2, "distMin_mean": 95.13, "distMin_std": 3.4083, "altMin_mean": 4.5225, "altMin_std": 0.4886, "accMin_mean": 0.277, "accMin_std": 0.0071, "decMin_mean": 0.381, "decMin_std": 0.0311}, "96": {"jogos": 15, "distMin_mean": 112.0913, "distMin_std": 7.1494, "altMin_mean": 5.177, "altMin_std": 1.9605, "accMin_mean": 0.2877, "accMin_std": 0.0708, "decMin_mean": 0.3749, "decMin_std": 0.088}, "14": {"jogos": 4, "distMin_mean": 100.785, "distMin_std": 3.935, "altMin_mean": 6.8075, "altMin_std": 0.8062, "accMin_mean": 0.2278, "accMin_std": 0.0484, "decMin_mean": 0.259, "decMin_std": 0.0513}, "99": {"jogos": 29, "distMin_mean": 86.4872, "distMin_std": 3.9381, "altMin_mean": 2.6198, "altMin_std": 0.936, "accMin_mean": 0.1669, "accMin_std": 0.0435, "decMin_mean": 0.1738, "decMin_std": 0.0467}, "105": {"jogos": 7, "distMin_mean": 86.4743, "distMin_std": 4.0502, "altMin_mean": 3.8273, "altMin_std": 0.3594, "accMin_mean": 0.209, "accMin_std": 0.0398, "decMin_mean": 0.2553, "decMin_std": 0.0535}, "110": {"jogos": 12, "distMin_mean": 101.115, "distMin_std": 5.533, "altMin_mean": 7.6153, "altMin_std": 0.9689, "accMin_mean": 0.2542, "accMin_std": 0.0814, "decMin_mean": 0.3675, "decMin_std": 0.0989}, "102": {"jogos": 12, "distMin_mean": 88.8083, "distMin_std": 5.5785, "altMin_mean": 2.986, "altMin_std": 0.6141, "accMin_mean": 0.1333, "accMin_std": 0.0414, "decMin_mean": 0.2172, "decMin_std": 0.0343}, "100": {"jogos": 23, "distMin_mean": 89.5252, "distMin_std": 4.2003, "altMin_mean": 5.1833, "altMin_std": 1.333, "accMin_mean": 0.2593, "accMin_std": 0.0629, "decMin_mean": 0.3368, "decMin_std": 0.0677}, "109": {"jogos": 3, "distMin_mean": 108.9167, "distMin_std": 3.2758, "altMin_mean": 7.2517, "altMin_std": 2.0495, "accMin_mean": 0.266, "accMin_std": 0.0543, "decMin_mean": 0.3903, "decMin_std": 0.0621}, "101": {"jogos": 7, "distMin_mean": 101.7357, "distMin_std": 5.4253, "altMin_mean": 3.5301, "altMin_std": 0.9708, "accMin_mean": 0.1719, "accMin_std": 0.052, "decMin_mean": 0.1921, "decMin_std": 0.0544}, "103": {"jogos": 2, "distMin_mean": 107.35, "distMin_std": 4.2851, "altMin_mean": 8.663, "altMin_std": 2.6319, "accMin_mean": 0.255, "accMin_std": 0.0156, "decMin_mean": 0.4955, "decMin_std": 0.1039}, "112": {"jogos": 7, "distMin_mean": 91.6029, "distMin_std": 5.0209, "altMin_mean": 6.3153, "altMin_std": 0.839, "accMin_mean": 0.3041, "accMin_std": 0.0536, "decMin_mean": 0.407, "decMin_std": 0.0875}, "111": {"jogos": 2, "distMin_mean": 90.875, "distMin_std": 5.0558, "accMin_mean": 0.104, "accMin_std": 0.075, "decMin_mean": 0.1485, "decMin_std": 0.152}, "114": {"jogos": 2, "distMin_mean": 104.95, "distMin_std": 5.2184, "altMin_mean": 8.8515, "altMin_std": 0.0955, "accMin_mean": 0.315, "accMin_std": 0.0127, "decMin_mean": 0.3545, "decMin_std": 0.0573}, "116": {"jogos": 5, "distMin_mean": 98.314, "distMin_std": 7.9498, "altMin_mean": 4.7888, "altMin_std": 1.408, "accMin_mean": 0.1534, "accMin_std": 0.0418, "decMin_mean": 0.2526, "decMin_std": 0.0786}, "118": {"jogos": 7, "distMin_mean": 100.0414, "distMin_std": 6.2506, "altMin_mean": 6.0539, "altMin_std": 1.9731, "accMin_mean": 0.2359, "accMin_std": 0.0501, "decMin_mean": 0.3929, "decMin_std": 0.1302}};
+const ADV_SHIELDS={"A.Bucaramanga": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4f/Atletico_Bucaramanga_logo.svg/240px-Atletico_Bucaramanga_logo.svg.png", "Altos": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5c/Associa%C3%A7%C3%A3o_Altos_Esporte_Clube.png/240px-Associa%C3%A7%C3%A3o_Altos_Esporte_Clube.png", "Altos-PI": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5c/Associa%C3%A7%C3%A3o_Altos_Esporte_Clube.png/240px-Associa%C3%A7%C3%A3o_Altos_Esporte_Clube.png", "América - RN": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/26/America_Futebol_Clube_%28RN%29.png/240px-America_Futebol_Clube_%28RN%29.png", "América-RN": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/26/America_Futebol_Clube_%28RN%29.png/240px-America_Futebol_Clube_%28RN%29.png", "Athletico Paranaense": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/Athletico_Paranaense_logo.svg/240px-Athletico_Paranaense_logo.svg.png", "Atlético - GO": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/Atletico_Clube_Goianiense.svg/240px-Atletico_Clube_Goianiense.svg.png", "Atlético - MG": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/Atletico_mineiro_galo.svg/240px-Atletico_mineiro_galo.svg.png", "Atlético-MG": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/Atletico_mineiro_galo.svg/240px-Atletico_mineiro_galo.svg.png", "Avaí": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/74/Ava%C3%AD_FC_logo.svg/240px-Ava%C3%AD_FC_logo.svg.png", "Bahia": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b4/Esporte_Clube_Bahia_logo.svg/240px-Esporte_Clube_Bahia_logo.svg.png", "Barbalha": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d5/Barbalha_Esporte_Clube.png/240px-Barbalha_Esporte_Clube.png", "Boca Juniors": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7c/Escudo_del_Club_Atl%C3%A9tico_Boca_Juniors.svg/240px-Escudo_del_Club_Atl%C3%A9tico_Boca_Juniors.svg.png", "Botafogo": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cd/Botafogo_de_Futebol_e_Regatas_logo.svg/240px-Botafogo_de_Futebol_e_Regatas_logo.svg.png", "Botafogo-PB": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/87/Botafogo_Esporte_Clube_%28Parana%C3%ADba%29.png/240px-Botafogo_Esporte_Clube_%28Parana%C3%ADba%29.png", "Botafogo/SP": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e3/Botafogo_Futebol_Clube_Ribeirao_Preto.png/240px-Botafogo_Futebol_Clube_Ribeirao_Preto.png", "Bragantino": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/47/Red_Bull_Bragantino_logo.svg/240px-Red_Bull_Bragantino_logo.svg.png", "CRB": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a0/Clube_de_Regatas_Brasil.svg/240px-Clube_de_Regatas_Brasil.svg.png", "Cariri": "https://upload.wikimedia.org/wikipedia/pt/thumb/3/31/CaririFC.png/200px-CaririFC.png", "Ceará": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2e/Cear%C3%A1_Sporting_Club_logo.svg/240px-Cear%C3%A1_Sporting_Club_logo.svg.png", "Chicago Fire": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7a/Chicago_Fire_FC.svg/240px-Chicago_Fire_FC.svg.png", "Colo Colo": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9d/Club_Social_y_Deportivo_Colo-Colo_Logo.svg/240px-Club_Social_y_Deportivo_Colo-Colo_Logo.svg.png", "Confiança": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b4/Associa%C3%A7%C3%A3o_Desportiva_Confianca.png/240px-Associa%C3%A7%C3%A3o_Desportiva_Confianca.png", "Corinthians": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/47/Sport_Club_Corinthians_Paulista.png/240px-Sport_Club_Corinthians_Paulista.png", "Criciúma": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/80/Crici%C3%BAma_EC_logo.svg/240px-Crici%C3%BAma_EC_logo.svg.png", "Cruzeiro": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/97/Cruzeiro_Esporte_Clube_Logo.svg/240px-Cruzeiro_Esporte_Clube_Logo.svg.png", "Cuiabá": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/Cuiab%C3%A1_Esporte_Clube.png/240px-Cuiab%C3%A1_Esporte_Clube.png", "Ferroviário": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5a/Ferrovi%C3%A1rio_Atl%C3%A9tico_Clube.png/240px-Ferrovi%C3%A1rio_Atl%C3%A9tico_Clube.png", "Flamengo": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2e/Flamengo_braz_logo.svg/240px-Flamengo_braz_logo.svg.png", "Floresta": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e5/Floresta_Esporte_Clube.png/240px-Floresta_Esporte_Clube.png", "Fluminense": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b2/Fluminense_FC_logo.svg/240px-Fluminense_FC_logo.svg.png", "Fluminense-PI": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b2/Fluminense_FC_logo.svg/240px-Fluminense_FC_logo.svg.png", "Goiás": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/74/Goi%C3%A1s_Esporte_Clube_logo.svg/240px-Goi%C3%A1s_Esporte_Clube_logo.svg.png", "Grêmio": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cf/Gremio_foot-ball_porto_alegrense_logo.svg/240px-Gremio_foot-ball_porto_alegrense_logo.svg.png", "Horizonte": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/72/Associa%C3%A7%C3%A3o_Desportiva_Recreativa_e_Cultural_Horizonte.png/200px-Associa%C3%A7%C3%A3o_Desportiva_Recreativa_e_Cultural_Horizonte.png", "Iguatu": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9d/Iguatu_Esporte_Clube.png/200px-Iguatu_Esporte_Clube.png", "Imperatriz": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/47/Imperatriz_Esporte_Clube.png/200px-Imperatriz_Esporte_Clube.png", "Internacional": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/Sport_Club_Internacional.svg/240px-Sport_Club_Internacional.svg.png", "Juventude": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/33/Esporte_Clube_Juventude_logo.svg/240px-Esporte_Clube_Juventude_logo.svg.png", "Maguary": "", "Manauara": "", "Maracanã": "", "Maranhão": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/29/Maranh%C3%A3o_Atletico_Clube.png/200px-Maranh%C3%A3o_Atletico_Clube.png", "Miami United": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/38/Miami_United_FC.png/200px-Miami_United_FC.png", "Mirassol": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/82/Mirassol_Futebol_Clube.png/240px-Mirassol_Futebol_Clube.png", "Moto Club": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/22/Moto_Club.png/200px-Moto_Club.png", "Nacional Potosí": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0d/Club_Deportivo_Nacional_Potosi.png/200px-Club_Deportivo_Nacional_Potosi.png", "Nova Iguaçu": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e9/Nova_Igua%C3%A7u_Futebol_Clube.png/200px-Nova_Igua%C3%A7u_Futebol_Clube.png", "Operário": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f5/Oper%C3%A1rio_Ferroviario_Esporte_Clube.png/240px-Oper%C3%A1rio_Ferroviario_Esporte_Clube.png", "Palmeiras": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/10/Palmeiras_logo.svg/240px-Palmeiras_logo.svg.png", "Quixadá": "", "RB Bragantino": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/47/Red_Bull_Bragantino_logo.svg/240px-Red_Bull_Bragantino_logo.svg.png", "Racing": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/53/Racing_Club_de_Avellaneda_logo.svg/240px-Racing_Club_de_Avellaneda_logo.svg.png", "Retrô": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/ff/Retr%C3%B4_Futebol_Clube.png/200px-Retr%C3%B4_Futebol_Clube.png", "River-PI": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/River_Atletico_Clube.png/200px-River_Atletico_Clube.png", "Rosário Central": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/91/Rosario_central_logo.svg/240px-Rosario_central_logo.svg.png", "Santos": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/15/Santos_FC_Logo.svg/240px-Santos_FC_Logo.svg.png", "Sousa": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/76/Sousa_Esporte_Clube.png/200px-Sousa_Esporte_Clube.png", "Sp.Trinidense": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d5/Sp._Trinidense.png/200px-Sp._Trinidense.png", "Sport": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a7/Sport_Club_do_Recife.png/240px-Sport_Club_do_Recife.png", "São Bernardo": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4c/S%C3%A3o_Bernardo_FC.png/200px-S%C3%A3o_Bernardo_FC.png", "São Paulo": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6f/Sao_Paulo_FC_logo.svg/240px-Sao_Paulo_FC_logo.svg.png", "Vasco": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/ba/Club_de_Regatas_Vasco_da_Gama_logo.svg/240px-Club_de_Regatas_Vasco_da_Gama_logo.svg.png", "Vitória": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/13/Esporte_Clube_Vit%C3%B3ria_logo.svg/240px-Esporte_Clube_Vit%C3%B3ria_logo.svg.png", "Vélez Sarsfield": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/43/Velez_Sarsfield_escudo.svg/240px-Velez_Sarsfield_escudo.svg.png"};
+let DATE='20/05/2026';
+let selectedBar=null;
+
+// ============================================================================
+// CONFIG — Backend & dados do Cadastro
+// ============================================================================
+const BACKEND_URL = ''; // mesmo domínio — caminho relativo (ex: /api/match)
+const STORAGE_KEY = 'fec-last-match-v1';
+const GAMES_STORAGE_KEY = 'fec-games-list-v1';
+// Lista de jogos vinda do endpoint /api/games. Preenchida em runtime.
+let GAMES = [];                 // [{date,id,name,adv,hasT1,hasT2,...}, ...]
+let AUTO_LOADED = false;        // garante que o auto-load do jogo mais recente rode só uma vez
+let GAMES_BY_DATE = {};         // { "27/05/2026": {…}, ... } para lookup rápido
+const CADASTRO={"1": {"atleta": "B. PACHECO", "posicao": "LATERAL", "foto": "https://i.postimg.cc/d32n22Vc/BRUNO-PACHECO.png", "status": "INATIVO"}, "2": {"atleta": "BRYAN CEBALLOS", "posicao": "ZAGUEIRO", "foto": "https://i.postimg.cc/c1f1cfqZ/Ceballos-Cortada.png", "status": "INATIVO"}, "3": {"atleta": "CAIO ALEXANDRE", "posicao": "MEIO CAMPO", "foto": "https://i.postimg.cc/jS3RjXf6/Caio-Cortada.png", "status": "INATIVO"}, "4": {"atleta": "CHRISTIAN BERNARDI", "posicao": "MEIO CAMPO", "foto": "", "status": "INATIVO"}, "5": {"atleta": "DUDU", "posicao": "LATERAL", "foto": "https://i.postimg.cc/mrmvMG6y/DUDU.png", "status": "INATIVO"}, "6": {"atleta": "E. BRÍTEZ", "posicao": "ZAGUEIRO", "foto": "https://i.postimg.cc/gjXMLRnZ/britez.png", "status": "ATIVO"}, "7": {"atleta": "FERNANDO MIGUEL", "posicao": "GOLEIRO", "foto": "https://i.postimg.cc/jSxj22FT/Fernando-Cortada.png", "status": "INATIVO"}, "8": {"atleta": "GUSTAVO COUTINHO", "posicao": "CENTROAVANTE", "foto": "", "status": "INATIVO"}, "9": {"atleta": "HABRAÃO", "posicao": "ZAGUEIRO", "foto": "", "status": "INATIVO"}, "10": {"atleta": "HÉRCULES", "posicao": "MEIO CAMPO", "foto": "https://i.postimg.cc/qq3S96B1/HE-RCULES.png", "status": "INATIVO"}, "11": {"atleta": "JOÃO RICARDO", "posicao": "GOLEIRO", "foto": "https://i.postimg.cc/XYk0vSMq/joao-ricardo.png", "status": "ATIVO"}, "12": {"atleta": "KENNEDY", "posicao": "GOLEIRO", "foto": "", "status": "INATIVO"}, "13": {"atleta": "LUAN POLLI", "posicao": "GOLEIRO", "foto": "", "status": "INATIVO"}, "14": {"atleta": "LUCAS CRISPIM", "posicao": "MEIO CAMPO", "foto": "https://i.postimg.cc/kG0TQ4bY/crispim.png", "status": "ATIVO"}, "15": {"atleta": "LUCAS ESTEVES", "posicao": "LATERAL", "foto": "https://i.postimg.cc/Jzpzk8fk/Esteves-Cortada.png", "status": "INATIVO"}, "16": {"atleta": "L. SASHA", "posicao": "MEIO CAMPO", "foto": "https://i.postimg.cc/SKCZSf7b/SASHA.png", "status": "ATIVO"}, "17": {"atleta": "MARCELO BENEVENUTO", "posicao": "ZAGUEIRO", "foto": "https://i.postimg.cc/0yNfMrqw/BENEVENUTO.png", "status": "INATIVO"}, "18": {"atleta": "MOISÉS", "posicao": "EXTREMO", "foto": "https://i.postimg.cc/gcQgf0ZZ/MOISE-S.png", "status": "INATIVO"}, "19": {"atleta": "PEDRO ROCHA", "posicao": "EXTREMO", "foto": "https://i.postimg.cc/h4fCymfn/PEDRO-ROCHA.png", "status": "INATIVO"}, "20": {"atleta": "PIKACHU", "posicao": "EXTREMO", "foto": "https://i.postimg.cc/vB85Jr0z/PIKACHU.png", "status": "INATIVO"}, "21": {"atleta": "ROMARINHO SOUZA", "posicao": "EXTREMO", "foto": "https://i.postimg.cc/mrd1BCLK/Romarinho-Cortada.png", "status": "INATIVO"}, "22": {"atleta": "RONALD LOPES", "posicao": "MEIO CAMPO", "foto": "", "status": "INATIVO"}, "23": {"atleta": "SAMMUEL", "posicao": "MEIO CAMPO", "foto": "https://i.postimg.cc/rwNtZ7vV/Sammuel-Cortada.png", "status": "INATIVO"}, "24": {"atleta": "SILVIO ROMERO", "posicao": "CENTROAVANTE", "foto": "https://i.postimg.cc/JnvyB8Bq/Romero-Cortada.png", "status": "INATIVO"}, "25": {"atleta": "THIAGO GALHARDO", "posicao": "CENTROAVANTE", "foto": "https://i.postimg.cc/v8nTSpVJ/Galhardo-Cortada.png", "status": "INATIVO"}, "26": {"atleta": "TINGA", "posicao": "LATERAL", "foto": "https://i.postimg.cc/C10cznmB/TINGA.png", "status": "INATIVO"}, "27": {"atleta": "TITI", "posicao": "ZAGUEIRO", "foto": "https://i.postimg.cc/B6CMDZVh/TITI.png", "status": "INATIVO"}, "28": {"atleta": "T.POCHETTINO", "posicao": "MEIO CAMPO", "foto": "https://i.postimg.cc/0N0pXW0j/POCHETTINO.png", "status": "ATIVO"}, "29": {"atleta": "VALENTÍN", "posicao": "EXTREMO", "foto": "", "status": "INATIVO"}, "30": {"atleta": "WESLEY", "posicao": "EXTREMO", "foto": "", "status": "INATIVO"}, "31": {"atleta": "ZÉ WELISON", "posicao": "MEIO CAMPO", "foto": "https://i.postimg.cc/hvPM0WFK/ZE-WELISON.png", "status": "INATIVO"}, "32": {"atleta": "LUCERO", "posicao": "CENTROAVANTE", "foto": "https://i.postimg.cc/NGH62kKK/LUCERO.png", "status": "INATIVO"}, "33": {"atleta": "JÚNIOR SANTOS", "posicao": "EXTREMO", "foto": "", "status": "INATIVO"}, "34": {"atleta": "AMORIM", "posicao": "MEIO CAMPO", "foto": "https://i.postimg.cc/m2g6YMR7/AMORIM.png", "status": "INATIVO"}, "35": {"atleta": "GUILHERME", "posicao": "EXTREMO", "foto": "https://i.postimg.cc/C5bKBq0h/Guilherme-Cortada.png", "status": "INATIVO"}, "36": {"atleta": "CALEBE", "posicao": "MEIO CAMPO", "foto": "https://i.postimg.cc/fTQrVLRh/CALEBE.png", "status": "INATIVO"}, "37": {"atleta": "CARLOS", "posicao": "GOLEIRO", "foto": "", "status": "INATIVO"}, "38": {"atleta": "MAURÍCIO KOZLINSKI", "posicao": "GOLEIRO", "foto": "https://i.postimg.cc/RZFqKvgg/KOZLINSKI.png", "status": "INATIVO"}, "39": {"atleta": "BRUNO GUIMARÃES", "posicao": "GOLEIRO", "foto": "https://i.postimg.cc/tJQ2nSyz/BRUNO-GUIMARA-ES.png", "status": "INATIVO"}, "40": {"atleta": "VINÍCIUS SAMPAIO", "posicao": "ZAGUEIRO", "foto": "https://i.postimg.cc/rpvc1wQK/Vinicius-Cortada.png", "status": "INATIVO"}, "41": {"atleta": "BERNARDO SCHAPPO", "posicao": "ZAGUEIRO", "foto": "https://i.postimg.cc/qqrTFZfr/Bernardo-Cortada.png", "status": "INATIVO"}, "42": {"atleta": "VINICIUS ZANOCELO", "posicao": "MEIO CAMPO", "foto": "https://i.postimg.cc/59DvXBBV/Zanocelo-Cortada.png", "status": "INATIVO"}, "43": {"atleta": "KAUAN", "posicao": "MEIO CAMPO", "foto": "https://i.postimg.cc/J4hRdPjn/KAUAN.png", "status": "INATIVO"}, "44": {"atleta": "MARINHO", "posicao": "EXTREMO", "foto": "https://i.postimg.cc/wvSDb7Gx/MARINHO.png", "status": "INATIVO"}, "45": {"atleta": "GONZALO ESCOBAR", "posicao": "LATERAL", "foto": "https://i.postimg.cc/T3g3fqTp/ESCOBAR-cortada.png", "status": "INATIVO"}, "46": {"atleta": "TOBIAS FIGUEIREDO", "posicao": "ZAGUEIRO", "foto": "https://i.postimg.cc/7LW70Wpf/TOBIAS-cortada.png", "status": "INATIVO"}, "47": {"atleta": "P. AUGUSTO", "posicao": "MEIO CAMPO", "foto": "https://i.postimg.cc/G2N9XGV9/PEDRO-AUGUSTO.png", "status": "INATIVO"}, "48": {"atleta": "I. MACHUCA", "posicao": "EXTREMO", "foto": "https://i.postimg.cc/Z5VpzfMM/MACHUCA.png", "status": "INATIVO"}, "49": {"atleta": "BRUNO MELO", "posicao": "ZAGUEIRO", "foto": "https://i.postimg.cc/0NBGqMbC/temp-Image-Vjiqmo.jpg", "status": "INATIVO"}, "50": {"atleta": "SANTOS", "posicao": "GOLEIRO", "foto": "https://i.postimg.cc/HnR58fdZ/SANTOS.png", "status": "INATIVO"}, "51": {"atleta": "LUQUINHAS", "posicao": "MEIO CAMPO", "foto": "https://i.postimg.cc/sx75FskY/LUQUINHAS.png", "status": "INATIVO"}, "52": {"atleta": "KERVIN A.", "posicao": "MEIO CAMPO", "foto": "https://i.postimg.cc/7YXf55nC/KERVIN.png", "status": "INATIVO"}, "53": {"atleta": "TOMÁS CARDONA", "posicao": "ZAGUEIRO", "foto": "https://i.postimg.cc/FzdPkc7F/cardona.png", "status": "ATIVO"}, "54": {"atleta": "MICHEL", "posicao": "MEIO CAMPO", "foto": "", "status": "INATIVO"}, "55": {"atleta": "IARLEY", "posicao": "CENTROAVANTE", "foto": "https://i.postimg.cc/wBDzsPYW/IARLEY.png", "status": "INATIVO"}, "56": {"atleta": "GEILSON", "posicao": "ZAGUEIRO", "foto": "", "status": "INATIVO"}, "57": {"atleta": "KUSCEVIC", "posicao": "ZAGUEIRO", "foto": "https://i.postimg.cc/DfrWKjWP/KUSCEVIC.png", "status": "INATIVO"}, "58": {"atleta": "M. ROSSETTO", "posicao": "MEIO CAMPO", "foto": "https://i.postimg.cc/9fhdp5Ts/ROSSETTO.png", "status": "ATIVO"}, "59": {"atleta": "THAUAN LARA", "posicao": "LATERAL", "foto": "", "status": "INATIVO"}, "60": {"atleta": "JHONATAN", "posicao": "ZAGUEIRO", "foto": "https://i.postimg.cc/bwDpqrCf/JHONATHAN.png", "status": "INATIVO"}, "61": {"atleta": "E.MARTÍNEZ", "posicao": "MEIO CAMPO", "foto": "https://i.postimg.cc/jSQvwQkH/MARTI-NEZ.png", "status": "INATIVO"}, "62": {"atleta": "R.KAYZER", "posicao": "CENTROAVANTE", "foto": "https://i.postimg.cc/d180w30V/KAYZER.png", "status": "INATIVO"}, "63": {"atleta": "F.JONATAN", "posicao": "LATERAL", "foto": "https://i.postimg.cc/v8Jp5hXk/FELIPE-JONATAN.png", "status": "INATIVO"}, "64": {"atleta": "BRENO LOPES", "posicao": "EXTREMO", "foto": "https://i.postimg.cc/c1wDGSMk/BRENO-LOPES.png", "status": "INATIVO"}, "65": {"atleta": "KAIKY", "posicao": "LATERAL", "foto": "", "status": "INATIVO"}, "66": {"atleta": "FABRÍCIO", "posicao": "MEIO CAMPO", "foto": "", "status": "INATIVO"}, "67": {"atleta": "TAVINHO", "posicao": "MEIO CAMPO", "foto": "", "status": "INATIVO"}, "68": {"atleta": "MAGRÃO", "posicao": "GOLEIRO", "foto": "https://i.postimg.cc/4x7jLPth/15-MAGRA-O.png", "status": "ATIVO"}, "69": {"atleta": "E.MANCUSO", "posicao": "LATERAL", "foto": "https://i.postimg.cc/qRzgLpWg/MANCUSO.png", "status": "INATIVO"}, "70": {"atleta": "KAUÊ CANELA", "posicao": "CENTROAVANTE", "foto": "", "status": "INATIVO"}, "71": {"atleta": "POL FERNÁNDEZ", "posicao": "MEIO CAMPO", "foto": "https://i.postimg.cc/zBsFtNtR/5-POL-FERNA-NDEZ.png", "status": "INATIVO"}, "72": {"atleta": "D. BARBOSA", "posicao": "LATERAL", "foto": "https://i.postimg.cc/YSy3FYQR/16-DIOGO-BARBOSA.png", "status": "INATIVO"}, "73": {"atleta": "BRENNO C.", "posicao": "GOLEIRO", "foto": "https://i.postimg.cc/j2PFkPtj/brenno.png", "status": "ATIVO"}, "74": {"atleta": "D.BORRERO", "posicao": "EXTREMO", "foto": "https://i.postimg.cc/GppK9qT9/27-DYLAN-BORRERO.png", "status": "INATIVO"}, "75": {"atleta": "DAVID LUIZ", "posicao": "ZAGUEIRO", "foto": "https://i.postimg.cc/05zJGCqZ/23-DAVID-LUIZ.png", "status": "INATIVO"}, "76": {"atleta": "GASTÓN A.", "posicao": "ZAGUEIRO", "foto": "https://i.postimg.cc/c1tDQ99n/32-GASTO-N-A-VILA.png", "status": "INATIVO"}, "77": {"atleta": "G.MANCHA", "posicao": "ZAGUEIRO", "foto": "https://i.postimg.cc/sXQJ4xcr/39-GUSTAVO-MANCHA.png", "status": "INATIVO"}, "78": {"atleta": "L.PRIOR", "posicao": "MEIO CAMPO", "foto": "https://i.postimg.cc/J4jfTVzP/lucca-prior.png", "status": "ATIVO"}, "79": {"atleta": "SALVADOR", "posicao": "GOLEIRO", "foto": "https://i.postimg.cc/FFCbVqSf/Eduardo-Salvador-GOL.png", "status": "INATIVO"}, "80": {"atleta": "QUARCOO", "posicao": "CENTROAVANTE", "foto": "", "status": "INATIVO"}, "81": {"atleta": "BRUNINHO", "posicao": "MEIO CAMPO", "foto": "https://i.postimg.cc/k4h15wXr/bruninho.png", "status": "ATIVO"}, "82": {"atleta": "CAIO WESLEY", "posicao": "CENTROAVANTE", "foto": "", "status": "INATIVO"}, "83": {"atleta": "ALLANZINHO", "posicao": "EXTREMO", "foto": "https://i.postimg.cc/rphKxDnv/ALLANZINHO.png", "status": "INATIVO"}, "84": {"atleta": "DEYVERSON", "posicao": "CENTROAVANTE", "foto": "https://i.postimg.cc/Y9Z0DJwR/DEYVERSON.png", "status": "INATIVO"}, "85": {"atleta": "RODRIGO", "posicao": "MEIO CAMPO", "foto": "https://i.postimg.cc/T1sr2Lxj/RODRIGO.png", "status": "ATIVO"}, "86": {"atleta": "MATHEUS P.", "posicao": "MEIO CAMPO", "foto": "https://i.postimg.cc/2j1wPv3q/MATHEUS-PEREIRA.png", "status": "INATIVO"}, "87": {"atleta": "L.EMANOEL", "posicao": "CENTROAVANTE", "foto": "https://i.postimg.cc/Pxcg7dDP/lucas-emanoel.png", "status": "ATIVO"}, "88": {"atleta": "RYAN G.", "posicao": "MEIO CAMPO", "foto": "", "status": "INATIVO"}, "89": {"atleta": "J.HERRERA", "posicao": "EXTREMO", "foto": "https://i.postimg.cc/Sx5WnrrB/HERRERA.png", "status": "INATIVO"}, "90": {"atleta": "A.BAREIRO", "posicao": "CENTROAVANTE", "foto": "https://i.postimg.cc/L69kwh5b/ADAM-BAREIRO.png", "status": "INATIVO"}, "91": {"atleta": "V.SILVESTRE", "posicao": "GOLEIRO", "foto": "https://i.postimg.cc/0Q63Dh4d/silvestre.png", "status": "ATIVO"}, "92": {"atleta": "WEVERSON", "posicao": "LATERAL", "foto": "https://i.postimg.cc/SNgLhqzN/WEVERSON.png", "status": "INATIVO"}, "93": {"atleta": "HELTON L.", "posicao": "GOLEIRO", "foto": "https://i.postimg.cc/7L2S02tf/HELTON-LEITE.png", "status": "INATIVO"}, "94": {"atleta": "Y.GUZMÁN", "posicao": "MEIO CAMPO", "foto": "https://i.postimg.cc/Rq5RJT4C/GU-ZMAN.png", "status": "INATIVO"}, "95": {"atleta": "GUILHERME C.", "posicao": "ZAGUEIRO", "foto": "", "status": "INATIVO"}, "96": {"atleta": "PIERRE", "posicao": "MEIO CAMPO", "foto": "https://i.postimg.cc/637SnFPN/pierre.png", "status": "ATIVO"}, "97": {"atleta": "PABLO", "posicao": "MEIO CAMPO", "foto": "https://i.postimg.cc/W306Lk0Q/PABLO-ROBERTO.png", "status": "INATIVO"}, "98": {"atleta": "KAYKE", "posicao": "CENTROAVANTE", "foto": "https://i.postimg.cc/Gp3n87rQ/kayke.png", "status": "ATIVO"}, "99": {"atleta": "L.GAZAL", "posicao": "ZAGUEIRO", "foto": "https://i.postimg.cc/HsGG4sdD/lucas-gazal.png", "status": "ATIVO"}, "100": {"atleta": "MAILTON", "posicao": "LATERAL", "foto": "https://i.postimg.cc/zGj9rChQ/mailton.png", "status": "ATIVO"}, "101": {"atleta": "RONALD.F", "posicao": "VOLANTE", "foto": "https://i.postimg.cc/y6Ztd49h/ronald.jpg", "status": "ATIVO"}, "102": {"atleta": "LUAN F.", "posicao": "ZAGUEIRO", "foto": "https://i.postimg.cc/g0MFvVkv/luan-freitas.png", "status": "ATIVO"}, "103": {"atleta": "RYAN", "posicao": "VOLANTE", "foto": "https://i.postimg.cc/B68yHRz1/ryan.png", "status": "ATIVO"}, "104": {"atleta": "T.ROCO", "posicao": "CENTROAVANTE", "foto": "", "status": "INATIVO"}, "105": {"atleta": "KAUÃ.R", "posicao": "ZAGUEIRO", "foto": "https://i.postimg.cc/7LPrGsDw/kaua.png", "status": "ATIVO"}, "106": {"atleta": "PAULINHO", "posicao": "LATERAL", "foto": "https://i.postimg.cc/rsxPYxc7/paulinho.jpg", "status": "ATIVO"}, "107": {"atleta": "GUILHERME", "posicao": "LATERAL", "foto": "https://i.postimg.cc/3rzhSFCJ/guilherme-moura.png", "status": "ATIVO"}, "108": {"atleta": "VITINHO", "posicao": "EXTREMO", "foto": "https://i.postimg.cc/tgkvKpKj/vitinho.png", "status": "ATIVO"}, "109": {"atleta": "RODRIGUINHO", "posicao": "MEIO CAMPO", "foto": "https://i.postimg.cc/90ZnNZCh/rodriguinho.jpg", "status": "ATIVO"}, "110": {"atleta": "LUIZ FERNANDO", "posicao": "EXTREMO", "foto": "https://i.postimg.cc/jdyp80Sc/luis-fernando.png", "status": "ATIVO"}, "111": {"atleta": "JOÃO LUCAS", "posicao": "ZAGUEIRO", "foto": "https://i.postimg.cc/0yssx5BD/joa-o-lucas.png", "status": "ATIVO"}, "112": {"atleta": "G. FUENTES", "posicao": "LATERAL", "foto": "https://i.postimg.cc/c1vZBb36/fuentes.png", "status": "ATIVO"}, "113": {"atleta": "GABRIEL GB", "posicao": "CENTROAVANTE", "foto": "https://i.postimg.cc/66FKjfLs/gb.png", "status": "ATIVO"}, "114": {"atleta": "PAULO BAYA", "posicao": "EXTREMO", "foto": "https://i.postimg.cc/mD0nw8xn/paulo-baya.jpg", "status": "ATIVO"}, "115": {"atleta": "WELLITON", "posicao": "EXTREMO", "foto": "https://i.postimg.cc/0QL4fcgz/welliton.jpg", "status": "ATIVO"}, "116": {"atleta": "J.MIRITELLO", "posicao": "CENTROAVANTE", "foto": "https://i.postimg.cc/fL3Fm1PD/miritello.png", "status": "ATIVO"}, "117": {"atleta": "CÁSSIO", "posicao": "GOLEIRO", "foto": "https://i.postimg.cc/XqG2BFpw/cassio.png", "status": "ATIVO"}, "118": {"atleta": "MAURÍCIO", "posicao": "LATERAL", "foto": "https://i.postimg.cc/yN82YDXh/mauricio.png", "status": "ATIVO"}};
+
+function posGroupFromPos(p){
+  return ({ZAGUEIRO:'Zagueiros',LATERAL:'Laterais',VOLANTE:'Meias','MEIO CAMPO':'Meias',EXTREMO:'Atacantes',CENTROAVANTE:'Atacantes'})[p];
+}
+function zSc(val, mean, std){
+  if(!mean||!std||std===0) return null;
+  return Math.round((val-mean)/std*100)/100;
+}
+function enrichPlayers(backendPlayers){
+  return backendPlayers.map(function(p){
+    const cad = CADASTRO[p.cadastro_id] || {};
+    const pos = cad.posicao || '';
+    const grp = posGroupFromPos(pos);
+    const norm = NORMS[p.cadastro_id];
+    const qualifies = p.mins >= 85;
+    let z_distMin=null, z_altMin=null, z_accMin=null, z_decMin=null;
+    if(qualifies && norm){
+      z_distMin = zSc(p.distMin, norm.distMin_mean, norm.distMin_std);
+      z_altMin  = zSc(p.altMin,  norm.altMin_mean,  norm.altMin_std);
+      z_accMin  = zSc(p.accMin,  norm.accMin_mean,  norm.accMin_std);
+      z_decMin  = zSc(p.decMin,  norm.decMin_mean,  norm.decMin_std);
+    }
+    return Object.assign({}, p, {
+      id: p.cadastro_id,
+      atleta: cad.atleta || p.atleta_catapult || '—',
+      posicao: pos || '—',
+      pos_group: grp || null,
+      foto: cad.foto || '',
+      grupo: '',
+      z_distMin: z_distMin, z_altMin: z_altMin, z_accMin: z_accMin, z_decMin: z_decMin,
+    });
+  }).filter(function(p){ return p.pos_group; });
+}
+function setBtnState(state){
+  const icon = document.getElementById('btn-icon');
+  const txt  = document.getElementById('btn-txt');
+  const btn  = document.getElementById('btn-refresh');
+  if(state==='loading'){ icon.textContent='⟳'; icon.style.animation='spin 1s linear infinite'; txt.textContent='Buscando…'; btn.disabled=true; btn.style.opacity='0.7'; }
+  else if(state==='ok'){ icon.textContent='✓'; icon.style.animation=''; txt.textContent='Atualizado'; btn.disabled=false; btn.style.opacity='1'; setTimeout(function(){ icon.textContent='↻'; txt.textContent='Atualizar dados'; },2000); }
+  else if(state==='err'){ icon.textContent='✕'; icon.style.animation=''; txt.textContent='Erro — tentar novamente'; btn.disabled=false; btn.style.opacity='1'; }
+  else{ icon.textContent='↻'; icon.style.animation=''; txt.textContent='Atualizar dados'; btn.disabled=false; btn.style.opacity='1'; }
+}
+async function fetchMatch(silent){
+  const sel = document.getElementById('game-sel');
+  const date = (sel && sel.value) || DATE;
+  setBtnState('loading');
+  try{
+    const r = await fetch(BACKEND_URL+'/api/match?date='+encodeURIComponent(date));
+    if(!r.ok){ const e = await r.json().catch(function(){return{error:'HTTP '+r.status};}); throw new Error(e.error||'Erro'); }
+    const data = await r.json();
+    applyMatchData(data);
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify({savedAt:Date.now(), data:data})); }catch(e){}
+    setBtnState('ok');
+  }catch(err){ console.error('fetchMatch:', err); if(!silent) alert('Erro ao buscar dados: '+err.message); setBtnState('err'); }
+}
+function applyMatchData(data){
+  DATE = data.date;
+  PLAYERS = enrichPlayers(data.players);
+  META = (ALL_META[data.date] || {});
+  try{ renderCapa(); }catch(e){ console.error('Capa:',e); }
+  try{ renderTotais(); }catch(e){ console.error('Totais:',e); }
+  try{ renderTempos(); }catch(e){ console.error('Tempos:',e); }
+  try{ renderPosicao(); }catch(e){ console.error('Posicao:',e); }
+  try{ renderFadiga(); }catch(e){ console.error('Fadiga:',e); }
+  try{ renderMin(data.date); }catch(e){}
+}
+function loadFromStorage(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return false;
+    const obj = JSON.parse(raw);
+    if(obj && obj.data && obj.data.players){ applyMatchData(obj.data); return true; }
+  }catch(e){ console.warn('localStorage:', e); }
+  return false;
+}
+
+const fmtN=v=>(!v||isNaN(v))?'—':Math.round(v).toLocaleString('pt-BR');
+const posShort=p=>({ZAGUEIRO:'ZAG',LATERAL:'LAT',VOLANTE:'VOL','MEIO CAMPO':'MEI',EXTREMO:'EXT',CENTROAVANTE:'CA'}[p]||'—');
+const posCols={Zagueiros:'#1A56A0',Laterais:'#0d6e3d',Meias:'#7c2d12',Atacantes:'#7e1230'};
+function parseDate(s){const p=(s||'').split('/');return p.length===3?new Date(+p[2],+p[1]-1,+p[0]):new Date(s);}
+function avc(r,sz){sz=sz||30;const init=(r.atleta||'').substring(0,2).toUpperCase();if(r.foto){return '<img src="'+r.foto+'" class="av" style="width:'+sz+'px;height:'+sz+'px" onerror="this.outerHTML=\''+'<div class=av-txt style=width:'+sz+'px;height:'+sz+'px>'+init+'</div>\'">';}return '<div class="av-txt" style="width:'+sz+'px;height:'+sz+'px">'+init+'</div>';}
+function minAv(r){const init=(r.atleta||'').substring(0,2).toUpperCase();if(r.foto){return '<img src="'+r.foto+'" class="min-av" onerror="this.outerHTML=\''+'<div class=min-av-txt>'+init+'</div>\'">';}return '<div class="min-av-txt">'+init+'</div>';}
+function zcls(z){if(z===null||z===undefined)return'#94a3b8';if(z<-1.5)return'#dc2626';if(z<-0.5)return'#fb923c';if(z<0.5)return'#fde68a';if(z<1.5)return'#4ade80';return'#14532d';}
+function ztxt(z){if(z===null||z===undefined)return'#fff';if(z>=-0.5&&z<0.5)return'#78350f';if(z>=0.5&&z<1.5)return'#14532d';return'#fff';}
+function showTip(e,m){const t=document.getElementById('tip');t.innerHTML=m.replace(/\n/g,'<br>');t.style.display='block';t.style.left=Math.min(e.clientX+14,window.innerWidth-280)+'px';t.style.top=Math.max(e.clientY-60,8)+'px';}
+function hideTip(){document.getElementById('tip').style.display='none';}
+
+function show(id,btn){
+  document.querySelectorAll('.pg').forEach(function(p){p.classList.remove('on');});
+  document.querySelectorAll('.tab').forEach(function(b){b.classList.remove('on');});
+  document.getElementById('pg-'+id).classList.add('on');
+  btn.classList.add('on');
+  if(id==='acumulado'){initAcum();renderAcum();}
+  if(id==='minutos'){initMin();renderMin(DATE);}
+  if(id==='refs'){renderRefs();}
+}
+
+function setAdvLogo(adv){
+  var url=ADV_SHIELDS[adv]||'';
+  var img=document.getElementById('adv-img');
+  var em=document.getElementById('adv-emoji');
+  if(url){img.src=url;img.style.display='block';em.style.display='none';}
+  else{img.style.display='none';em.style.display='block';}
+}
+
+function loadGame(dt){
+  // Dados base vêm da lista da API; ALL_META enriquece quando o jogo existir lá.
+  var g=GAMES_BY_DATE[dt]||{};
+  var m=ALL_META[dt]||{};
+  var adv=m.adv||g.adv||'—';
+  var rmap={'Vitória':'rv','Empate':'re','Derrota':'rd'};
+  document.getElementById('c-placar').textContent=m.placar||'—';
+  document.getElementById('c-camp').textContent=m.camp||'—';
+  document.getElementById('c-date').textContent=dt;
+  document.getElementById('c-estadio').textContent=m.estadio||'—';
+  document.getElementById('c-adv').textContent=adv;
+  document.getElementById('topbadge').textContent=adv+' · '+dt;
+  document.getElementById('c-result').innerHTML=m.result?'<span class="rbadge '+(rmap[m.result]||'re')+'">'+m.result+'</span>':(m.mando||'—');
+  document.getElementById('c-temp').textContent='—';
+  setAdvLogo(adv);
+}
+
+function gameOptionLabel(g){
+  // Monta o texto de cada item do seletor a partir da lista da API,
+  // completando com placar/campeonato do ALL_META quando disponível.
+  var m=ALL_META[g.date]||{};
+  var adv=m.adv||g.adv||'';
+  var camp=m.camp?' ('+m.camp+')':'';
+  var placar=m.placar?' '+m.placar:'';
+  return g.date+' — '+adv+camp+placar;
+}
+
+function initGameSel(){
+  var sel=document.getElementById('game-sel');
+  if(GAMES.length){
+    // Lista 100% da API
+    sel.innerHTML=GAMES.map(function(g){
+      return '<option value="'+g.date+'"'+(g.date===DATE?' selected':'')+'>'+gameOptionLabel(g)+'</option>';
+    }).join('');
+  } else {
+    // Fallback: enquanto a API não respondeu, usa o ALL_META embutido
+    var dates=Object.keys(ALL_META).sort(function(a,b){return parseDate(b)-parseDate(a);});
+    sel.innerHTML=dates.map(function(dt){var m=ALL_META[dt]||{};return '<option value="'+dt+'"'+(dt===DATE?' selected':'')+'>'+dt+' — '+(m.adv||'')+' '+(m.camp?'('+m.camp+')':'')+' '+(m.placar||'')+'</option>';}).join('');
+  }
+}
+
+function applyGamesList(list){
+  GAMES=(list||[]).filter(function(g){return g.date;});
+  GAMES_BY_DATE={};
+  GAMES.forEach(function(g){ GAMES_BY_DATE[g.date]=g; });
+  initGameSel();
+  try{ initMin(true); }catch(e){}
+}
+
+// Ao abrir a página, traz automaticamente o jogo mais recente da API.
+// A lista vem ordenada do mais recente para o mais antigo (games[0] = último jogo).
+function autoLoadLatest(games){
+  if(AUTO_LOADED) return;                 // roda só uma vez por carregamento de página
+  var latest = games && games[0];
+  if(!latest || !latest.date){ return; }
+  AUTO_LOADED = true;
+  // Se o cache já tem exatamente esse jogo carregado, evita rebuscar (sem flicker)
+  if(DATE === latest.date && PLAYERS && PLAYERS.length){ return; }
+  var sel = document.getElementById('game-sel');
+  if(sel){ sel.value = latest.date; loadGame(latest.date); }
+  fetchMatch(true);                        // silencioso: se a API falhar, mantém o que já está na tela
+}
+
+async function fetchGames(){
+  try{
+    var r=await fetch(BACKEND_URL+'/api/games');
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    var data=await r.json();
+    if(data&&data.games&&data.games.length){
+      applyGamesList(data.games);
+      try{ localStorage.setItem(GAMES_STORAGE_KEY, JSON.stringify({savedAt:Date.now(), games:data.games})); }catch(e){}
+      autoLoadLatest(data.games);
+    }
+  }catch(err){
+    console.warn('fetchGames:', err);
+    // Tenta usar a última lista salva, se houver
+    try{
+      var raw=localStorage.getItem(GAMES_STORAGE_KEY);
+      if(raw){ var obj=JSON.parse(raw); if(obj&&obj.games){ applyGamesList(obj.games); } }
+    }catch(e){}
+  }
+}
+
+function renderCapa(){
+  var m=META;var rmap={'Vitória':'rv','Empate':'re','Derrota':'rd'};
+  document.getElementById('c-placar').textContent=m.placar||'1x2';
+  document.getElementById('c-camp').textContent=m.camp||'Copa do Nordeste';
+  document.getElementById('c-date').textContent=DATE;
+  document.getElementById('c-estadio').textContent=m.estadio||'Arena Castelão';
+  document.getElementById('c-adv').textContent=m.adv||'Sport';
+  document.getElementById('c-temp').textContent=(m.temp||'27')+'°C · '+(m.umi||'92')+'% UR';
+  document.getElementById('topbadge').textContent=(m.adv||'Sport')+' · '+DATE;
+  document.getElementById('c-result').innerHTML=m.result?'<span class="rbadge '+(rmap[m.result]||'re')+'">'+m.result+'</span>':'<span class="rbadge rd">Derrota</span>';
+  setAdvLogo(m.adv||'Sport');
+  initGameSel();
+}
+
+function mkRank(id,players,fn,fn2,col){
+  var s=players.filter(function(r){return fn(r)>0;}).sort(function(a,b){return fn(b)-fn(a);});
+  var mx=fn(s[0])||1;var html='';
+  s.forEach(function(r){
+    var v=fn(r),v2=fn2?fn2(r):0;
+    var pct=(v/mx*100).toFixed(0);
+    var pct2=v2>0?(Math.min(v2,mx)/mx*100).toFixed(0):'0';
+    html+='<div class="rrow">'+avc(r)+'<div class="rname">'+r.atleta+'</div>';
+    html+='<div class="pos-dot">'+posShort(r.posicao)+'</div>';
+    html+='<div class="rbt"><div class="rbf" style="width:'+pct+'%;background:'+(col||'var(--az)')+'"><span class="rbv">'+fmtN(v)+'</span></div>';
+    if(v2>0)html+='<div class="rb2" style="width:'+pct2+'%;background:rgba(255,255,255,.32)"></div>';
+    html+='</div>';
+    if(v2>0)html+='<span style="font-family:\'Barlow Condensed\',sans-serif;font-weight:700;font-size:12px;color:var(--az3);min-width:42px;text-align:right">'+fmtN(v2)+'</span>';
+    html+='</div>';
+  });
+  document.getElementById(id).innerHTML=html;
+}
+
+function renderTotais(){
+  mkRank('r-dist',PLAYERS,function(r){return r.dist;},null,'var(--az)');
+  mkRank('r-alt',PLAYERS,function(r){return r.altInt;},function(r){return r.sprintDist;},'var(--vm)');
+  mkRank('r-acc',PLAYERS,function(r){return r.accN;},function(r){return r.decN;},'var(--az)');
+  mkRank('r-expl',PLAYERS,function(r){return r.expl;},null,'var(--az)');
+  var sV=PLAYERS.filter(function(r){return r.vmax>0;}).sort(function(a,b){return b.vmax-a.vmax;});
+  var mx=sV.length?sV[0].vmax:1;var html='';
+  sV.forEach(function(r){
+    var pct=(r.vmax/mx*100).toFixed(0);
+    var col=r.vmax>=30?'#15803d':r.vmax>=27?'var(--az)':'var(--az3)';
+    html+='<div class="rrow">'+avc(r)+'<div class="rname">'+r.atleta+'</div><div class="pos-dot">'+posShort(r.posicao)+'</div>';
+    html+='<div class="rbt"><div class="rbf" style="width:'+pct+'%;background:'+col+'"><span class="rbv">'+r.vmax.toFixed(1)+'</span></div></div></div>';
+  });
+  document.getElementById('r-vmax').innerHTML=html;
+}
+
+function mkDual(id,players,f1,f2,c1,c2){
+  var s=players.filter(function(r){return f1(r)+f2(r)>0;}).sort(function(a,b){return (f1(b)+f2(b))-(f1(a)+f2(a));});
+  var mx=Math.max.apply(null,s.map(function(r){return f1(r)+f2(r);}))||1;var html='';
+  s.forEach(function(r){
+    var v1=f1(r),v2=f2(r),tot=v1+v2;
+    var p1=(v1/mx*100).toFixed(0),p2=(v2/mx*100).toFixed(0);
+    html+='<div class="dual-row"><div class="dname">'+r.atleta+'</div><div class="dbars">';
+    html+='<div class="dbar"><span class="dlbl">1T</span><div class="dtrack"><div class="dfill" style="width:'+p1+'%;background:'+c1+'"><span class="dval">'+(v1>0?Math.round(v1):'')+'</span></div></div></div>';
+    html+='<div class="dbar"><span class="dlbl">2T</span><div class="dtrack"><div class="dfill" style="width:'+p2+'%;background:'+c2+'"><span class="dval">'+(v2>0?Math.round(v2):'')+'</span></div></div></div>';
+    html+='</div><div class="dtotal">'+fmtN(tot)+'</div></div>';
+  });
+  document.getElementById(id).innerHTML=html;
+}
+
+function renderTempos(){
+  mkDual('d-dist',PLAYERS,function(r){return r.t1_dist;},function(r){return r.t2_dist;},'var(--az)','var(--az3)');
+  mkDual('d-alt',PLAYERS,function(r){return r.t1_altInt;},function(r){return r.t2_altInt;},'var(--vm)','#f08070');
+  mkDual('d-expl',PLAYERS,function(r){return r.t1_expl;},function(r){return r.t2_expl;},'var(--az)','var(--az3)');
+  var s=PLAYERS.filter(function(r){return r.t1_dur>0&&r.t1_distMin>0;}).sort(function(a,b){return b.t1_distMin-a.t1_distMin;});
+  var H=130,mx=0;s.forEach(function(r){mx=Math.max(mx,r.t1_distMin,r.t2_distMin||0);});mx=mx||1;
+  var html='';
+  s.forEach(function(r){
+    var h1=Math.round(r.t1_distMin/mx*H);
+    var h2=r.t2_distMin>0?Math.round(r.t2_distMin/mx*H):0;
+    var hasBoth=r.t1_dur>0&&r.t2_dur>0;
+    var delta=hasBoth&&r.t1_distMin>0?((r.t2_distMin-r.t1_distMin)/r.t1_distMin*100).toFixed(0):null;
+    var dc=delta!==null?(+delta>=0?'#15803d':'var(--vm)'):'transparent';
+    var fullName=r.atleta;
+    html+='<div class="vc-athlete"><div class="vc-bars" style="height:'+H+'px">';
+    html+='<div class="vc-b" style="background:var(--az);height:'+h1+'px"><span class="vc-lbl" style="color:var(--az)">'+r.t1_distMin.toFixed(0)+'</span></div>';
+    if(r.t2_dur>0){html+='<div class="vc-b" style="background:var(--az3);height:'+h2+'px"><span class="vc-lbl" style="color:var(--az3)">'+(r.t2_distMin>0?r.t2_distMin.toFixed(0):'')+'</span></div>';}
+    else{html+='<div class="vc-b" style="background:#e8ecf2;height:4px;opacity:.4"></div>';}
+    html+='</div><div style="font-size:10px;font-weight:700;text-align:center;margin-top:4px;color:'+dc+'">'+(delta!==null?(+delta>=0?'+':'')+delta+'%':'')+'</div>';
+    html+='<div style="margin-top:6px;display:flex;justify-content:center;align-items:center;padding-bottom:4px">'+avc(r,42)+'</div></div>';
+  });
+  document.getElementById('dens-vert').innerHTML=html;
+}
+
+function renderPosicao(){
+  var groups=['Zagueiros','Laterais','Meias','Atacantes'];
+  var metrics=[
+    {key:'distMin',zKey:'z_distMin',label:'Dist/min (m/min)',dp:1},
+    {key:'altMin',zKey:'z_altMin',label:'AltInt/min (m/min)',dp:2},
+    {key:'accMin',zKey:'z_accMin',label:'Ace/min (nº/min)',dp:3},
+    {key:'decMin',zKey:'z_decMin',label:'Dec/min (nº/min)',dp:3}
+  ];
+  var html='';
+  metrics.forEach(function(m){
+    html+='<div class="metric-title">'+m.label+'</div><div class="pos-cols">';
+    groups.forEach(function(grp){
+      var col=posCols[grp]||'var(--az)';
+      var gps=PLAYERS.filter(function(r){return r.pos_group===grp&&(r[m.key]||0)>0;}).sort(function(a,b){return (b[m.key]||0)-(a[m.key]||0);});
+      html+='<div class="pos-card" style="border-top-color:'+col+'"><span class="pos-hdr" style="background:'+col+'">'+grp+'</span>';
+      if(!gps.length){html+='<div style="font-size:11px;color:var(--mt);text-align:center;padding:8px">—</div>';}
+      else{
+        var mx=Math.max.apply(null,gps.map(function(r){return r[m.key]||0;}))||0.001;
+        gps.forEach(function(r){
+          var v=r[m.key]||0,z=r[m.zKey];
+          var qualifies=r.mins>=85;
+          var zc=qualifies&&z!==null?zcls(z):'#94a3b8';
+          var zt=qualifies&&z!==null?ztxt(z):'#fff';
+          var pct=(v/mx*100).toFixed(0);
+          var zStr=qualifies&&z!==null?(z>=0?'+':'')+z.toFixed(1)+'σ':'';
+          html+='<div class="zrow">'+avc(r,22)+'<div class="zname">'+r.atleta+'</div>';
+          html+='<div class="ztrack"><div class="zfill" style="width:'+pct+'%;background:'+zc+'">';
+          html+='<span class="zval" style="color:'+zt+'">'+v.toFixed(m.dp)+'</span>';
+          if(zStr)html+='<span class="zsig" style="color:'+zt+'">'+zStr+'</span>';
+          html+='</div></div></div>';
+        });
+      }
+      html+='</div>';
+    });
+    html+='</div>';
+  });
+  document.getElementById('pos-sections').innerHTML=html;
+}
+
+function initAcum(){
+  var camps=Array.from(new Set(Object.values(HISTORY).map(function(h){return h.camp||'';}).filter(Boolean))).sort();
+  var sel=document.getElementById('acum-camp');
+  if(sel.options.length<=1)camps.forEach(function(c){var o=document.createElement('option');o.value=c;o.textContent=c;sel.appendChild(o);});
+}
+function getAcum(){
+  var camp=document.getElementById('acum-camp').value;
+  var n=+document.getElementById('acum-n').value;
+  var data=Object.entries(HISTORY).sort(function(a,b){return parseDate(a[0])-parseDate(b[0]);});
+  if(camp)data=data.filter(function(d){return (d[1].camp||'')==camp;});
+  return data.slice(-n);
+}
+function renderAcum(){var data=getAcum();drawDist(data);drawAcc(data);}
+
+function drawDist(data){
+  var el=document.getElementById('a-dist');
+  requestAnimationFrame(function(){
+    var W=Math.max(el.parentElement.clientWidth||700,400),H=290;
+    var P={t:30,r:20,b:95,l:62},cW=W-P.l-P.r,cH=H-P.t-P.b;
+    var n=data.length;if(!n)return;
+    var dists=data.map(function(d){return d[1].dist;});
+    var alts=data.map(function(d){return d[1].altInt;});
+    var mxD=Math.max.apply(null,dists)*1.12||1,mxA=Math.max.apply(null,alts)*1.12||1;
+    var bw=Math.max(cW/n-3,3);
+    var grid='';
+    for(var i=0;i<=5;i++){var v=mxD*i/5,y=(P.t+cH-v/mxD*cH).toFixed(1);grid+='<line x1="'+P.l+'" y1="'+y+'" x2="'+(P.l+cW)+'" y2="'+y+'" stroke="#e8ecf2"/><text x="'+(P.l-5)+'" y="'+y+'" text-anchor="end" dominant-baseline="middle" font-size="9" fill="#94a3b8">'+(v/1000).toFixed(0)+'k</text>';}
+    var bars='',line='',dots='',lbls='';
+    data.forEach(function(d,i){
+      var isCur=d[0]===DATE,isSel=d[0]===selectedBar;
+      var xc=P.l+(i+0.5)*cW/n;
+      var x=(xc-bw/2).toFixed(1),h=(dists[i]/mxD*cH).toFixed(1),y=(P.t+cH-parseFloat(h)).toFixed(1);
+      var col=isSel||isCur?'var(--vm)':'var(--az)';
+      var op=selectedBar&&!isSel&&!isCur?'0.35':'1';
+      var tip=d[0]+'\n'+d[1].adv+'\nDist: '+fmtN(d[1].dist)+'m\nAlt: '+fmtN(d[1].altInt)+'m';
+      bars+='<rect x="'+x+'" y="'+y+'" width="'+bw.toFixed(1)+'" height="'+h+'" fill="'+col+'" opacity="'+op+'" rx="2" style="cursor:pointer" onclick="selectBar(\''+d[0]+'\')" onmousemove="showTip(event,\''+tip+'\')" onmouseleave="hideTip()"/>';
+      lbls+='<text x="'+xc.toFixed(1)+'" y="'+(parseFloat(y)-6).toFixed(1)+'" text-anchor="middle" font-size="11" fill="'+col+'" font-weight="800">'+(dists[i]/1000).toFixed(1)+'k</text>';
+      var xi=xc.toFixed(1),yi=(P.t+cH-alts[i]/mxA*cH).toFixed(1);
+      line+=(i?'L':'M')+xi+','+yi;
+      dots+='<circle cx="'+xi+'" cy="'+yi+'" r="'+(isSel||isCur?5:3)+'" fill="var(--vm)" stroke="#fff" stroke-width="1.5"/>';
+      lbls+='<text x="'+xi+'" y="'+(parseFloat(yi)-10).toFixed(1)+'" text-anchor="middle" font-size="11" fill="var(--vm)" font-weight="800">'+fmtN(alts[i])+'</text>';
+    });
+    var xl='';
+    data.forEach(function(d,i){var xi=(P.l+(i+0.5)*cW/n).toFixed(1);var m2=ALL_META[d[0]]||{};var mando=m2.mando?(' ('+(m2.mando==='Casa'?'C':'F')+')'):'';var dd=d[0].substring(0,5).replace('/','-');var lbl=(d[1].adv||'')+mando+' '+dd;xl+='<text x="'+xi+'" y="'+(H-8)+'" text-anchor="end" font-size="9" fill="#64748B" transform="rotate(-90,'+xi+','+(H-8)+')">'+lbl+'</text>';});
+    el.setAttribute('width',W);el.setAttribute('viewBox','0 0 '+W+' '+H);
+    el.innerHTML='<rect width="'+W+'" height="'+H+'" fill="none"/>'+grid+bars+'<path d="'+line+'" fill="none" stroke="var(--vm)" stroke-width="2"/>'+dots+lbls+xl;
+  });
+}
+
+function drawAcc(data){
+  var el=document.getElementById('a-acc');
+  requestAnimationFrame(function(){
+    var W=Math.max(el.parentElement.clientWidth||700,400),H=250;
+    var P={t:26,r:20,b:92,l:50},cW=W-P.l-P.r,cH=H-P.t-P.b;
+    var n=data.length;if(!n)return;
+    var mx=0;data.forEach(function(d){mx=Math.max(mx,d[1].acc,d[1].dec);});mx*=1.12;mx=mx||1;
+    var hw=Math.max(cW/n/2-2,2);var grid='';
+    for(var i=0;i<=4;i++){var v=mx*i/4,y=(P.t+cH-v/mx*cH).toFixed(1);grid+='<line x1="'+P.l+'" y1="'+y+'" x2="'+(P.l+cW)+'" y2="'+y+'" stroke="#e8ecf2"/><text x="'+(P.l-4)+'" y="'+y+'" text-anchor="end" dominant-baseline="middle" font-size="9" fill="#94a3b8">'+Math.round(v)+'</text>';}
+    var bars='',lbls='';
+    data.forEach(function(d,i){
+      var isCur=d[0]===DATE,isSel=d[0]===selectedBar;
+      var op=selectedBar&&!isSel&&!isCur?'0.35':'1';
+      var xc=P.l+(i+0.5)*cW/n;
+      var xa=(xc-hw-0.5).toFixed(1),xb=(xc+0.5).toFixed(1);
+      var ha=(d[1].acc/mx*cH).toFixed(1),hb=(d[1].dec/mx*cH).toFixed(1);
+      var ya=(P.t+cH-parseFloat(ha)).toFixed(1),yb=(P.t+cH-parseFloat(hb)).toFixed(1);
+      var colA=isSel||isCur?'#dc2626':'var(--az)';var colB=isSel||isCur?'#f97316':'var(--az3)';
+      var tip=d[0]+'\n'+(d[1].adv||'')+'\nAce: '+d[1].acc+' | Dec: '+d[1].dec;
+      bars+='<rect x="'+xa+'" y="'+ya+'" width="'+hw.toFixed(1)+'" height="'+ha+'" fill="'+colA+'" opacity="'+op+'" rx="1" style="cursor:pointer" onclick="selectBar(\''+d[0]+'\')" onmousemove="showTip(event,\''+tip+'\')" onmouseleave="hideTip()"/>';
+      bars+='<rect x="'+xb+'" y="'+yb+'" width="'+hw.toFixed(1)+'" height="'+hb+'" fill="'+colB+'" opacity="'+op+'" rx="1"/>';
+      lbls+='<text x="'+(parseFloat(xa)+hw/2).toFixed(1)+'" y="'+(parseFloat(ya)-7).toFixed(1)+'" text-anchor="middle" font-size="11" fill="'+colA+'" font-weight="800">'+d[1].acc+'</text>';
+      lbls+='<text x="'+(parseFloat(xb)+hw/2).toFixed(1)+'" y="'+(parseFloat(yb)-7).toFixed(1)+'" text-anchor="middle" font-size="11" fill="'+colB+'" font-weight="800">'+d[1].dec+'</text>';
+    });
+    var xl='';
+    data.forEach(function(d,i){var xi=(P.l+(i+0.5)*cW/n).toFixed(1);var m2=ALL_META[d[0]]||{};var mando=m2.mando?(' ('+(m2.mando==='Casa'?'C':'F')+')'):'';var dd=d[0].substring(0,5).replace('/','-');var lbl=(d[1].adv||'')+mando+' '+dd;xl+='<text x="'+xi+'" y="'+(H-8)+'" text-anchor="end" font-size="9" fill="#64748B" transform="rotate(-90,'+xi+','+(H-8)+')">'+lbl+'</text>';});
+    el.setAttribute('width',W);el.setAttribute('viewBox','0 0 '+W+' '+H);
+    el.innerHTML='<rect width="'+W+'" height="'+H+'" fill="none"/>'+grid+bars+lbls+xl;
+  });
+}
+
+function selectBar(dt){selectedBar=(selectedBar===dt)?null:dt;renderAcum();}
+
+function initMin(force){
+  var sel=document.getElementById('min-sel');
+  if(sel.options.length&&!force)return;
+  if(GAMES.length){
+    sel.innerHTML=GAMES.map(function(g){
+      return '<option value="'+g.date+'"'+(g.date===DATE?' selected':'')+'>'+gameOptionLabel(g)+'</option>';
+    }).join('');
+  } else {
+    var dates=Object.keys(ALL_META).sort(function(a,b){return parseDate(b)-parseDate(a);});
+    sel.innerHTML=dates.map(function(dt){var m=ALL_META[dt]||{};return '<option value="'+dt+'"'+(dt===DATE?' selected':'')+'>'+dt+' — '+(m.adv||'')+' '+(m.placar||'')+'</option>';}).join('');
+  }
+}
+function renderMin(dt){
+  document.getElementById('min-date').textContent=dt||DATE;
+  var sorted=PLAYERS.filter(function(r){return r.mins>0;}).sort(function(a,b){return b.mins-a.mins;});
+  var mx=Math.max.apply(null,sorted.map(function(r){return r.mins;}))||1;var html='';
+  sorted.forEach(function(r){
+    var pct=(r.mins/mx*100).toFixed(0);
+    html+='<div class="min-row">'+minAv(r)+'<div class="min-name">'+r.atleta+'</div>';
+    html+='<div style="flex:1"><div style="height:24px;background:#e8ecf2;border-radius:5px;overflow:hidden">';
+    html+='<div style="width:'+pct+'%;height:100%;background:var(--az);border-radius:5px;display:flex;align-items:center;justify-content:flex-end;padding-right:8px">';
+    html+='<span style="font-family:\'Barlow Condensed\',sans-serif;font-weight:700;font-size:13px;color:#fff">'+Math.round(r.mins)+'</span></div></div></div>';
+    html+='<div class="pos-dot">'+posShort(r.posicao)+'</div></div>';
+  });
+  document.getElementById('min-bars').innerHTML=html;
+}
+
+function renderFadiga(){
+  var metrics=[
+    {t1:'t1_distMin',t2:'t2_distMin',title:'Dist/min (m/min)',dp:1},
+    {t1:'t1_altMin',t2:'t2_altMin',title:'AltInt/min (m/min)',dp:2},
+    {t1:'t1_accMin',t2:'t2_accMin',title:'Ace/min (nº/min)',dp:3},
+    {t1:'t1_decMin',t2:'t2_decMin',title:'Dec/min (nº/min)',dp:3}
+  ];
+  var html='';
+  metrics.forEach(function(m){
+    var data=PLAYERS.filter(function(r){return r.t1_dur>0||r.t2_dur>0;}).map(function(r){
+      return {atleta:r.atleta,v1:r.t1_dur>0?r[m.t1]||0:0,v2:r.t2_dur>0?r[m.t2]||0:0,has1:r.t1_dur>0,has2:r.t2_dur>0};
+    }).sort(function(a,b){return (b.v1||b.v2)-(a.v1||a.v2);});
+    var mx=0;data.forEach(function(r){mx=Math.max(mx,r.v1,r.v2);});mx=mx||0.001;
+    html+='<div class="card"><div class="ctitle">'+m.title+'</div>';
+    data.forEach(function(r){
+      var p1=(r.v1/mx*100).toFixed(0),p2=(r.v2/mx*100).toFixed(0);
+      var hasBoth=r.has1&&r.has2;
+      var delta=hasBoth&&r.v1>0?((r.v2-r.v1)/r.v1*100).toFixed(0):null;
+      var dc=delta!==null?(+delta>=0?'#15803d':'var(--vm)'):'#94a3b8';
+      html+='<div class="dual-row"><div class="dname" style="font-size:11px">'+r.atleta+'</div><div class="dbars">';
+      if(r.has1)html+='<div class="dbar"><span class="dlbl">1T</span><div class="dtrack"><div class="dfill" style="width:'+p1+'%;background:var(--az)"><span class="dval">'+(r.v1>0?r.v1.toFixed(m.dp):'')+'</span></div></div></div>';
+      if(r.has2)html+='<div class="dbar"><span class="dlbl">2T</span><div class="dtrack"><div class="dfill" style="width:'+p2+'%;background:var(--az3)"><span class="dval">'+(r.v2>0?r.v2.toFixed(m.dp):'')+'</span></div></div></div>';
+      html+='</div><div style="min-width:36px;text-align:right;font-size:11px;font-weight:700;color:'+dc+'">'+(delta!==null?(+delta>=0?'+':'')+delta+'%':'—')+'</div></div>';
+    });
+    html+='</div>';
+  });
+  document.getElementById('fad-grid').innerHTML=html;
+}
+
+function renderPSE(){
+  var colors=['#f1f5f9','#4ade80','#86efac','#a3e635','#fde68a','#fbbf24','#fb923c','#f97316','#ef4444','#dc2626','#991b1b'];
+  var labels=['0','1 Muito Leve','2','3 Leve','4','5 Médio','6','7 Forte','8','9 Exausto','10 Máximo'];
+  var html='';
+  labels.forEach(function(l,i){html+='<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px"><div style="width:20px;height:12px;border-radius:2px;background:'+colors[i]+'"></div><span style="font-size:10px;color:#e2e8f0">'+l+'</span></div>';});
+  document.getElementById('pse-scale').innerHTML=html;
+}
+
+function renderRefs(){
+  var el=document.getElementById('refs-grid');
+  if(!el||el.innerHTML)return;
+  var metrics=[
+    {key:'distMin_mean',sdKey:'distMin_std',label:'Dist/min (m/min)',dp:1},
+    {key:'altMin_mean',sdKey:'altMin_std',label:'AltInt/min (m/min)',dp:2},
+    {key:'accMin_mean',sdKey:'accMin_std',label:'Ace/min (nº/min)',dp:3},
+    {key:'decMin_mean',sdKey:'decMin_std',label:'Dec/min (nº/min)',dp:3}
+  ];
+  var html='';
+  metrics.forEach(function(m){
+    html+='<div class="card" style="margin-bottom:14px"><div class="ctitle">'+m.label+' — Norma Individual (±1DP)</div>';
+    html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px">';
+    var entries=Object.entries(NORMS).sort(function(a,b){
+      var na=CADASTRO[a[0]]?CADASTRO[a[0]].atleta:'zzz';
+      var nb=CADASTRO[b[0]]?CADASTRO[b[0]].atleta:'zzz';
+      return na.localeCompare(nb);
+    });
+    entries.forEach(function(e){
+      var id=e[0],n=e[1];
+      var cad=CADASTRO[id]||{};
+      if(!n[m.key])return;
+      var mean=n[m.key],sd=n[m.sdKey]||0;
+      var low=(mean-sd).toFixed(m.dp),high=(mean+sd).toFixed(m.dp);
+      var pos=cad.posicao||'—';
+      var col=posCols[posGroupFromPos(pos)]||'#94a3b8';
+      html+='<div style="display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px;background:var(--lt);border:1px solid var(--bdr)">';
+      html+=avc(Object.assign({atleta:cad.atleta||('ID '+id),foto:cad.foto||''},{}),26);
+      html+='<div style="flex:1;min-width:0">';
+      html+='<div style="font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+( cad.atleta||('ID '+id))+'</div>';
+      html+='<div style="font-size:10px;color:'+col+';font-weight:700">'+pos+'</div>';
+      html+='</div>';
+      html+='<div style="text-align:right;font-family:\'Barlow Condensed\',sans-serif">';
+      html+='<div style="font-size:13px;font-weight:800;color:var(--az)">'+mean.toFixed(m.dp)+'</div>';
+      html+='<div style="font-size:9px;color:var(--mt)">'+low+' – '+high+'</div>';
+      html+='<div style="font-size:9px;color:var(--mt)">n='+n.jogos+'</div>';
+      html+='</div></div>';
+    });
+    html+='</div></div>';
+  });
+  el.innerHTML=html;
+}
+
+// Render inicial com dados embutidos
+try{renderCapa();}catch(e){console.error('Capa:',e);}
+try{renderTotais();}catch(e){console.error('Totais:',e);}
+try{renderTempos();}catch(e){console.error('Tempos:',e);}
+try{renderPosicao();}catch(e){console.error('Posicao:',e);}
+try{renderFadiga();}catch(e){console.error('Fadiga:',e);}
+try{renderPSE();}catch(e){console.error('PSE:',e);}
+
+// Se há dados frescos no localStorage, hidrata por cima dos embutidos
+loadFromStorage();
+
+// Busca a lista de jogos da API e popula os seletores (Capa e Minutos)
+fetchGames();
+</script>
+</body></html>
