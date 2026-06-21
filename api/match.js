@@ -52,12 +52,25 @@ async function catapultPOST(path, token, body) {
   return r.json();
 }
 
-// Converte "27/05/2026" em timestamps Unix do dia inteiro
-function dateToUnixRange(dateStr) {
+// Janela de busca em horário de Brasília (BRT = UTC-3), com folga de 6h em cada
+// ponta. A folga é essencial: jogos noturnos começam ~22h UTC e TERMINAM depois
+// da meia-noite UTC, "cavalgando" a virada do dia; uma janela de 1 dia UTC exato
+// perderia esses jogos na consulta /activities da Catapult.
+function brtDayWindow(dateStr) {
   const [d, m, y] = dateStr.split('/').map(Number);
-  const start = Math.floor(new Date(y, m - 1, d, 0, 0, 0).getTime() / 1000);
-  const end = Math.floor(new Date(y, m - 1, d, 23, 59, 59).getTime() / 1000);
+  const midnightBRT = Math.floor(Date.UTC(y, m - 1, d, 3, 0, 0) / 1000); // 00:00 BRT = 03:00 UTC
+  const start = midnightBRT - 6 * 3600;           // 6h antes de 00:00 BRT
+  const end = midnightBRT + 24 * 3600 + 6 * 3600; // até 06:00 BRT do dia seguinte
   return { start, end };
+}
+
+// Converte um start_time (Unix, UTC) na data BRT "DD/MM/YYYY" (mesma regra do games.js)
+function unixToBrtDate(unixSeconds) {
+  const dt = new Date((unixSeconds - 3 * 3600) * 1000);
+  const dd = String(dt.getUTCDate()).padStart(2, '0');
+  const mm = String(dt.getUTCMonth() + 1).padStart(2, '0');
+  const yy = dt.getUTCFullYear();
+  return `${dd}/${mm}/${yy}`;
 }
 
 // Identifica se um período é parte do 1° ou 2° tempo.
@@ -93,12 +106,15 @@ export default async function handler(req, res) {
   if (!date) return res.status(400).json({ error: 'Parâmetro ?date=DD/MM/YYYY é obrigatório' });
 
   try {
-    // 1. Buscar atividades do dia
-    const { start, end } = dateToUnixRange(date);
+    // 1. Buscar atividades numa janela BRT ampla ao redor da data
+    const { start, end } = brtDayWindow(date);
     const activities = await catapultGET(`/activities?start_time=${start}&end_time=${end}`, token);
 
-    // 2. Encontrar a atividade que é JOGO (tem período 1tempo OU 2tempo)
+    // 2. Encontrar a atividade que é JOGO da data BRT pedida (tem 1tempo OU 2tempo).
+    //    O filtro pela data BRT exata evita pegar um jogo de dia vizinho que tenha
+    //    caído dentro da folga da janela.
     const game = activities.find(a =>
+      unixToBrtDate(a.start_time || a.start) === date &&
       (a.periods || []).some(p => classifyPeriod(p.name) !== null)
     );
     if (!game) return res.status(404).json({ error: `Nenhum jogo encontrado em ${date}` });
