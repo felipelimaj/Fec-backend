@@ -22,12 +22,12 @@
      Default idêntico ao do Gabriel e ao seu relatório atual.
      -------------------------------------------------------------------------- */
   const BANDAS_VEL_DEFAULT = [
-    { id: 1, nome: 'Caminhada',       min: 0.0,  max: 7.0,   color: '#2196F3' },
-    { id: 2, nome: 'Trote',           min: 7.0,  max: 14.4,  color: '#4CAF50' },
-    { id: 3, nome: 'Corrida',         min: 14.4, max: 19.8,  color: '#CDDC39' },
-    { id: 4, nome: 'Corrida Intensa', min: 19.8, max: 25.2,  color: '#FF9800' },
-    { id: 5, nome: 'Alta Velocidade', min: 25.2, max: 29.9,  color: '#FF5722' },
-    { id: 6, nome: 'Sprint',          min: 29.9, max: 45.0,  color: '#F44336' },
+    { id: 1, nome: 'Caminhada',       min: 0.5,  max: 7.2,   color: '#2196F3' },
+    { id: 2, nome: 'Trote Leve',      min: 7.2,  max: 9.97,  color: '#8BC34A' },
+    { id: 3, nome: 'Trote',           min: 9.97, max: 14.4,  color: '#4CAF50' },
+    { id: 4, nome: 'Corrida',         min: 14.4, max: 19.8,  color: '#CDDC39' },
+    { id: 5, nome: 'Corrida Intensa', min: 19.8, max: 25.2,  color: '#FF9800' },
+    { id: 6, nome: 'Sprint',          min: 25.2, max: 9999,  color: '#F44336' },
   ];
 
   /* Converte zonas vindas da API Catapult (min_ms/max_ms em m/s) para o formato
