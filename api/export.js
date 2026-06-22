@@ -167,35 +167,21 @@ export default async function handler(req, res) {
   if (!token) return res.status(500).json({ error: 'CATAPULT_TOKEN não configurado' });
 
   try {
-    // 1. Catálogo de parâmetros → descobre os slugs FMP
-    let catalog = [];
-    try {
-      const cat = await catapultGET('/parameters', token);
-      catalog = Array.isArray(cat) ? cat : (cat.data || cat.parameters || []);
-    } catch (e) {
-      catalog = [{ _erro_parameters: e.message }];
-    }
-    const fmp = pickFmpDurationParams(catalog);
-    const fmpSlugs = fmp.map(f => f.slug);
+    // Slugs FMP travados (confirmados no catálogo da conta, em /api/export?discover=1)
+    // São os DOIS parâmetros do estudo, ambos em segundos:
+    const FMP_SLUGS = [
+      'fmp_dynamic_total_duration', // FMP Total Dynamic Duration
+      'fmp_running_total_duration', // FMP Total Running Duration
+    ];
+    const fmpSlugs = FMP_SLUGS;
 
-    // MODO DESCOBERTA: só mostra o que foi encontrado, para conferência
+    // Confirmação rápida dos slugs travados (sem rodar os 40 jogos)
     if (req.query.discover) {
-      const todosDynRun = (catalog || []).filter(p => {
-        const b = JSON.stringify(p).toLowerCase();
-        return b.includes('dynamic') || b.includes('running');
-      });
       return res.status(200).json({
-        total_parametros_no_catalogo: catalog.length,
-        amostra_bruta_catalogo: catalog.slice(0, 3),       // mostra a forma do objeto
-        candidatos_dynamic_running: todosDynRun,           // todos os params Dynamic/Running
-        selecionados_para_extracao_duracao: fmp,           // os que a extração usaria
-      });
-    }
-
-    if (!fmpSlugs.length) {
-      return res.status(500).json({
-        error: 'Nenhum parâmetro FMP de duração (Dynamic/Running) encontrado no catálogo.',
-        dica: 'Rode /api/export?discover=1 para inspecionar o catálogo e me envie o resultado.',
+        slugs_usados: fmpSlugs,
+        observacao: 'Tempo total em segundos por banda; % calculado = tempo_banda / minutos_jogados.',
+        corte_minutos: MIN_MINUTES,
+        n_datas_amostra: SAMPLE_DATES.length,
       });
     }
 
