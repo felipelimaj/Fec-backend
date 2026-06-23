@@ -1,6 +1,7 @@
 {
   "functions": {
-    "api/export.js": { "maxDuration": 60 }
+    "api/export.js": { "maxDuration": 60 },
+    "api/export_equipe.js": { "maxDuration": 60 }
   },
   "routes": [
     { "src": "/api/(.*)", "dest": "/api/$1" },
