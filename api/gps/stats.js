@@ -8,8 +8,9 @@ const BASE = process.env.CATAPULT_BASE || 'https://connect-us.catapultsports.com
 
 const PARAMS = [
   'total_distance', 'total_duration', 'max_vel',
-  'velocity_band6_total_distance', 'velocity_band7_total_distance',
-  'velocity_band8_total_distance',   // tenant FEC tem 8 bandas na API (B8 ≥29,9)
+  // numeração confirmada no console FEC: band5 = ≥19,8 (HSR começa aqui)
+  'velocity_band5_total_distance', 'velocity_band6_total_distance',
+  'velocity_band7_total_distance', 'velocity_band8_total_distance',
   'gen2_acceleration_band7plus_total_effort_count',
   'gen2_acceleration_band1_total_effort_count',
   'gen2_acceleration_band2_total_effort_count',
@@ -27,8 +28,10 @@ async function slugExplosivos() {
     const r = await fetch(`${BASE}/parameters`, {
       headers: { Authorization: `Bearer ${process.env.CATAPULT_TOKEN}` } });
     const ps = r.ok ? await r.json() : [];
-    const alvo = (Array.isArray(ps) ? ps : []).find(p =>
-      /esfor\S*\s*explos/i.test(p.name || '') && /2/.test(p.name || ''));
+    const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[\s_-]/g, '');
+    const lista = Array.isArray(ps) ? ps : [];
+    const alvo = lista.find(p => ['esforcosexplosivos2', 'explosiveefforts2'].includes(norm(p.name)))
+      || lista.find(p => /explos/i.test(p.name || '') && /2\s*$/.test(String(p.name || '').trim()));
     _explosivosSlug = alvo ? alvo.slug : null;
   } catch (e) { _explosivosSlug = null; }
   return _explosivosSlug;
