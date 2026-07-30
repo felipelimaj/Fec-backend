@@ -9,6 +9,7 @@ const BASE = process.env.CATAPULT_BASE || 'https://connect-us.catapultsports.com
 const PARAMS = [
   'total_distance', 'total_duration', 'max_vel',
   'velocity_band6_total_distance', 'velocity_band7_total_distance',
+  'velocity_band8_total_distance',   // tenant FEC tem 8 bandas na API (B8 ≥29,9)
   'gen2_acceleration_band7plus_total_effort_count',
   'gen2_acceleration_band1_total_effort_count',
   'gen2_acceleration_band2_total_effort_count',
