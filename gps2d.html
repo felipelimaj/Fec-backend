@@ -19,7 +19,7 @@ body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--
 .cabecalho{position:relative;background:
   repeating-linear-gradient(135deg,var(--noite) 0 22px,#0A2150 22px 44px);
   border-bottom:4px solid var(--dourado);padding:16px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
-.cabecalho .escudo{width:52px;height:60px;flex:none}
+.cabecalho .escudo{width:50px;height:auto;flex:none;filter:drop-shadow(0 1px 3px rgba(0,0,0,.5))}
 .cabecalho h1{font-size:19px;letter-spacing:.5px;text-transform:uppercase}
 .cabecalho h1 small{display:block;font-size:11px;font-weight:400;color:var(--dourado);letter-spacing:2px}
 .cabecalho .direita{margin-left:auto;display:flex;gap:8px;align-items:center}
@@ -111,18 +111,7 @@ h3 .btnCsv{float:right;margin-top:-4px}
 <body>
 
 <header class="cabecalho">
-  <svg class="escudo" viewBox="0 0 120 148" xmlns="http://www.w3.org/2000/svg">
-    <polygon points="60,0 64.9,14.9 80.5,14.9 67.8,24.1 72.7,39 60,29.8 47.3,39 52.2,24.1 39.5,14.9 55.1,14.9" fill="#C4952A"/>
-    <!-- moldura azul -->
-    <path d="M2,44 H118 V76 L60,146 L2,76 Z" fill="#1467B2"/>
-    <!-- miolo branco -->
-    <path d="M7,49 H113 V74 L60,138 L7,74 Z" fill="#F4F6F8"/>
-    <!-- faixa FORTALEZA -->
-    <text x="60" y="66" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-weight="900" font-size="15" fill="#1467B2" letter-spacing=".3">FORTALEZA</text>
-    <!-- triângulos internos -->
-    <path d="M14,78 H56 V128 Z" fill="#1467B2"/>
-    <path d="M106,78 H64 V128 Z" fill="#E8360A"/>
-  </svg>
+  <img class="escudo" src="data:image/png;base64,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" alt="Fortaleza EC">
   <h1>Fortaleza EC · GPS 2D<small>Visualização georreferenciada — Catapult</small></h1>
   <div class="direita">
     <button class="btn fantasma" id="btnConfig">⚙ Backend</button>
@@ -173,6 +162,7 @@ h3 .btnCsv{float:right;margin-top:-4px}
 <!-- ================= CAMPO 2D ================= -->
 <section class="painel ativo" id="painel-campo">
   <div class="aviso oculto" id="avisoAutoCal">Sem calibração ativa para este local — usando <b>auto-calibração (PCA)</b> da nuvem de pontos. Para precisão nas bordas, calibre o campo na aba <b>Calibração</b>.</div>
+  <div class="aviso oculto" id="ctxJogo" style="border-color:var(--azul);background:rgba(0,48,135,.18);color:var(--txt)"></div>
   <div class="card">
     <div id="atkCampo"></div>
     <div class="linha" style="margin-bottom:12px">
@@ -291,8 +281,9 @@ h3 .btnCsv{float:right;margin-top:-4px}
   <div class="grade2">
     <div class="card"><h3>Tempo morto detectado <button class="btn mini btnCsv" id="btnCsvTm">⬇ CSV</button></h3>
       <p style="font-size:11.5px;color:var(--txt2);margin-bottom:8px">Janelas da série exibida abaixo do limiar — faixas cinza no gráfico. Compare o total entre jogos para contextualizar acumulados.</p>
-      <div class="kpis"><div class="kpi"><div class="v" id="kTmTotal">—</div><div class="l">Tempo morto total</div></div>
-        <div class="kpi"><div class="v" id="kTmN">—</div><div class="l">Interrupções</div></div></div>
+      <div class="kpis"><div class="kpi"><div class="v" id="kTmTotal">—</div><div class="l">Tempo morto detectado</div></div>
+        <div class="kpi"><div class="v" id="kTmN">—</div><div class="l">Interrupções</div></div>
+        <div class="kpi"><div class="v" id="kTmPlan">—</div><div class="l">Tempo morto (planilha)</div></div></div>
       <div class="tblWrap"><table id="tabTm"></table></div></div>
     <div class="card"><h3>Most Demanding Periods (top 3 por atleta) <button class="btn mini btnCsv" id="btnCsvMdp">⬇ CSV</button></h3>
       <div class="tblWrap"><table id="tabMdp"></table></div></div>
@@ -308,6 +299,7 @@ h3 .btnCsv{float:right;margin-top:-4px}
       salvo no navegador — a partir da 2ª vez a comparação abre na hora. A direção de ataque usa o que você definiu
       ao abrir cada jogo nas outras abas (senão assume Esq→Dir, marcado com *).</p>
     <div class="chips" id="chipsJogosCmp" style="max-width:100%"><span style="font-size:12px;color:var(--txt2)">Carregando lista…</span></div>
+    <div id="atkCmpCfg" style="margin-top:10px"></div>
     <div class="linha" style="margin-top:10px">
       <div class="grupo"><label class="mini">Ação</label>
         <select id="selCmpAcao">
@@ -322,6 +314,8 @@ h3 .btnCsv{float:right;margin-top:-4px}
       <span id="statusCmp" style="font-size:12px;color:var(--txt2)"></span>
     </div>
   </div>
+  <div class="card"><h3>Contexto dos jogos (planilha Jogos 2026) <button class="btn mini btnCsv" id="btnCsvCmpCtx">⬇ CSV</button></h3>
+    <div class="tblWrap"><table id="tabCmpCtx"></table></div></div>
   <div class="card"><h3>Acumulado por terço (barras empilhadas por posição)</h3><div id="grafCmp" style="overflow-x:auto"></div>
     <div class="legenda" id="legCmp"></div></div>
   <div class="card"><h3>Tabela jogo × terço × posição <button class="btn mini btnCsv" id="btnCsvCmp">⬇ CSV</button></h3>
@@ -345,6 +339,16 @@ h3 .btnCsv{float:right;margin-top:-4px}
       <span id="statusRef" style="font-size:12px;color:var(--txt2)"></span>
     </div>
     <p id="refInfo" style="font-size:12px;color:var(--dourado);margin-top:8px"></p>
+    <div class="linha" style="margin-top:12px;border-top:1px solid var(--borda);padding-top:12px">
+      <button class="btn" id="btnCadastro">🔄 Conectar cadastro do clube</button>
+      <div class="grupo"><label class="mini">Filtro</label>
+        <div class="radios">
+          <label><input type="radio" name="refFiltro" value="todos" checked> Todos</label>
+          <label><input type="radio" name="refFiltro" value="ativos"> Ativos</label>
+          <label><input type="radio" name="refFiltro" value="inativos"> Inativos</label>
+        </div></div>
+    </div>
+    <p id="cadastroInfo" style="font-size:12px;color:var(--txt2);margin-top:6px"></p>
   </div>
   <div class="card"><h3>Médias históricas <button class="btn mini btnCsv" id="btnCsvRefMed">⬇ CSV</button></h3>
     <div class="tblWrap"><table id="tabRefMed"></table></div></div>
@@ -1057,8 +1061,15 @@ $('selAtividade').onchange = async () => {
       api(`/api/gps/athletes?activity=${id}`),
       api(`/api/gps/periods?activity=${id}`),
     ]);
-    S.atletas = ath.map(a => ({ ...a, nome: nomeExibicao(a), grupo: grupoPos(a.position) }))
-      .sort((x, y) => x.nome.localeCompare(y.nome));
+    const cad = cadastroCarregado();
+    S.atletas = ath.map(a => {
+      let grupo = grupoPos(a.position);
+      if (grupo === 'Outro' && cad) {   // fallback: posição da planilha de cadastro
+        const cid = (String(a.first_name || '').match(/^(\d+)/) || [])[1];
+        if (cid && cad[cid] && cad[cid].pos) grupo = grupoPos(cad[cid].pos);
+      }
+      return { ...a, nome: nomeExibicao(a), grupo };
+    }).sort((x, y) => x.nome.localeCompare(y.nome));
     S.periodos = per;
     // Pré-seleção: atividades "Jogo …" → só períodos com radical 1tempo/2tempo
     const atv = S.atividades.find(a => a.id === id);
@@ -1071,6 +1082,7 @@ $('selAtividade').onchange = async () => {
     renderChipsPeriodos();
     renderChips();
     $('btnCarregar').disabled = false;
+    renderCtxJogo();
   } catch (e) {
     $('chipsAtletas').innerHTML = `<span style="color:var(--vermelho);font-size:12px">${e.message}</span>`;
   }
@@ -1255,7 +1267,7 @@ const REF_KEYS = [
   { k: 'fmpDyn', label: 'FMP Dyn (min)' }, { k: 'fmpRun', label: 'FMP Run (min)' },
 ];
 function refsSalvas() {
-  try { return JSON.parse(localStorage.getItem('gps2d_refs') || 'null'); } catch (e) { return null; }
+  try { return JSON.parse(localStorage.getItem('gps2d_refs_v2') || 'null'); } catch (e) { return null; }
 }
 function refDoAtleta(nome) {
   const refs = refsSalvas();
@@ -1270,11 +1282,16 @@ function deltaHtml(valor, ref) {
 }
 function jogoParaMetricas(rows) {
   // rows de /stats de UM jogo → {NOME: métricas t1+t2} (só ≥85 min)
-  const por = new Map();
+  const por = new Map(), vistos = new Set();
   for (const r of rows) {
     if (!classifyPeriod(r.period_name)) continue;
+    if (!r.athlete_name && !r.athlete_id) continue;          // linha agregada sem atleta
+    const dup = `${r.athlete_id || r.athlete_name}|${r.period_id || r.period_name}`;
+    if (vistos.has(dup)) continue;                            // linha duplicada
+    vistos.add(dup);
     const ch = normNome(r.athlete_name);
-    const a = por.get(ch) || { dur: 0, dist: 0, hsr: 0, sprint: 0, acc: 0, dec: 0, vmax: 0, dyn: 0, run: 0 };
+    const a = por.get(ch) || { dur: 0, dist: 0, hsr: 0, sprint: 0, acc: 0, dec: 0, vmax: 0, dyn: 0, run: 0,
+      id: (String(r.athlete_name || '').match(/^(\d+)/) || [])[1] || null };
     a.dur += r.total_duration || 0;
     a.dist += r.total_distance || 0;
     a.hsr += (r.velocity_band6_total_distance || 0) + (r.velocity_band7_total_distance || 0);
@@ -1291,12 +1308,25 @@ function jogoParaMetricas(rows) {
     const min = a.dur / 60;
     if (min < 85) continue;
     out[nome] = {
+      _id: a.id,
       minutos: Math.round(min * 10) / 10, dist: Math.round(a.dist),
       hsr: Math.round(a.hsr), sprint: Math.round(a.sprint),
       dens: Math.round(a.dist / min * 10) / 10, vmax: a.vmax,
       acc: Math.round(a.acc), dec: Math.round(a.dec),
       fmpDyn: Math.round(a.dyn / 60 * 10) / 10, fmpRun: Math.round(a.run / 60 * 10) / 10,
     };
+  }
+  // Guarda anti-contaminação: se um valor idêntico (≠0) de acc/dec/vmax se repete
+  // em ≥60% dos atletas do MESMO jogo, o parâmetro veio agregado — descarta no jogo.
+  const nomes = Object.keys(out);
+  if (nomes.length >= 4) {
+    for (const k of ['acc', 'dec', 'vmax']) {
+      const cont = {};
+      for (const n of nomes) { const v = out[n][k]; if (v) cont[v] = (cont[v] || 0) + 1; }
+      for (const [v, c] of Object.entries(cont)) {
+        if (c / nomes.length >= 0.6) { for (const n of nomes) if (out[n][k] == v) out[n][k] = null; }
+      }
+    }
   }
   return out;
 }
@@ -1316,23 +1346,29 @@ $('btnRefGerar').onclick = async () => {
         const rows = await api(`/api/gps/stats?activity=${atv.id}`);
         const jogo = jogoParaMetricas(rows);
         if (Object.keys(jogo).length) comDados++;
+        const rotulo = `${fmtData(atv.start_time)} ${String(atv.name || '').trim()}`;
         for (const [nome, met] of Object.entries(jogo)) {
-          const d = dados[nome] || { n: 0, media: {}, max: {} };
+          const d = dados[nome] || { n: 0, id: met._id, cont: {}, soma: {}, max: {}, maxJogo: {} };
           d.n++;
+          if (!d.id && met._id) d.id = met._id;
           for (const { k } of REF_KEYS) {
             if (met[k] == null) continue;
-            d.media[k] = ((d.media[k] || 0) * (d.n - 1) + met[k]) / d.n;
-            d.max[k] = Math.max(d.max[k] || 0, met[k]);
+            d.soma[k] = (d.soma[k] || 0) + met[k];       // média só com jogos onde o dado existe
+            d.cont[k] = (d.cont[k] || 0) + 1;
+            if (met[k] > (d.max[k] ?? -Infinity)) { d.max[k] = met[k]; d.maxJogo[k] = rotulo; }
           }
           dados[nome] = d;
         }
       } catch (e) { /* jogo sem stats — segue */ }
       feitos++;
     }
-    for (const d of Object.values(dados))
-      for (const k of Object.keys(d.media)) d.media[k] = Math.round(d.media[k] * 10) / 10;
+    for (const d of Object.values(dados)) {
+      d.media = {};
+      for (const k of Object.keys(d.soma)) d.media[k] = Math.round(d.soma[k] / d.cont[k] * 10) / 10;
+      delete d.soma;
+    }
     const refs = { gerado: Date.now(), jogos: comDados, dados };
-    localStorage.setItem('gps2d_refs', JSON.stringify(refs));
+    localStorage.setItem('gps2d_refs_v2', JSON.stringify(refs));
     $('barraRef').style.width = '100%';
     $('statusRef').textContent = `Concluído: ${comDados} jogos com dados válidos.`;
     renderRef(); renderPos();
@@ -1341,31 +1377,117 @@ $('btnRefGerar').onclick = async () => {
   }
   $('btnRefGerar').disabled = false;
 };
+/* ---- Cadastro de atletas (planilha do clube via backend) ---- */
+let CADASTRO = null;   // id → {ativo, nome, pos}
+function cadastroCarregado() {
+  if (CADASTRO) return CADASTRO;
+  try { CADASTRO = JSON.parse(localStorage.getItem('gps2d_cadastro_v2') || 'null'); } catch (e) { CADASTRO = null; }
+  return CADASTRO;
+}
+async function conectarCadastro(silencioso) {
+  if (!silencioso) $('cadastroInfo').textContent = 'Buscando planilha do clube…';
+  try {
+    const j = await api('/api/gps/sheets?fonte=cadastro');
+    const mapa2 = {};
+    for (const r of j.rows) {
+      const id = String(r['ID'] || '').replace(/\D/g, '');
+      if (!id) continue;
+      const st = String(r['STATUS'] || '').toLowerCase();
+      mapa2[id] = {
+        ativo: st.includes('inativ') ? false : st.includes('ativ') ? true : null,
+        nome: r['ATLETA'] || '', pos: r['POSIÇÃO'] || r['POSICAO'] || '',
+      };
+    }
+    CADASTRO = mapa2;
+    localStorage.setItem('gps2d_cadastro_v2', JSON.stringify(mapa2));
+    const nAtivo = Object.values(mapa2).filter(v => v.ativo === true).length;
+    $('cadastroInfo').textContent = `Cadastro conectado: ${Object.keys(mapa2).length} atletas (${nAtivo} ativos).`;
+    renderRef();
+  } catch (e) {
+    if (!silencioso) $('cadastroInfo').textContent = `Erro ao conectar cadastro: ${e.message}`;
+  }
+}
+$('btnCadastro').onclick = () => conectarCadastro(false);
+function refFiltro() { return document.querySelector('input[name=refFiltro]:checked').value; }
+function passaFiltro(d) {
+  const f = refFiltro();
+  if (f === 'todos') return true;
+  const cad = cadastroCarregado();
+  if (!cad || !d.id) return f === 'todos';
+  const c = cad[String(d.id)];
+  const ativo = c ? c.ativo : null;
+  return f === 'ativos' ? ativo === true : ativo === false;
+}
+
+/* ---- Contexto dos jogos (planilha Jogos 2026) ---- */
+let JOGOSCTX = null;
+async function jogosCtx() {
+  if (JOGOSCTX) return JOGOSCTX;
+  try { JOGOSCTX = (await api('/api/gps/sheets?fonte=jogos')).rows; }
+  catch (e) { JOGOSCTX = []; }
+  return JOGOSCTX;
+}
+/* data BRT (UTC−3) de um start_time — jogos noturnos cruzam a meia-noite UTC */
+function brtDate(ts) {
+  const dt = new Date((ts - 3 * 3600) * 1000);
+  return `${String(dt.getUTCDate()).padStart(2, '0')}/${String(dt.getUTCMonth() + 1).padStart(2, '0')}/${dt.getUTCFullYear()}`;
+}
+function ctxDe(atv) {
+  if (!atv || !JOGOSCTX) return null;
+  const d = brtDate(atv.start_time);
+  return JOGOSCTX.find(r => r.DataBR === d) || null;
+}
+async function renderCtxJogo() {
+  const el = $('ctxJogo');
+  const atv = S.atividades.find(a => a.id === $('selAtividade').value);
+  S.ctxAtual = null;
+  if (!atv || !/jogo/i.test(atv.name || '')) { el.classList.add('oculto'); return; }
+  await jogosCtx();
+  const c = ctxDe(atv);
+  if (!c) { el.classList.add('oculto'); return; }
+  S.ctxAtual = c;
+  el.classList.remove('oculto');
+  el.innerHTML = `🆚 <b>${c['Adversário']}</b> (${c['Mando']}) · ${c['Campeonato'] || ''} · Placar <b>${c['Placar (CxF)']}</b> — ${c['Resultado'] || ''}
+    · Posse ${c['% Posse (C)'] || '—'}% × ${c['% Posse (F)'] || '—'}% · xG ${c['xG (C)'] || '—'} × ${c['xG (F)'] || '—'}
+    · Bola rolando ${c['Bola (C)'] || '—'} · Tempo morto ${c['Tempo Morto'] || '—'} · ${c['Esquema'] || ''}`;
+}
+document.querySelectorAll('input[name=refFiltro]').forEach(r => r.onchange = renderRef);
 function renderRef() {
+  const cad = cadastroCarregado();
+  if (cad) $('cadastroInfo').textContent = `Cadastro conectado: ${Object.keys(cad).length} atletas.`;
   const refs = refsSalvas();
   if (!refs) {
     $('refInfo').textContent = 'Nenhum histórico gerado ainda — clique em "Gerar / atualizar histórico".';
     $('tabRefMed').innerHTML = ''; $('tabRefMax').innerHTML = '';
     return;
   }
-  $('refInfo').textContent = `Histórico de ${refs.jogos} jogos · ${Object.keys(refs.dados).length} atletas · gerado em ${new Date(refs.gerado).toLocaleDateString('pt-BR')} (critério: 1tempo+2tempo ≥ 85 min).`;
-  const cab = '<tr><th>Atleta</th><th class="num">Jogos</th>' + REF_KEYS.map(r => `<th class="num">${r.label}</th>`).join('') + '</tr>';
-  const ord = Object.entries(refs.dados).sort((a, b) => b[1].n - a[1].n);
-  const fazer = (campo, tab) => {
-    $(tab).innerHTML = cab + ord.map(([nome, d]) =>
-      `<tr><td>${nome}</td><td class="num">${d.n}</td>` +
-      REF_KEYS.map(r => `<td class="num">${d[campo][r.k] ?? '—'}</td>`).join('') + '</tr>').join('');
-    tornarOrdenavel($(tab));
-  };
-  fazer('media', 'tabRefMed');
-  fazer('max', 'tabRefMax');
+  $('refInfo').textContent = `Histórico de ${refs.jogos} jogos · ${Object.keys(refs.dados).length} atletas · gerado em ${new Date(refs.gerado).toLocaleDateString('pt-BR')} (critério: 1tempo+2tempo ≥ 85 min · acc/dec/vmáx descartados quando o jogo devolve valor agregado idêntico p/ todos).`;
+  const cab = '<tr><th>Atleta</th><th class="num">ID</th><th class="num">Jogos</th>' + REF_KEYS.map(r => `<th class="num">${r.label}</th>`).join('') + '</tr>';
+  const ord = Object.entries(refs.dados).filter(([, d]) => passaFiltro(d)).sort((a, b) => b[1].n - a[1].n);
+  $('tabRefMed').innerHTML = cab + ord.map(([nome, d]) =>
+    `<tr><td>${nome}</td><td class="num">${d.id || '—'}</td><td class="num">${d.n}</td>` +
+    REF_KEYS.map(r => `<td class="num">${d.media[r.k] ?? '—'}</td>`).join('') + '</tr>').join('');
+  $('tabRefMax').innerHTML = cab + ord.map(([nome, d]) =>
+    `<tr><td>${nome}</td><td class="num">${d.id || '—'}</td><td class="num">${d.n}</td>` +
+    REF_KEYS.map(r => {
+      const v = d.max[r.k];
+      const j = (d.maxJogo || {})[r.k];
+      return `<td class="num" ${j ? `title="${j}"` : ''}>${v ?? '—'}${j ? `<br><small style="color:var(--txt2);font-size:9.5px">${j.split(' ')[0]}</small>` : ''}</td>`;
+    }).join('') + '</tr>').join('');
+  tornarOrdenavel($('tabRefMed'));
+  tornarOrdenavel($('tabRefMax'));
 }
 const csvRef = campo => () => {
   const refs = refsSalvas();
   if (!refs) return;
-  const cab = ['Atleta', 'Jogos', ...REF_KEYS.map(r => r.label)];
+  const cab = ['Atleta', 'ID', 'Jogos', ...REF_KEYS.map(r => r.label)];
+  if (campo === 'max') cab.push(...REF_KEYS.map(r => `Jogo do máx — ${r.label}`));
   baixarCSV(`referencias_${campo}.csv`, paraCSV(cab,
-    Object.entries(refs.dados).map(([nome, d]) => [nome, d.n, ...REF_KEYS.map(r => d[campo][r.k])])));
+    Object.entries(refs.dados).filter(([, d]) => passaFiltro(d)).map(([nome, d]) => {
+      const l = [nome, d.id || '', d.n, ...REF_KEYS.map(r => d[campo][r.k])];
+      if (campo === 'max') l.push(...REF_KEYS.map(r => (d.maxJogo || {})[r.k] || ''));
+      return l;
+    })));
 };
 $('btnCsvRefMed').onclick = csvRef('media');
 $('btnCsvRefMax').onclick = csvRef('max');
@@ -1398,7 +1520,19 @@ function renderAtk() {
   $('atkCampo').innerHTML = html;
   $('atkEsf').innerHTML = html.replace(/name="atk_/g, 'name="atkE_');
   document.querySelectorAll('#atkCampo input, #atkEsf input').forEach(inp => inp.onchange = () => {
-    S.atk[inp.dataset.pid] = parseInt(inp.value, 10);
+    const pid = inp.dataset.pid, v = parseInt(inp.value, 10);
+    S.atk[pid] = v;
+    // propaga: mesmo tempo (1tempo/2tempo2…) = mesma direção; tempo oposto = invertida (se indefinido)
+    const rng = S.ranges.find(r => r.pid === pid);
+    const cls = rng ? classifyPeriod(rng.nome) : null;
+    if (v !== 0 && cls) {
+      for (const r2 of S.ranges) {
+        if (r2.pid === pid) continue;
+        const c2 = classifyPeriod(r2.nome);
+        if (c2 === cls) S.atk[r2.pid] = v;                       // mesma metade
+        else if (c2 && !S.atk[r2.pid]) S.atk[r2.pid] = -v;      // metade oposta, ainda indefinida
+      }
+    }
     salvarAtk(); renderAtk(); renderTudo();
   });
 }
@@ -1910,6 +2044,7 @@ function renderMdp() {
   const durTm = tmSegs.reduce((s2, x) => s2 + (x.fim - x.ini), 0);
   $('kTmTotal').textContent = tmSegs.length ? fmtMin(durTm) : '—';
   $('kTmN').textContent = tmSegs.length || '—';
+  $('kTmPlan').textContent = (S.ctxAtual && S.ctxAtual['Tempo Morto']) || '—';
   $('tabTm').innerHTML = tmSegs.length
     ? '<tr><th class="num">#</th><th class="num">Início</th><th class="num">Fim</th><th class="num">Duração</th><th class="num">Mín (unid./min)</th></tr>' +
       tmSegs.map((x, i) => `<tr><td class="num">${i + 1}</td><td class="num">${fmtMin(x.ini)}</td><td class="num">${fmtMin(x.fim)}</td><td class="num">${fmtMin(x.fim - x.ini)}</td><td class="num">${x.minVal.toFixed(1)}</td></tr>`).join('')
@@ -1992,26 +2127,80 @@ const CMP_ACOES = { hsr: 'Esforços HSR', sprint: 'Sprints', acc: 'Acelerações
 function cmpInitChips() {
   const jogos = S.atividades.filter(a => /jogo/i.test(a.name || '')).slice(0, 40);
   if (!jogos.length) { $('chipsJogosCmp').innerHTML = '<span style="font-size:12px;color:var(--txt2)">Nenhuma atividade com "Jogo" no nome.</span>'; return; }
-  $('chipsJogosCmp').innerHTML = jogos.map(a =>
-    `<span class="chip ${CMP.sel.has(a.id) ? 'sel' : ''}" data-id="${a.id}">${fmtData(a.start_time)} · ${a.name}${localStorage.getItem(`gps2d_cmpres_${a.id}`) ? ' ✓' : ''}</span>`).join('');
+  if (!JOGOSCTX) jogosCtx().then(() => cmpInitChips());   // enriquece rótulos quando o contexto chegar
+  $('chipsJogosCmp').innerHTML = jogos.map(a => {
+    const c = ctxDe(a);
+    const rot = c ? `${fmtData(a.start_time)} · vs ${c['Adversário']} (${(c['Mando'] || '')[0] || ''}) ${c['Placar (CxF)'] || ''}` : `${fmtData(a.start_time)} · ${a.name}`;
+    return `<span class="chip ${CMP.sel.has(a.id) ? 'sel' : ''}" data-id="${a.id}">${rot}${localStorage.getItem(`gps2d_cmpres_${a.id}`) ? ' ✓' : ''}</span>`;
+  }).join('');
   [...$('chipsJogosCmp').children].forEach(ch => ch.onclick = () => {
     const id = ch.dataset.id;
     if (CMP.sel.has(id)) CMP.sel.delete(id);
     else if (CMP.sel.size < 6) CMP.sel.add(id);
     ch.classList.toggle('sel', CMP.sel.has(id));
+    cmpRenderAtkCfg();
+  });
+  cmpRenderAtkCfg();
+}
+/* Direção de ataque por tempo, por jogo — fica salva (localStorage) e vale
+   para o app inteiro (mesma chave usada quando o jogo é aberto nas outras abas). */
+CMP.periodos = new Map();
+async function cmpRenderAtkCfg() {
+  const alvo = $('atkCmpCfg');
+  if (!CMP.sel.size) { alvo.innerHTML = ''; return; }
+  const ids = [...CMP.sel];
+  // busca períodos que faltam (em paralelo)
+  await Promise.all(ids.filter(id => !CMP.periodos.has(id)).map(async id => {
+    try { CMP.periodos.set(id, await api(`/api/gps/periods?activity=${id}`)); }
+    catch (e) { CMP.periodos.set(id, []); }
+  }));
+  const OPC = s => `<option value="0" ${!s ? 'selected' : ''}>?</option>
+    <option value="1" ${s === 1 ? 'selected' : ''}>➡ E→D</option>
+    <option value="-1" ${s === -1 ? 'selected' : ''}>⬅ D→E</option>`;
+  alvo.innerHTML = ids.map(id => {
+    const atv = S.atividades.find(a => a.id === id) || {};
+    const per = CMP.periodos.get(id) || [];
+    const atk = JSON.parse(localStorage.getItem(`gps2d_atk_${id}`) || '{}');
+    const sDe = cls => { const p = per.find(p2 => classifyPeriod(p2.name) === cls); return p ? (atk[p.id] || 0) : 0; };
+    return `<div class="atkLinha" data-act="${id}">⚽ <b>${fmtData(atv.start_time)} ${atv.name || ''}</b> —
+      1º tempo: <select data-cls="t1">${OPC(sDe('t1'))}</select>
+      2º tempo: <select data-cls="t2">${OPC(sDe('t2'))}</select></div>`;
+  }).join('');
+  alvo.querySelectorAll('select').forEach(sel => sel.onchange = () => {
+    const actId = sel.closest('[data-act]').dataset.act;
+    const cls = sel.dataset.cls, v = parseInt(sel.value, 10);
+    const per = CMP.periodos.get(actId) || [];
+    const atk = JSON.parse(localStorage.getItem(`gps2d_atk_${actId}`) || '{}');
+    for (const p of per) {
+      const c = classifyPeriod(p.name);
+      if (c === cls) atk[p.id] = v;
+      else if (c && v !== 0 && !atk[p.id]) atk[p.id] = -v;   // metade oposta = invertida
+    }
+    localStorage.setItem(`gps2d_atk_${actId}`, JSON.stringify(atk));
+    cmpRenderAtkCfg();
   });
 }
 async function cmpResumoJogo(actId, statusFn) {
+  const atkMapAtual = JSON.parse(localStorage.getItem(`gps2d_atk_${actId}`) || '{}');
   const salvo = localStorage.getItem(`gps2d_cmpres_${actId}`);
-  if (salvo) return JSON.parse(salvo);
+  if (salvo) {
+    const r = JSON.parse(salvo);
+    // cache só vale se a direção de ataque usada bate com a configurada agora
+    const igual = r.sinais && Object.entries(r.sinais)
+      .every(([pid, s]) => ((atkMapAtual[pid] === -1 ? -1 : 1) === s));
+    if (igual) return r;
+    localStorage.removeItem(`gps2d_cmpres_${actId}`);   // direção mudou → recalcula
+  }
   const [ath, per] = await Promise.all([
     api(`/api/gps/athletes?activity=${actId}`),
     api(`/api/gps/periods?activity=${actId}`),
   ]);
   const tempos = per.filter(p => classifyPeriod(p.name));
   if (!tempos.length) throw new Error('sem períodos 1tempo/2tempo');
-  const atkMap = JSON.parse(localStorage.getItem(`gps2d_atk_${actId}`) || '{}');
+  const atkMap = atkMapAtual;
   const atkDefinido = tempos.some(p => atkMap[p.id]);
+  const sinais = {};
+  for (const p of tempos) sinais[p.id] = atkMap[p.id] === -1 ? -1 : 1;
   const tarefas = [];
   for (const a of ath) for (const p of tempos) tarefas.push({ a, p });
   const porAtleta = new Map();   // id → {grupo, blocos:[{pid, slim}]}
@@ -2074,7 +2263,7 @@ async function cmpResumoJogo(actId, statusFn) {
     for (const g of Object.keys(res[tipo]))
       res[tipo][g] = res[tipo][g].map(v => Math.round(v));
   const atv = S.atividades.find(a => a.id === actId);
-  const resumo = { nome: atv ? atv.name : actId, data: atv ? fmtData(atv.start_time) : '', atkDefinido, res };
+  const resumo = { nome: atv ? atv.name : actId, data: atv ? fmtData(atv.start_time) : '', atkDefinido, sinais, res };
   try { localStorage.setItem(`gps2d_cmpres_${actId}`, JSON.stringify(resumo)); } catch (e) { /* quota */ }
   return resumo;
 }
@@ -2100,9 +2289,21 @@ $('btnCmpCarregar').onclick = async () => {
   renderCmp();
 };
 function renderCmp() {
-  if (!CMP.resumos.size) { $('grafCmp').innerHTML = ''; $('tabCmp').innerHTML = ''; return; }
+  if (!CMP.resumos.size) { $('grafCmp').innerHTML = ''; $('tabCmp').innerHTML = ''; $('tabCmpCtx').innerHTML = ''; return; }
+  if (!JOGOSCTX) { jogosCtx().then(renderCmp); return; }
   const acao = $('selCmpAcao').value;
-  const jogos = [...CMP.resumos.values()];
+  const jogos = [...CMP.resumos.entries()].map(([id, j]) => {
+    const atv = S.atividades.find(a => a.id === id);
+    const c = atv ? ctxDe(atv) : null;
+    return { ...j, _ctx: c, _rotulo: c ? `vs ${c['Adversário']}` : j.data };
+  });
+  // tabela de contexto
+  const CTX_COLS = ['Adversário', 'Mando', 'Placar (CxF)', 'Resultado', '% Posse (C)', 'xG (C)', 'xG (F)', 'Bola (C)', 'Tempo Morto', 'Esquema'];
+  $('tabCmpCtx').innerHTML = '<tr><th>Data</th>' + CTX_COLS.map(c => `<th>${c}</th>`).join('') + '</tr>' +
+    jogos.map(j => `<tr><td>${j.data}</td>` + CTX_COLS.map(c => `<td>${(j._ctx || {})[c] || '—'}</td>`).join('') + '</tr>').join('');
+  tornarOrdenavel($('tabCmpCtx'));
+  S._cmpCtx = jogos.map(j => [j.data, ...CTX_COLS.map(c => (j._ctx || {})[c] || '')]);
+  S._cmpCtxCols = ['Data', ...CTX_COLS];
   const grupos = [...new Set(jogos.flatMap(j => Object.keys(j.res[acao])))]
     .sort((a, b) => POS_GRUPOS.findIndex(g => g.g === a) - POS_GRUPOS.findIndex(g => g.g === b));
   // barras empilhadas: 3 blocos (terços) × n jogos
@@ -2125,7 +2326,7 @@ function renderCmp() {
         elems += `<rect x="${x}" y="${yAcc}" width="${bw}" height="${h}" fill="${corGrupo(g)}"><title>${j.nome} · ${TERCOS[tc]} · ${g}: ${v}</title></rect>`;
       }
       elems += `<text x="${x + bw / 2}" y="${yAcc - 5}" text-anchor="middle" font-size="10.5" fill="#EAF0FA">${tot}</text>
-        <text transform="rotate(-40 ${x + bw / 2} ${alt - pb + 12})" x="${x + bw / 2}" y="${alt - pb + 12}" text-anchor="end" font-size="9.5" fill="#9FB0CC">${j.data}${j.atkDefinido ? '' : '*'}</text>`;
+        <text transform="rotate(-40 ${x + bw / 2} ${alt - pb + 12})" x="${x + bw / 2}" y="${alt - pb + 12}" text-anchor="end" font-size="9.5" fill="#9FB0CC">${j._rotulo}${j.atkDefinido ? '' : '*'}</text>`;
       x += bw + gap;
     }
     eixo += `<text x="${(x0 + x - gap) / 2}" y="${alt - 8}" text-anchor="middle" font-size="12.5" font-weight="700" fill="#C4952A">${TERCOS[tc]}</text>`;
@@ -2140,7 +2341,7 @@ function renderCmp() {
   const linhas = [];
   for (const j of jogos) for (const g of grupos) {
     const v = j.res[acao][g] || [0, 0, 0];
-    linhas.push({ jogo: `${j.data} ${j.nome}`, g, v });
+    linhas.push({ jogo: `${j.data} ${j._ctx ? 'vs ' + j._ctx['Adversário'] : j.nome}`, g, v });
   }
   $('tabCmp').innerHTML = cab + linhas.map(l =>
     `<tr><td>${l.jogo}</td><td style="color:${corGrupo(l.g)};font-weight:700">${l.g}</td>
@@ -2154,6 +2355,10 @@ $('btnCsvCmp').onclick = () => {
   const { acao, linhas } = S._cmpLinhas;
   baixarCSV(`comparacao_${acao}.csv`, paraCSV(['Jogo', 'Posição', 'Defensivo', 'Meio', 'Ataque', 'Total'],
     linhas.map(l => [l.jogo, l.g, l.v[0], l.v[1], l.v[2], l.v[0] + l.v[1] + l.v[2]])));
+};
+$('btnCsvCmpCtx').onclick = () => {
+  if (!S._cmpCtx) return;
+  baixarCSV('comparacao_contexto.csv', paraCSV(S._cmpCtxCols, S._cmpCtx));
 };
 
 /* ---------- Replay ---------- */
@@ -2284,10 +2489,18 @@ function renderWelch() {
 let mapa = null, marcadores = [], poligono = null;
 function initMapa() {
   if (mapa) return;
-  mapa = L.map('mapa').setView([-3.7469, -38.5312], 16);
-  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-    maxZoom: 19, attribution: 'Esri World Imagery',
-  }).addTo(mapa);
+  mapa = L.map('mapa', { maxZoom: 21 }).setView([-3.7469, -38.5312], 16);
+  const gSat = L.tileLayer('https://mt{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+    subdomains: ['0', '1', '2', '3'], maxZoom: 21, maxNativeZoom: 20, attribution: 'Google',
+  });
+  const gHib = L.tileLayer('https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+    subdomains: ['0', '1', '2', '3'], maxZoom: 21, maxNativeZoom: 20, attribution: 'Google',
+  });
+  const esri = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    maxZoom: 21, maxNativeZoom: 19, attribution: 'Esri World Imagery',
+  });
+  gSat.addTo(mapa);
+  L.control.layers({ 'Google Satélite': gSat, 'Google Híbrido (rótulos)': gHib, 'Esri': esri }).addTo(mapa);
   mapa.on('click', e => {
     if (marcadores.length >= 4) return;
     const m = L.marker(e.latlng, { draggable: true,
@@ -2383,6 +2596,8 @@ function renderTudo() {
 prepararCampo($('cvCampo'));
 renderChipsBandas();
 initAtividades();
+if (!cadastroCarregado()) conectarCadastro(true);   // cadastro do clube em segundo plano
+jogosCtx();                                         // contexto de jogos em segundo plano
 })();
 </script>
 </body>
