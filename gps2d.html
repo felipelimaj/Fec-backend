@@ -1459,15 +1459,15 @@ async function carregarStatsFMP() {
 
 /* ---------- Referências históricas (média/máx em jogos ≥85 min) ---------- */
 const REF_KEYS = [
-  { k: 'minutos', label: 'Minutos' }, { k: 'dist', label: 'Distância (m)' },
-  { k: 'hsr', label: 'HSR (m)' }, { k: 'sprint', label: 'Sprint (m)' },
+  { k: 'minutos', label: 'Minutos' }, { k: 'dist', label: 'Distância (m)', int: true },
+  { k: 'hsr', label: 'HSR (m)', int: true }, { k: 'sprint', label: 'Sprint (m)', int: true },
   { k: 'dens', label: 'Densidade (m/min)' }, { k: 'vmax', label: 'Vel. Máx (km/h)' },
-  { k: 'acc', label: 'Acel' }, { k: 'dec', label: 'Desacel' },
+  { k: 'acc', label: 'Acel', int: true }, { k: 'dec', label: 'Desacel', int: true },
   { k: 'fmpDyn', label: 'FMP Dyn (min)' }, { k: 'fmpRun', label: 'FMP Run (min)' },
-  { k: 'explo2', label: 'Esf. Explosivos 2' },
+  { k: 'explo2', label: 'Esf. Explosivos 2', int: true },
 ];
 function refsSalvas() {
-  try { return JSON.parse(localStorage.getItem('gps2d_refs_v2') || 'null'); } catch (e) { return null; }
+  try { return JSON.parse(localStorage.getItem('gps2d_refs_v3') || 'null'); } catch (e) { return null; }
 }
 function refDoAtleta(nome) {
   const refs = refsSalvas();
@@ -1494,9 +1494,11 @@ function jogoParaMetricas(rows) {
       id: (String(r.athlete_name || '').match(/^(\d+)/) || [])[1] || null };
     a.dur += r.total_duration || 0;
     a.dist += r.total_distance || 0;
-    // HSR = ≥19,8 (bandas 6+7+8 da API) · Sprint = ≥25,2 (bandas 7+8)
-    a.hsr += (r.velocity_band6_total_distance || 0) + (r.velocity_band7_total_distance || 0) + (r.velocity_band8_total_distance || 0);
-    a.sprint += (r.velocity_band7_total_distance || 0) + (r.velocity_band8_total_distance || 0);
+    // Numeração do console FEC: HSR = ≥19,8 → bandas 5+6+7+8 · Sprint = ≥25,2 → bandas 6+7+8
+    a.hsr += (r.velocity_band5_total_distance || 0) + (r.velocity_band6_total_distance || 0)
+           + (r.velocity_band7_total_distance || 0) + (r.velocity_band8_total_distance || 0);
+    a.sprint += (r.velocity_band6_total_distance || 0) + (r.velocity_band7_total_distance || 0)
+              + (r.velocity_band8_total_distance || 0);
     a.acc += r.gen2_acceleration_band7plus_total_effort_count || 0;
     a.dec += (r.gen2_acceleration_band1_total_effort_count || 0) + (r.gen2_acceleration_band2_total_effort_count || 0);
     const vm = fixVmax(r.max_vel) || 0;
@@ -1514,10 +1516,11 @@ function jogoParaMetricas(rows) {
       _id: a.id,
       minutos: Math.round(min * 10) / 10, dist: Math.round(a.dist),
       hsr: Math.round(a.hsr), sprint: Math.round(a.sprint),
-      dens: Math.round(a.dist / min * 10) / 10, vmax: a.vmax,
+      dens: Math.round(a.dist / min * 10) / 10,
+      vmax: (a.vmax > 0 && a.vmax <= 40) ? Math.round(a.vmax * 10) / 10 : null,  // 0 ou >40 = inválido
       acc: Math.round(a.acc), dec: Math.round(a.dec),
       fmpDyn: Math.round(a.dyn / 60 * 10) / 10, fmpRun: Math.round(a.run / 60 * 10) / 10,
-      explo2: Math.round(a.ex2),
+      explo2: a.ex2 > 0 ? Math.round(a.ex2) : null,   // jogos anteriores à métrica não contam na média
     };
   }
   // Guarda anti-contaminação: se um valor idêntico (≠0) de acc/dec/vmax se repete
@@ -1572,11 +1575,15 @@ $('btnRefGerar').onclick = async () => {
     }
     for (const d of Object.values(dados)) {
       d.media = {};
-      for (const k of Object.keys(d.soma)) d.media[k] = Math.round(d.soma[k] / d.cont[k] * 10) / 10;
+      for (const k of Object.keys(d.soma)) {
+        const def = REF_KEYS.find(r => r.k === k);
+        const v = d.soma[k] / d.cont[k];
+        d.media[k] = def && def.int ? Math.round(v) : Math.round(v * 10) / 10;   // contagens/metros = inteiros
+      }
       delete d.soma;
     }
     const refs = { gerado: Date.now(), jogos: comDados, dados };
-    localStorage.setItem('gps2d_refs_v2', JSON.stringify(refs));
+    localStorage.setItem('gps2d_refs_v3', JSON.stringify(refs));
     $('barraRef').style.width = '100%';
     $('statusRef').textContent = `Concluído: ${comDados} jogos com dados válidos.`;
     renderRef(); renderPos();
