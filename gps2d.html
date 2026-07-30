@@ -333,7 +333,7 @@ h3 .btnCsv{float:right;margin-top:-4px}
       o Δ% de cada atleta vs. a própria média histórica.</p>
     <div class="linha">
       <div class="grupo"><label class="mini">Jogos a varrer (mais recentes)</label>
-        <select id="selRefN"><option value="20">20</option><option value="40" selected>40</option><option value="60">60</option><option value="999">Todos</option></select></div>
+        <select id="selRefN"><option value="20">20</option><option value="40">40</option><option value="60">60</option><option value="999" selected>Todos (desde 2024)</option></select></div>
       <button class="btn vm" id="btnRefGerar">Gerar / atualizar histórico</button>
       <div class="progresso" style="align-self:center"><div id="barraRef"></div></div>
       <span id="statusRef" style="font-size:12px;color:var(--txt2)"></span>
@@ -1029,7 +1029,10 @@ function tornarOrdenavel(tab) {
 }
 function atkSignAt(ts) {
   const r = S.ranges.find(r => ts >= r.t0 - 1 && ts <= r.t1 + 1);
-  return r ? (S.atk[r.pid] || 0) : 0;
+  if (!r) return 0;
+  if (S.atk[r.pid]) return S.atk[r.pid];
+  const cls = classifyPeriod(r.nome);          // herda da classe: 2tempo → 2tempo2, 2tempo3…
+  return cls ? (S.atk['_' + cls] || 0) : 0;
 }
 function salvarAtk() {
   const act = $('selAtividade').value;
@@ -1333,9 +1336,10 @@ function jogoParaMetricas(rows) {
 $('btnRefGerar').onclick = async () => {
   const nMax = +$('selRefN').value;
   $('btnRefGerar').disabled = true;
-  $('statusRef').textContent = 'Buscando lista de jogos…';
+  $('statusRef').textContent = 'Buscando lista completa de jogos (todas as páginas da API)…';
   try {
-    const acts = (S.atividades.length ? S.atividades : await api('/api/gps/activities?limit=500'))
+    await jogosCtx();   // p/ rotular o máximo com adversário/mando
+    const acts = (await api('/api/gps/activities?all=1'))
       .filter(a => /jogo/i.test(a.name || '')).slice(0, nMax);
     const dados = {};   // NOME → {n, media, max}
     let feitos = 0, comDados = 0;
@@ -1346,7 +1350,10 @@ $('btnRefGerar').onclick = async () => {
         const rows = await api(`/api/gps/stats?activity=${atv.id}`);
         const jogo = jogoParaMetricas(rows);
         if (Object.keys(jogo).length) comDados++;
-        const rotulo = `${fmtData(atv.start_time)} ${String(atv.name || '').trim()}`;
+        const ctx = ctxDe(atv);
+        const rotulo = ctx
+          ? `${ctx['Adversário']} (${(ctx['Mando'] || '?')[0]}) · ${fmtData(atv.start_time)}`
+          : `${fmtData(atv.start_time)} ${String(atv.name || '').trim()}`;
         for (const [nome, met] of Object.entries(jogo)) {
           const d = dados[nome] || { n: 0, id: met._id, cont: {}, soma: {}, max: {}, maxJogo: {} };
           d.n++;
@@ -1472,7 +1479,7 @@ function renderRef() {
     REF_KEYS.map(r => {
       const v = d.max[r.k];
       const j = (d.maxJogo || {})[r.k];
-      return `<td class="num" ${j ? `title="${j}"` : ''}>${v ?? '—'}${j ? `<br><small style="color:var(--txt2);font-size:9.5px">${j.split(' ')[0]}</small>` : ''}</td>`;
+      return `<td class="num" ${j ? `title="${j}"` : ''}>${v ?? '—'}${j ? `<br><small style="color:var(--txt2);font-size:9.5px">${j.split(' · ')[0]}</small>` : ''}</td>`;
     }).join('') + '</tr>').join('');
   tornarOrdenavel($('tabRefMed'));
   tornarOrdenavel($('tabRefMax'));
@@ -1526,6 +1533,9 @@ function renderAtk() {
     const rng = S.ranges.find(r => r.pid === pid);
     const cls = rng ? classifyPeriod(rng.nome) : null;
     if (v !== 0 && cls) {
+      S.atk['_' + cls] = v;                                      // memoriza por classe (vale p/ 2tempo2, 2tempo3…)
+      const opp = cls === 't1' ? 't2' : 't1';
+      if (!S.atk['_' + opp]) S.atk['_' + opp] = -v;
       for (const r2 of S.ranges) {
         if (r2.pid === pid) continue;
         const c2 = classifyPeriod(r2.nome);
@@ -2161,7 +2171,7 @@ async function cmpRenderAtkCfg() {
     const atv = S.atividades.find(a => a.id === id) || {};
     const per = CMP.periodos.get(id) || [];
     const atk = JSON.parse(localStorage.getItem(`gps2d_atk_${id}`) || '{}');
-    const sDe = cls => { const p = per.find(p2 => classifyPeriod(p2.name) === cls); return p ? (atk[p.id] || 0) : 0; };
+    const sDe = cls => { const p = per.find(p2 => classifyPeriod(p2.name) === cls); return (p && atk[p.id]) || atk['_' + cls] || 0; };
     return `<div class="atkLinha" data-act="${id}">⚽ <b>${fmtData(atv.start_time)} ${atv.name || ''}</b> —
       1º tempo: <select data-cls="t1">${OPC(sDe('t1'))}</select>
       2º tempo: <select data-cls="t2">${OPC(sDe('t2'))}</select></div>`;
@@ -2171,6 +2181,8 @@ async function cmpRenderAtkCfg() {
     const cls = sel.dataset.cls, v = parseInt(sel.value, 10);
     const per = CMP.periodos.get(actId) || [];
     const atk = JSON.parse(localStorage.getItem(`gps2d_atk_${actId}`) || '{}');
+    const opp = cls === 't1' ? 't2' : 't1';
+    if (v !== 0) { atk['_' + cls] = v; if (!atk['_' + opp]) atk['_' + opp] = -v; }
     for (const p of per) {
       const c = classifyPeriod(p.name);
       if (c === cls) atk[p.id] = v;
@@ -2185,9 +2197,12 @@ async function cmpResumoJogo(actId, statusFn) {
   const salvo = localStorage.getItem(`gps2d_cmpres_${actId}`);
   if (salvo) {
     const r = JSON.parse(salvo);
-    // cache só vale se a direção de ataque usada bate com a configurada agora
-    const igual = r.sinais && Object.entries(r.sinais)
-      .every(([pid, s]) => ((atkMapAtual[pid] === -1 ? -1 : 1) === s));
+    // cache só vale se a direção de ataque usada bate com a configurada agora (incl. herança por classe)
+    const igual = r.sinais && Object.entries(r.sinais).every(([pid, s]) => {
+      const cls = (r.classes || {})[pid];
+      const atual = atkMapAtual[pid] || (cls ? atkMapAtual['_' + cls] : 0) || 0;
+      return (atual === -1 ? -1 : 1) === s;
+    });
     if (igual) return r;
     localStorage.removeItem(`gps2d_cmpres_${actId}`);   // direção mudou → recalcula
   }
@@ -2198,9 +2213,13 @@ async function cmpResumoJogo(actId, statusFn) {
   const tempos = per.filter(p => classifyPeriod(p.name));
   if (!tempos.length) throw new Error('sem períodos 1tempo/2tempo');
   const atkMap = atkMapAtual;
-  const atkDefinido = tempos.some(p => atkMap[p.id]);
-  const sinais = {};
-  for (const p of tempos) sinais[p.id] = atkMap[p.id] === -1 ? -1 : 1;
+  const atkDefinido = tempos.some(p => atkMap[p.id] || atkMap['_' + classifyPeriod(p.name)]);
+  const sinais = {}, classes = {};
+  for (const p of tempos) {
+    const s = atkMap[p.id] || atkMap['_' + classifyPeriod(p.name)] || 0;
+    sinais[p.id] = s === -1 ? -1 : 1;
+    classes[p.id] = classifyPeriod(p.name);
+  }
   const tarefas = [];
   for (const a of ath) for (const p of tempos) tarefas.push({ a, p });
   const porAtleta = new Map();   // id → {grupo, blocos:[{pid, slim}]}
@@ -2234,7 +2253,7 @@ async function cmpResumoJogo(actId, statusFn) {
   };
   for (const d of porAtleta.values()) {
     for (const b of d.blocos) {
-      const s = atkMap[b.pid] === -1 ? -1 : 1;
+      const s = sinais[b.pid] || 1;
       const pts = new Float32Array(b.slim.n * 2);
       for (let i = 0; i < b.slim.n; i++) {
         const p2 = cal.map(b.slim.lat[i], b.slim.lon[i]);
@@ -2263,7 +2282,7 @@ async function cmpResumoJogo(actId, statusFn) {
     for (const g of Object.keys(res[tipo]))
       res[tipo][g] = res[tipo][g].map(v => Math.round(v));
   const atv = S.atividades.find(a => a.id === actId);
-  const resumo = { nome: atv ? atv.name : actId, data: atv ? fmtData(atv.start_time) : '', atkDefinido, sinais, res };
+  const resumo = { nome: atv ? atv.name : actId, data: atv ? fmtData(atv.start_time) : '', atkDefinido, sinais, classes, res };
   try { localStorage.setItem(`gps2d_cmpres_${actId}`, JSON.stringify(resumo)); } catch (e) { /* quota */ }
   return resumo;
 }
