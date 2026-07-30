@@ -16,7 +16,6 @@
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--noite);color:var(--txt);min-height:100vh}
 
-/* ---------- Header FEC ---------- */
 .cabecalho{position:relative;background:
   repeating-linear-gradient(135deg,var(--noite) 0 22px,#0A2150 22px 44px);
   border-bottom:4px solid var(--dourado);padding:16px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
@@ -25,18 +24,18 @@ body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--
 .cabecalho h1 small{display:block;font-size:11px;font-weight:400;color:var(--dourado);letter-spacing:2px}
 .cabecalho .direita{margin-left:auto;display:flex;gap:8px;align-items:center}
 
-/* ---------- Botões / inputs ---------- */
 .btn{background:var(--azul);color:#fff;border:1px solid var(--borda);border-radius:6px;padding:8px 14px;font-size:13px;cursor:pointer;transition:.15s}
 .btn:hover{filter:brightness(1.2)}
 .btn.vm{background:var(--vermelho)}
 .btn.ok{background:var(--verde)}
 .btn.fantasma{background:transparent;color:var(--txt2)}
+.btn.mini{padding:4px 10px;font-size:11.5px}
 .btn:disabled{opacity:.45;cursor:not-allowed}
 select,input[type=text],input[type=number]{background:var(--card);color:var(--txt);border:1px solid var(--borda);border-radius:6px;padding:7px 10px;font-size:13px}
 input[type=range]{accent-color:var(--vermelho)}
 label.mini{font-size:11px;color:var(--txt2);display:block;margin-bottom:3px;text-transform:uppercase;letter-spacing:.5px}
+label.chk{font-size:12.5px;color:var(--txt);cursor:pointer;display:inline-flex;align-items:center;gap:5px}
 
-/* ---------- Barra de controle ---------- */
 .controle{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;padding:14px 24px;background:var(--fundo);border-bottom:1px solid var(--borda)}
 .controle .grupo{display:flex;flex-direction:column}
 #selAtividade{min-width:290px;max-width:420px}
@@ -44,47 +43,52 @@ label.mini{font-size:11px;color:var(--txt2);display:block;margin-bottom:3px;text
 .progresso>div{height:100%;width:0;background:linear-gradient(90deg,var(--azul),var(--vermelho));transition:width .2s}
 #statusCarga{font-size:12px;color:var(--txt2)}
 
-/* ---------- Atletas (chips) ---------- */
 .chips{display:flex;flex-wrap:wrap;gap:6px;max-height:96px;overflow-y:auto;padding:4px 0;max-width:640px}
 .chip{background:var(--card);border:1px solid var(--borda);border-radius:14px;padding:4px 11px;font-size:12px;cursor:pointer;user-select:none;white-space:nowrap}
 .chip.sel{background:var(--azul);border-color:var(--dourado)}
 .chip .pos{color:var(--dourado);font-size:10px;margin-left:4px}
 
-/* ---------- Abas placar ---------- */
 .abas{display:flex;gap:2px;padding:0 24px;background:var(--fundo);border-bottom:1px solid var(--borda);overflow-x:auto}
-.aba{padding:11px 18px;font-size:13px;letter-spacing:1px;text-transform:uppercase;color:var(--txt2);cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap;font-weight:600}
+.aba{padding:11px 16px;font-size:12.5px;letter-spacing:1px;text-transform:uppercase;color:var(--txt2);cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap;font-weight:600}
 .aba:hover{color:var(--txt)}
 .aba.ativa{color:#fff;border-bottom-color:var(--vermelho);background:linear-gradient(180deg,transparent,rgba(232,54,10,.08))}
 .painel{display:none;padding:20px 24px}
 .painel.ativo{display:block}
 
-/* ---------- Cards ---------- */
 .card{background:var(--card);border:1px solid var(--borda);border-radius:6px;padding:16px;margin-bottom:16px}
 .card h3{font-size:13px;text-transform:uppercase;letter-spacing:1px;color:var(--dourado);margin-bottom:12px}
 .linha{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end}
 .grade2{display:grid;grid-template-columns:340px 1fr;gap:16px}
 @media(max-width:900px){.grade2{grid-template-columns:1fr}}
+.kpis{display:flex;gap:14px;flex-wrap:wrap;margin:12px 0}
+.kpi{background:var(--card2);border:1px solid var(--borda);border-radius:6px;padding:10px 18px;min-width:130px}
+.kpi .v{font-size:24px;font-weight:700;color:#fff;font-variant-numeric:tabular-nums}
+.kpi .l{font-size:10.5px;color:var(--txt2);text-transform:uppercase;letter-spacing:.5px}
 
-/* ---------- Canvas / mapa ---------- */
 canvas.campo{width:100%;max-width:1050px;display:block;border-radius:6px;background:#0A5C2E}
+canvas.grafico{width:100%;max-width:1050px;display:block;border-radius:6px;background:var(--card2)}
 #mapa{height:480px;border-radius:6px;border:1px solid var(--borda)}
 .legenda{display:flex;gap:12px;flex-wrap:wrap;margin-top:10px;font-size:12px;color:var(--txt2)}
 .legenda .item{display:flex;align-items:center;gap:5px}
 .legenda .cx{width:14px;height:14px;border-radius:3px;flex:none}
 
-/* ---------- Tabelas ---------- */
 table{width:100%;border-collapse:collapse;font-size:12.5px}
-th{text-align:left;padding:8px;color:var(--dourado);text-transform:uppercase;font-size:10.5px;letter-spacing:.5px;border-bottom:2px solid var(--borda);cursor:pointer}
+th{text-align:left;padding:8px;color:var(--dourado);text-transform:uppercase;font-size:10.5px;letter-spacing:.5px;border-bottom:2px solid var(--borda)}
 td{padding:7px 8px;border-bottom:1px solid rgba(30,61,119,.5)}
 tr:hover td{background:rgba(0,48,135,.25)}
+tr.selEsf td{background:rgba(232,54,10,.28)!important}
 td.num{text-align:right;font-variant-numeric:tabular-nums}
 th.num{text-align:right}
+.tblWrap{overflow-x:auto;max-height:460px;overflow-y:auto}
 
-/* ---------- Estatística ---------- */
 .resultadoStat{font-size:14px;line-height:1.9;background:var(--card2);border-left:3px solid var(--dourado);padding:12px 16px;border-radius:0 6px 6px 0}
 .sig{color:var(--verde);font-weight:700}.nsig{color:var(--txt2)}
 .matriz td{text-align:center;font-size:11.5px;padding:6px;border:1px solid var(--noite)}
 svg text{font-family:'Segoe UI',sans-serif}
+.radios{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.radios label{font-size:12.5px;cursor:pointer;display:inline-flex;gap:4px;align-items:center}
+.atkLinha{display:flex;gap:14px;align-items:center;flex-wrap:wrap;background:var(--card2);border-radius:6px;padding:8px 12px;margin-bottom:8px;font-size:12.5px}
+.atkLinha b{color:var(--dourado)}
 
 .aviso{background:rgba(196,149,42,.12);border:1px solid var(--dourado);border-radius:6px;padding:10px 14px;font-size:12.5px;color:#E8D9AE;margin-bottom:14px}
 .oculto{display:none!important}
@@ -93,6 +97,7 @@ svg text{font-family:'Segoe UI',sans-serif}
 #listaCal .itemCal.ativa{border:1px solid var(--dourado)}
 .replayCtl{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
 .relogio{font-size:22px;font-variant-numeric:tabular-nums;color:var(--dourado);font-weight:700;min-width:90px}
+h3 .btnCsv{float:right;margin-top:-4px}
 </style>
 </head>
 <body>
@@ -111,8 +116,8 @@ svg text{font-family:'Segoe UI',sans-serif}
     <select id="selAtividade"><option>Carregando…</option></select>
   </div>
   <div class="grupo">
-    <label class="mini">Período</label>
-    <select id="selPeriodo"><option value="">Sessão completa</option></select>
+    <label class="mini">Períodos</label>
+    <div class="chips" id="chipsPeriodos" style="max-width:380px"><span style="font-size:12px;color:var(--txt2)">—</span></div>
   </div>
   <div class="grupo">
     <label class="mini">Resolução</label>
@@ -135,8 +140,10 @@ svg text{font-family:'Segoe UI',sans-serif}
 
 <nav class="abas">
   <div class="aba ativa" data-aba="campo">Campo 2D</div>
+  <div class="aba" data-aba="esf">Esforços</div>
   <div class="aba" data-aba="heat">Heatmap</div>
   <div class="aba" data-aba="pos">Por Posição</div>
+  <div class="aba" data-aba="mdp">Intensidade · MDP</div>
   <div class="aba" data-aba="replay">Replay</div>
   <div class="aba" data-aba="stat">Estatísticas</div>
   <div class="aba" data-aba="cal">Calibração</div>
@@ -146,17 +153,62 @@ svg text{font-family:'Segoe UI',sans-serif}
 <section class="painel ativo" id="painel-campo">
   <div class="aviso oculto" id="avisoAutoCal">Sem calibração ativa para este local — usando <b>auto-calibração (PCA)</b> da nuvem de pontos. Para precisão nas bordas, calibre o campo na aba <b>Calibração</b>.</div>
   <div class="card">
+    <div id="atkCampo"></div>
     <div class="linha" style="margin-bottom:12px">
       <div class="grupo"><label class="mini">Colorir por</label>
         <select id="selCorModo"><option value="banda">Banda de velocidade</option><option value="atleta">Atleta</option></select></div>
       <div class="grupo"><label class="mini">Banda mínima</label>
-        <select id="selBandaMin"><option value="0">Todas</option><option value="3">≥ B4 (14,4)</option><option value="4">≥ B5 — HSR (19,8)</option><option value="5">≥ B6 — Sprint (25,2)</option></select></div>
+        <select id="selBandaMin"><option value="0">Todas</option><option value="3">≥ B4 (14,4)</option><option value="4">≥ B5 — HSR (19,8)</option><option value="5">≥ B6 — Sprint (25,2)</option><option value="6">≥ B7 (29,9)</option></select></div>
+      <div class="grupo"><label class="chk"><input type="checkbox" id="chkTercosCampo"> Terços do campo (% tempo)</label></div>
       <div class="grupo" style="flex:1;min-width:220px"><label class="mini">Janela de tempo (min): <span id="lblJanela">—</span></label>
         <div style="display:flex;gap:8px"><input type="range" id="rngIni" min="0" max="100" value="0" style="flex:1"><input type="range" id="rngFim" min="0" max="100" value="100" style="flex:1"></div></div>
     </div>
     <canvas class="campo" id="cvCampo" width="1050" height="720"></canvas>
     <div class="legenda" id="legCampo"></div>
   </div>
+</section>
+
+<!-- ================= ESFORÇOS ================= -->
+<section class="painel" id="painel-esf">
+  <div class="card">
+    <h3>Análise de Esforços no Campo</h3>
+    <div id="atkEsf"></div>
+    <div class="linha" style="margin-bottom:10px">
+      <div class="grupo"><label class="mini">Tipo de esforço</label>
+        <div class="radios">
+          <label><input type="radio" name="esfTipo" value="vel" checked> ⚡ Velocidade</label>
+          <label><input type="radio" name="esfTipo" value="acc"> ⇄ Aceleração</label>
+        </div></div>
+      <div class="grupo"><label class="mini">Dur. mín. vel (s)</label><input type="number" id="inpDurVel" value="1.0" step="0.1" min="0.2" style="width:70px"></div>
+      <div class="grupo"><label class="mini">Dur. mín. acc (s)</label><input type="number" id="inpDurAcc" value="0.6" step="0.1" min="0.2" style="width:70px"></div>
+      <div class="grupo"><label class="mini">Atleta</label><select id="selEsfAtleta"><option value="__all__">Todos selecionados</option></select></div>
+    </div>
+    <div class="grupo" style="margin-bottom:10px"><label class="mini">Filtrar por bandas</label>
+      <div class="chips" id="chipsBandasEsf"></div></div>
+    <div class="linha" style="margin-bottom:12px">
+      <label class="chk"><input type="checkbox" id="chkSetas" checked> 🏹 Setas de direção</label>
+      <label class="chk"><input type="checkbox" id="chkTercosEsf" checked> Terços do campo</label>
+      <label class="chk"><input type="checkbox" id="chkZonas5"> Grade de zonas 3×5</label>
+    </div>
+    <div class="kpis">
+      <div class="kpi"><div class="v" id="kEsfN">—</div><div class="l">Total de esforços</div></div>
+      <div class="kpi"><div class="v" id="kEsfDur">—</div><div class="l">Duração total (s)</div></div>
+      <div class="kpi"><div class="v" id="kEsfDist">—</div><div class="l">Distância total (m)</div></div>
+      <div class="kpi"><div class="v" id="kEsfPct">—</div><div class="l">Média % máximo</div></div>
+    </div>
+    <canvas class="campo" id="cvEsf" width="1050" height="720"></canvas>
+    <div class="legenda" id="legEsf"></div>
+  </div>
+  <div class="grade2">
+    <div class="card"><h3>Freq. por Zona (3×5) <button class="btn mini btnCsv" id="btnCsvZonas">⬇ CSV</button></h3>
+      <p style="font-size:11.5px;color:var(--txt2);margin-bottom:8px">Eixo tático: ajustado pela direção de ataque de cada período.</p>
+      <div id="tabZonas"></div></div>
+    <div class="card"><h3>Ações por Terço <button class="btn mini btnCsv" id="btnCsvTercos">⬇ CSV</button></h3>
+      <div style="overflow-x:auto"><table id="tabTercos"></table></div></div>
+  </div>
+  <div class="card"><h3>Tabela de Esforços <button class="btn mini btnCsv" id="btnCsvEsf">⬇ CSV (completo)</button></h3>
+    <p style="font-size:11.5px;color:var(--txt2);margin-bottom:8px">Clique numa linha para destacar o esforço no campo acima (clique de novo para desfazer). Exibindo até 400 linhas — o CSV leva tudo.</p>
+    <div class="tblWrap"><table id="tabEsf"></table></div></div>
 </section>
 
 <!-- ================= HEATMAP ================= -->
@@ -179,10 +231,42 @@ svg text{font-family:'Segoe UI',sans-serif}
   <div class="card">
     <div class="linha" style="margin-bottom:8px">
       <div class="grupo"><label class="mini">Métrica</label><select id="selMetricaPos"></select></div>
+      <div class="grupo"><label class="mini">Modo</label>
+        <div class="radios">
+          <label><input type="radio" name="posModo" value="abs" checked> Absoluto</label>
+          <label><input type="radio" name="posModo" value="min"> Por minuto</label>
+        </div></div>
     </div>
     <div id="grafPos"></div>
   </div>
-  <div class="card"><h3>Tabela completa</h3><div style="overflow-x:auto"><table id="tabMetricas"></table></div></div>
+  <div class="card"><h3>Tabela completa <button class="btn mini btnCsv" id="btnCsvMet">⬇ CSV</button></h3>
+    <div style="overflow-x:auto"><table id="tabMetricas"></table></div></div>
+</section>
+
+<!-- ================= INTENSIDADE / MDP ================= -->
+<section class="painel" id="painel-mdp">
+  <div class="card">
+    <h3>Intensidade Temporal — Janela Rolante</h3>
+    <div class="linha" style="margin-bottom:12px">
+      <div class="grupo"><label class="mini">Métrica</label><select id="selMdpMetrica"></select></div>
+      <div class="grupo"><label class="mini">Janela</label>
+        <select id="selMdpJanela">
+          <option value="60" selected>1 min</option><option value="180">3 min</option>
+          <option value="300">5 min</option><option value="600">10 min</option>
+          <option value="custom">Personalizada…</option>
+        </select></div>
+      <div class="grupo oculto" id="grpMdpCustom"><label class="mini">Janela (s)</label><input type="number" id="inpMdpCustom" value="120" min="20" step="10" style="width:80px"></div>
+      <div class="grupo"><label class="mini">Passo (s)</label>
+        <select id="selMdpPasso"><option value="10" selected>10</option><option value="5">5</option><option value="30">30</option><option value="60">60</option></select></div>
+      <div class="grupo"><label class="mini">Escopo</label><select id="selMdpEscopo"><option value="__team__">Equipe (média)</option></select></div>
+    </div>
+    <canvas class="grafico" id="cvMdp" width="1050" height="420"></canvas>
+    <div class="legenda"><span class="item"><span class="cx" style="background:#38B26E"></span>Baixa</span>
+      <span class="item"><span class="cx" style="background:#FF8C42"></span>Média-Alta (≥75% do máx)</span>
+      <span class="item"><span class="cx" style="background:#E8360A"></span>Alta (≥90% do máx)</span></div>
+  </div>
+  <div class="card"><h3>Most Demanding Periods (top 3 por atleta) <button class="btn mini btnCsv" id="btnCsvMdp">⬇ CSV</button></h3>
+    <div class="tblWrap"><table id="tabMdp"></table></div></div>
 </section>
 
 <!-- ================= REPLAY ================= -->
@@ -258,31 +342,48 @@ svg text{font-family:'Segoe UI',sans-serif}
       <div class="card">
         <h3>Calibrações salvas</h3>
         <div id="listaCal"><p style="font-size:12.5px;color:var(--txt2)">Nenhuma calibração salva.</p></div>
-        <div style="margin-top:10px"><label class="mini"><input type="checkbox" id="chkAutoPCA"> Forçar auto-calibração (PCA) mesmo com calibração salva</label></div>
+        <div style="margin-top:10px"><label class="chk"><input type="checkbox" id="chkAutoPCA"> Forçar auto-calibração (PCA) mesmo com calibração salva</label></div>
       </div>
     </div>
     <div class="card"><h3>Satélite</h3><div id="mapa"></div></div>
   </div>
 </section>
 
-<div class="rodape">FEC · Fisiologia — Adriano Lima &amp; Felipe Lima · dados Catapult Connect API (token fixo no backend) · HSR = B5+B6 (≥19,8 km/h) · Sprint ≥25,2 km/h</div>
+<div class="rodape">FEC · Fisiologia — Adriano Lima &amp; Felipe Lima · dados Catapult Connect API (token fixo no backend) · HSR = B5+B6+B7 (≥19,8 km/h) · Sprint = B6+B7 (≥25,2 km/h)</div>
 
 <script>
-/* ============ GPS2D CORE — lógica pura (validável em Node) ============ */
+/* ============ GPS2D CORE v2 — lógica pura (validável em Node) ============ */
 'use strict';
 
-/* ---------- Bandas de velocidade (tenant FEC, km/h) ---------- */
+/* ---------- Bandas de velocidade (tenant FEC, km/h) ----------
+   HSR = B5+B6+B7 (≥19,8) · Sprint = B6+B7 (≥25,2) */
+const HSR_MIN = 19.8, SPRINT_MIN = 25.2;
 const BANDAS = [
   { id: 'B1', min: 0.5,   max: 7.2,   cor: '#5B8DEF', label: 'B1 0,5–7,2' },
   { id: 'B2', min: 7.2,   max: 9.97,  cor: '#38B26E', label: 'B2 7,2–9,97' },
   { id: 'B3', min: 9.97,  max: 14.4,  cor: '#A9C93A', label: 'B3 9,97–14,4' },
   { id: 'B4', min: 14.4,  max: 19.8,  cor: '#C4952A', label: 'B4 14,4–19,8' },
-  { id: 'B5', min: 19.8,  max: 25.2,  cor: '#E8360A', label: 'B5 19,8–25,2' },
-  { id: 'B6', min: 25.2,  max: 99,    cor: '#8E1600', label: 'B6 ≥25,2' },
+  { id: 'B5', min: 19.8,  max: 25.2,  cor: '#FF8C42', label: 'B5 19,8–25,2' },
+  { id: 'B6', min: 25.2,  max: 29.9,  cor: '#E8360A', label: 'B6 25,2–29,9' },
+  { id: 'B7', min: 29.9,  max: 99,    cor: '#8E1600', label: 'B7 ≥29,9' },
+];
+const BANDAS_ACC = [
+  { id: 'A1', min: 2,  max: 3,  cor: '#69F0AE', label: 'Acel B1 2–3' },
+  { id: 'A2', min: 3,  max: 4,  cor: '#43A047', label: 'Acel B2 3–4' },
+  { id: 'A3', min: 4,  max: 10, cor: '#00C853', label: 'Acel B3 4–10' },
+  { id: 'D1', min: -3,  max: -2, cor: '#FFD180', label: 'Desacel B1 −3–−2' },
+  { id: 'D2', min: -4,  max: -3, cor: '#FF6D00', label: 'Desacel B2 −4–−3' },
+  { id: 'D3', min: -10, max: -4, cor: '#B71C1C', label: 'Desacel B3 −10–−4' },
 ];
 function bandaDe(vKmh) {
   if (vKmh == null || vKmh < 0.5) return -1;
   for (let i = BANDAS.length - 1; i >= 0; i--) if (vKmh >= BANDAS[i].min) return i;
+  return -1;
+}
+function bandaAccDe(a) {
+  if (a == null) return -1;
+  if (a >= 2)  return a < 3 ? 0 : (a < 4 ? 1 : 2);
+  if (a <= -2) return a > -3 ? 3 : (a > -4 ? 4 : 5);
   return -1;
 }
 
@@ -315,8 +416,6 @@ function geoParaMetros(lat, lon, lat0, lon0) {
 }
 
 /* ---------- Homografia (DLT 4 pontos) ---------- */
-// src: 4 pontos {x,y} (metros locais dos cantos) → dst: cantos do campo
-// ordem: [0,0] (escanteio inf-esq), [L,0], [L,W], [0,W]  (L=comprimento, W=largura)
 function resolverLinear(A, b) {
   const n = A.length, M = A.map((row, i) => [...row, b[i]]);
   for (let c = 0; c < n; c++) {
@@ -346,8 +445,6 @@ function aplicarH(H, x, y) {
   const w = H[6] * x + H[7] * y + H[8];
   return { x: (H[0] * x + H[1] * y + H[2]) / w, y: (H[3] * x + H[4] * y + H[5]) / w };
 }
-
-/* Calibração completa: 4 cantos lat/lon + dimensões → função (lat,lon)→(x,y) campo */
 function criarCalibracao(cantos, comprimento, largura) {
   const lat0 = cantos.reduce((s, c) => s + c.lat, 0) / 4;
   const lon0 = cantos.reduce((s, c) => s + c.lon, 0) / 4;
@@ -362,8 +459,6 @@ function criarCalibracao(cantos, comprimento, largura) {
     },
   };
 }
-
-/* Auto-calibração por PCA da nuvem de pontos (fallback) */
 function autoCalibrar(lats, lons, comprimento, largura) {
   let lat0 = 0, lon0 = 0, n = 0;
   for (let i = 0; i < lats.length; i++) { if (lats[i] != null) { lat0 += lats[i]; lon0 += lons[i]; n++; } }
@@ -377,7 +472,7 @@ function autoCalibrar(lats, lons, comprimento, largura) {
     pts.push(m); sxx += m.x * m.x; sxy += m.x * m.y; syy += m.y * m.y;
   }
   sxx /= pts.length; sxy /= pts.length; syy /= pts.length;
-  const ang = 0.5 * Math.atan2(2 * sxy, sxx - syy);           // eixo principal
+  const ang = 0.5 * Math.atan2(2 * sxy, sxx - syy);
   const ca = Math.cos(-ang), sa = Math.sin(-ang);
   let xs = [], ys = [];
   for (const p of pts) { xs.push(p.x * ca - p.y * sa); ys.push(p.x * sa + p.y * ca); }
@@ -397,23 +492,22 @@ function autoCalibrar(lats, lons, comprimento, largura) {
   };
 }
 
-/* ---------- Métricas por atleta (a partir do stream slim) ---------- */
-// d = {ts[], lat[], lon[], v[], a[], hr[]}, v em m/s; dt derivado de ts
+/* ---------- Métricas por atleta ---------- */
 function calcularMetricas(d) {
   const n = d.ts.length;
   let dist = 0, hsr = 0, sprint = 0, vmax = 0, tempo = 0, hrSum = 0, hrN = 0;
   let acc = 0, dec = 0, accRun = 0, decRun = 0;
-  const MIN_DUR = 0.6;                 // s — duração mínima do esforço
+  const MIN_DUR = 0.6;
   for (let i = 1; i < n; i++) {
     let dt = d.ts[i] - d.ts[i - 1];
-    if (!(dt > 0) || dt > 2) { accRun = 0; decRun = 0; continue; }  // buraco no sinal
+    if (!(dt > 0) || dt > 2) { accRun = 0; decRun = 0; continue; }
     const v = d.v[i];
     if (v == null) { accRun = 0; decRun = 0; continue; }
     const vk = v * 3.6;
     tempo += dt;
     dist += v * dt;
-    if (vk >= 19.8) hsr += v * dt;
-    if (vk >= 25.2) sprint += v * dt;
+    if (vk >= HSR_MIN) hsr += v * dt;
+    if (vk >= SPRINT_MIN) sprint += v * dt;
     if (vk > vmax && vk < 45) vmax = vk;
     if (d.hr[i] != null && d.hr[i] > 30) { hrSum += d.hr[i]; hrN++; }
     const a = d.a[i];
@@ -434,18 +528,147 @@ function calcularMetricas(d) {
   };
 }
 const METRICAS_DEF = [
-  { k: 'dist',    label: 'Distância Total (m)' },
-  { k: 'hsr',     label: 'HSR B5+B6 (m)' },
-  { k: 'sprint',  label: 'Sprint ≥25,2 (m)' },
-  { k: 'vmax',    label: 'Vel. Máx (km/h)' },
-  { k: 'dens',    label: 'Densidade (m/min)' },
-  { k: 'minutos', label: 'Minutos' },
-  { k: 'acc',     label: 'Acelerações ≥3 m/s²' },
-  { k: 'dec',     label: 'Desacelerações ≤-3 m/s²' },
-  { k: 'fcMedia', label: 'FC Média (bpm)' },
+  { k: 'dist',    label: 'Distância Total (m)', porMin: true },
+  { k: 'hsr',     label: 'HSR B5–B7 (m)',       porMin: true },
+  { k: 'sprint',  label: 'Sprint B6+B7 (m)',    porMin: true },
+  { k: 'vmax',    label: 'Vel. Máx (km/h)',     porMin: false },
+  { k: 'dens',    label: 'Densidade (m/min)',   porMin: false },
+  { k: 'minutos', label: 'Minutos',             porMin: false },
+  { k: 'acc',     label: 'Acel ≥3 m/s²',        porMin: true },
+  { k: 'dec',     label: 'Desacel ≤−3 m/s²',    porMin: true },
+  { k: 'fcMedia', label: 'FC Média (bpm)',      porMin: false },
+];
+function valorMetrica(met, k, porMinuto) {
+  const v = met[k];
+  if (v == null) return null;
+  const def = METRICAS_DEF.find(m => m.k === k);
+  if (porMinuto && def && def.porMin && met.minutos > 0)
+    return Math.round(v / met.minutos * 100) / 100;
+  return v;
+}
+
+/* ---------- Esforços (segmentos sustentados na mesma banda) ----------
+   tipo 'vel': banda de velocidade sustentada ≥ minDur (padrão 1,0 s)
+   tipo 'acc': banda de acel/desacel sustentada ≥ minDur (padrão 0,6 s)
+   Retorna: {i0,i1,ts0,dur,dist,vmax,vini,banda,x0,y0,x1,y1,atleta} */
+function detectarEsforcos(slim, pts, tipo, minDur) {
+  const n = slim.ts.length, out = [];
+  const bandaFn = tipo === 'acc'
+    ? i => bandaAccDe(slim.a[i])
+    : i => bandaDe((slim.v[i] || 0) * 3.6);
+  let ini = -1, bAtual = -1;
+  const fechar = (fim) => {
+    if (ini < 0 || bAtual < 0) return;
+    const dur = slim.ts[fim] - slim.ts[ini];
+    if (dur >= minDur) {
+      let dist = 0, vmax = 0, pico = 0;
+      for (let j = ini + 1; j <= fim; j++) {
+        const dt = slim.ts[j] - slim.ts[j - 1];
+        if (dt > 0 && dt <= 2 && slim.v[j] != null) dist += slim.v[j] * dt;
+        const vk = (slim.v[j] || 0) * 3.6;
+        if (vk > vmax) vmax = vk;
+        if (tipo === 'acc' && slim.a[j] != null && Math.abs(slim.a[j]) > Math.abs(pico)) pico = slim.a[j];
+      }
+      out.push({
+        i0: ini, i1: fim, ts0: slim.ts[ini], dur: Math.round(dur * 10) / 10,
+        dist: Math.round(dist * 10) / 10,
+        vmax: Math.round(vmax * 10) / 10,
+        vini: Math.round((slim.v[ini] || 0) * 3.6 * 10) / 10,
+        pico: tipo === 'acc' ? Math.round(pico * 100) / 100 : null,
+        banda: bAtual,
+        x0: pts[ini * 2], y0: pts[ini * 2 + 1],
+        x1: pts[fim * 2], y1: pts[fim * 2 + 1],
+      });
+    }
+    ini = -1; bAtual = -1;
+  };
+  for (let i = 0; i < n; i++) {
+    const gap = i > 0 && (slim.ts[i] - slim.ts[i - 1] > 2);
+    const b = bandaFn(i);
+    if (gap) { fechar(i - 1); }
+    if (b !== bAtual) { fechar(i - 1 >= 0 ? i - 1 : 0); if (b >= 0) { ini = i; bAtual = b; } }
+  }
+  fechar(n - 1);
+  return out;
+}
+
+/* ---------- Classificação tática (zona/direção com lado de ataque) ----------
+   atkSign: +1 = ataque Esq→Dir · −1 = Dir→Esq · 0 = indefinido (usa +1 p/ zonas, direção vira Lateral se indefinida?) — mantemos classificação com sinal, 0 tratado como +1 sem inversão. */
+const ZONAS5 = ['Def. Prof.', 'Defensivo', 'Meio-Campo', 'Ofensivo', 'Ataque Prof.'];
+const LANES3 = ['Flanco Esq.', 'Centro', 'Flanco Dir.'];
+const TERCOS = ['Defensivo', 'Meio', 'Ataque'];
+function classificarEsforco(e, L, W, atkSign) {
+  const s = atkSign < 0 ? -1 : 1;
+  const xa0 = s > 0 ? e.x0 : L - e.x0;           // eixo ajustado: 0 = gol defendido
+  const ya0 = s > 0 ? e.y0 : W - e.y0;           // flanco visto do banco do ataque
+  const clamp = (v, m) => Math.min(m - 1, Math.max(0, v));
+  const terco = TERCOS[clamp(Math.floor(xa0 / (L / 3)), 3)];
+  const zona5 = ZONAS5[clamp(Math.floor(xa0 / (L / 5)), 5)];
+  const lane  = LANES3[clamp(Math.floor(ya0 / (W / 3)), 3)];
+  const dx = (s > 0 ? e.x1 - e.x0 : e.x0 - e.x1);
+  let direcao = '↔ Lateral';
+  if (dx > 5) direcao = '⬆ Ofensivo';
+  else if (dx < -5) direcao = '⬇ Defensivo';
+  return { terco, zona5, lane, direcao, dx: Math.round(dx * 10) / 10 };
+}
+
+/* ---------- Janelas rolantes (intensidade / MDP) ----------
+   metrica(j) deve devolver o incremento da amostra j (ex.: v*dt p/ distância).
+   Retorna {t:[s desde início], val:[valor/min]} com janela winS e passo stepS. */
+function janelasRolantes(slim, incFn, winS, stepS) {
+  const n = slim.ts.length;
+  if (n < 10) return { t: [], val: [] };
+  // incrementos acumulados
+  const cum = new Float64Array(n);
+  for (let i = 1; i < n; i++) {
+    const dt = slim.ts[i] - slim.ts[i - 1];
+    cum[i] = cum[i - 1] + ((dt > 0 && dt <= 2) ? incFn(i, dt) : 0);
+  }
+  const t0 = slim.ts[0], t1 = slim.ts[n - 1];
+  const t = [], val = [];
+  let lo = 0, hi = 0;
+  for (let ws = t0; ws + winS <= t1; ws += stepS) {
+    while (lo < n - 1 && slim.ts[lo] < ws) lo++;
+    while (hi < n - 1 && slim.ts[hi + 1] <= ws + winS) hi++;
+    t.push(ws - t0 + winS / 2);
+    val.push((cum[hi] - cum[lo]) / (winS / 60));   // por minuto
+  }
+  return { t, val };
+}
+/* Top-N janelas não sobrepostas (MDP) */
+function topJanelas(t, val, winS, nTop) {
+  const idx = val.map((v, i) => i).sort((a, b) => val[b] - val[a]);
+  const escolhidas = [];
+  for (const i of idx) {
+    if (escolhidas.length >= nTop) break;
+    if (escolhidas.every(j => Math.abs(t[j] - t[i]) >= winS)) escolhidas.push(i);
+  }
+  return escolhidas.sort((a, b) => val[b] - val[a])
+    .map(i => ({ inicio: t[i] - winS / 2, valor: Math.round(val[i] * 10) / 10 }));
+}
+/* Incrementos padrão por métrica de intensidade */
+const INTENSIDADE_DEF = [
+  { k: 'dist',   label: 'Distância (m/min)',        inc: s => (i, dt) => (s.v[i] || 0) * dt },
+  { k: 'hsr',    label: 'HSR B5–B7 (m/min)',        inc: s => (i, dt) => ((s.v[i] || 0) * 3.6 >= HSR_MIN ? s.v[i] * dt : 0) },
+  { k: 'sprint', label: 'Sprint B6+B7 (m/min)',     inc: s => (i, dt) => ((s.v[i] || 0) * 3.6 >= SPRINT_MIN ? s.v[i] * dt : 0) },
+  { k: 'acc',    label: 'Acel+Desacel ≥3 m/s² (n/min)', inc: s => (i, dt) => {
+      const a = s.a[i], ap = s.a[i - 1];
+      return (a != null && Math.abs(a) >= 3 && (ap == null || Math.abs(ap) < 3)) ? 1 : 0;
+    } },
 ];
 
-/* ---------- Heatmap: grade + blur gaussiano separável ---------- */
+/* ---------- CSV (padrão Excel pt-BR: ; e vírgula decimal) ---------- */
+function paraCSV(cabecalho, linhas) {
+  const cel = v => {
+    if (v == null) return '';
+    if (typeof v === 'number') return String(v).replace('.', ',');
+    const s = String(v).replace(/"/g, '""');
+    return /[;"\n]/.test(s) ? `"${s}"` : s;
+  };
+  return '﻿' + [cabecalho, ...linhas].map(l => l.map(cel).join(';')).join('\r\n');
+}
+
+/* ---------- Grade + blur gaussiano ---------- */
 function criarGrade(L, W, cell) {
   const gw = Math.ceil(L / cell), gh = Math.ceil(W / cell);
   return { g: new Float32Array(gw * gh), gw, gh, cell };
@@ -510,7 +733,6 @@ function postos(a) {
   return rk;
 }
 function spearman(x, y) { return pearson(postos(x), postos(y)); }
-// p-valor bicaudal da correlação via estatística t com aproximação da CDF t
 function lnGamma(z) {
   const c = [76.18009172947146, -86.50532032941677, 24.01409824083091,
              -1.231739572450155, 0.1208650973866179e-2, -0.5395239384953e-5];
@@ -524,7 +746,6 @@ function betaInc(a, b, x) {
   if (x <= 0) return 0; if (x >= 1) return 1;
   const lbeta = lnGamma(a) + lnGamma(b) - lnGamma(a + b);
   const front = Math.exp(Math.log(x) * a + Math.log(1 - x) * b - lbeta) / a;
-  // fração continuada (Lentz)
   let f = 1, c = 1, d = 0;
   for (let i = 0; i <= 200; i++) {
     const m = Math.floor(i / 2);
@@ -562,8 +783,6 @@ function welch(x, y) {
   const d = (mx - my) / Math.sqrt(((nx - 1) * vx + (ny - 1) * vy) / (nx + ny - 2) || 1);
   return { t, df, p: pValorT(Math.abs(t), df), mx, my, d };
 }
-
-/* ---------- Regressão linear simples (para scatter) ---------- */
 function regressao(x, y) {
   const n = x.length, mx = media(x), my = media(y);
   let sxy = 0, sxx = 0;
@@ -572,14 +791,12 @@ function regressao(x, y) {
   return { b, a: my - b * mx };
 }
 
-/* ---------- Nome de exibição ("96 PIERRE" → PIERRE) ---------- */
+/* ---------- Diversos ---------- */
 function nomeExibicao(a) {
   const fn = String(a.first_name || '').replace(/^\d+\s*/, '').trim();
   const ln = String(a.last_name || '').trim();
   return (fn || ln) ? (fn && ln && fn !== ln ? `${fn} ${ln}` : fn || ln) : `#${a.id}`;
 }
-
-/* ---------- Colormap (azul→verde→amarelo→vermelho) ---------- */
 function corCalor(t) {
   t = Math.min(1, Math.max(0, t));
   const stops = [
@@ -597,18 +814,20 @@ function corCalor(t) {
 }
 
 if (typeof module !== 'undefined') module.exports = {
-  BANDAS, bandaDe, POS_GRUPOS, grupoPos, corGrupo, geoParaMetros, homografia,
-  aplicarH, criarCalibracao, autoCalibrar, calcularMetricas, METRICAS_DEF,
-  criarGrade, acumular, blurGauss, pearson, spearman, corrTest, welch,
-  regressao, nomeExibicao, corCalor, media, desvio,
+  BANDAS, BANDAS_ACC, HSR_MIN, SPRINT_MIN, bandaDe, bandaAccDe, POS_GRUPOS,
+  grupoPos, corGrupo, geoParaMetros, homografia, aplicarH, criarCalibracao,
+  autoCalibrar, calcularMetricas, METRICAS_DEF, valorMetrica, detectarEsforcos,
+  classificarEsforco, ZONAS5, LANES3, TERCOS, janelasRolantes, topJanelas,
+  INTENSIDADE_DEF, paraCSV, criarGrade, acumular, blurGauss, pearson, spearman,
+  corrTest, welch, regressao, nomeExibicao, corCalor, media, desvio,
 };
 
-/* ==================== APP GPS2D ==================== */
+/* ==================== APP GPS2D v2 ==================== */
 (function () {
 'use strict';
 const $ = id => document.getElementById(id);
 
-/* ---------- Backend (token fica no servidor — nada de token aqui) ---------- */
+/* ---------- Backend ---------- */
 let BACKEND = localStorage.getItem('gps2d_backend') || '';
 $('btnConfig').onclick = () => {
   const v = prompt('URL do backend (vazio = mesmo domínio desta página):',
@@ -627,11 +846,15 @@ async function api(path) {
 /* ---------- Estado ---------- */
 const S = {
   atividades: [], atletas: [], periodos: [],
-  selAtletas: new Set(),
-  dados: new Map(),        // athleteId → {slim, met, pts, nome, grupo, cor}
-  cache: new Map(),        // chave completa → slim
+  selAtletas: new Set(), selPeriodos: new Set(['']),
+  dados: new Map(),      // athleteId → {slim, met, pts, nome, grupo, cor}
+  cache: new Map(),
+  ranges: [],            // [{pid, nome, t0, t1}] períodos efetivamente carregados
+  atk: {},               // pid → +1 | -1 | 0
   cal: null, calAtiva: localStorage.getItem('gps2d_cal_ativa') || '',
-  t0: 0, t1: 0,            // faixa de ts da sessão
+  t0: 0, t1: 0,
+  esfCache: new Map(), esfSel: -1, esfLista: [],
+  bandasVel: new Set([0, 1, 2, 3, 4, 5, 6]), bandasAcc: new Set([0, 1, 2, 3, 4, 5]),
 };
 
 /* ---------- Utilidades ---------- */
@@ -640,14 +863,28 @@ const fmtData = ts => new Date(ts * 1000).toLocaleDateString('pt-BR',
 const fmtMin = s => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 function corAtletaIdx(i, grupo) {
   const base = corGrupo(grupo);
-  // variação tonal simples dentro do grupo
   const f = (i % 4) * 0.13;
   const n = parseInt(base.slice(1), 16);
   const mix = (c) => Math.min(255, Math.round(c + (255 - c) * f));
   return `rgb(${mix(n >> 16)},${mix((n >> 8) & 255)},${mix(n & 255)})`;
 }
+function baixarCSV(nome, conteudo) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([conteudo], { type: 'text/csv;charset=utf-8' }));
+  a.download = nome;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function atkSignAt(ts) {
+  const r = S.ranges.find(r => ts >= r.t0 - 1 && ts <= r.t1 + 1);
+  return r ? (S.atk[r.pid] || 0) : 0;
+}
+function salvarAtk() {
+  const act = $('selAtividade').value;
+  if (act) localStorage.setItem(`gps2d_atk_${act}`, JSON.stringify(S.atk));
+}
 
-/* ---------- Atividades ---------- */
+/* ---------- Atividades / períodos ---------- */
 async function initAtividades() {
   const sel = $('selAtividade');
   sel.innerHTML = '<option>Carregando…</option>';
@@ -662,6 +899,8 @@ async function initAtividades() {
 $('selAtividade').onchange = async () => {
   const id = $('selAtividade').value;
   S.atletas = []; S.periodos = []; S.selAtletas.clear(); S.dados.clear();
+  S.esfCache.clear(); S.esfSel = -1; S.ranges = [];
+  S.atk = JSON.parse(localStorage.getItem(`gps2d_atk_${id}`) || '{}');
   $('chipsAtletas').innerHTML = ''; $('btnCarregar').disabled = true;
   if (!id) return;
   $('chipsAtletas').innerHTML = '<span style="font-size:12px;color:var(--txt2)">Buscando…</span>';
@@ -673,14 +912,36 @@ $('selAtividade').onchange = async () => {
     S.atletas = ath.map(a => ({ ...a, nome: nomeExibicao(a), grupo: grupoPos(a.position) }))
       .sort((x, y) => x.nome.localeCompare(y.nome));
     S.periodos = per;
-    $('selPeriodo').innerHTML = '<option value="">Sessão completa</option>' +
-      per.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+    // Pré-seleção: atividades "Jogo …" → só períodos com radical 1tempo/2tempo
+    const atv = S.atividades.find(a => a.id === id);
+    const ehJogo = /jogo/i.test(atv ? atv.name : '');
+    S.selPeriodos = new Set(['']);
+    if (ehJogo) {
+      const tempos = per.filter(p => /[12]\s*tempo/i.test(p.name || ''));
+      if (tempos.length) S.selPeriodos = new Set(tempos.map(p => p.id));
+    }
+    renderChipsPeriodos();
     renderChips();
     $('btnCarregar').disabled = false;
   } catch (e) {
     $('chipsAtletas').innerHTML = `<span style="color:var(--vermelho);font-size:12px">${e.message}</span>`;
   }
 };
+function renderChipsPeriodos() {
+  const chips = [{ id: '', name: 'Sessão completa' }, ...S.periodos];
+  $('chipsPeriodos').innerHTML = chips.map(p =>
+    `<span class="chip ${S.selPeriodos.has(p.id) ? 'sel' : ''}" data-pid="${p.id}">${p.name}</span>`).join('');
+  [...$('chipsPeriodos').children].forEach(ch => ch.onclick = () => {
+    const pid = ch.dataset.pid;
+    if (pid === '') { S.selPeriodos = new Set(['']); }
+    else {
+      S.selPeriodos.delete('');
+      S.selPeriodos.has(pid) ? S.selPeriodos.delete(pid) : S.selPeriodos.add(pid);
+      if (!S.selPeriodos.size) S.selPeriodos = new Set(['']);
+    }
+    renderChipsPeriodos();
+  });
+}
 function renderChips() {
   $('chipsAtletas').innerHTML = S.atletas.map(a =>
     `<span class="chip ${S.selAtletas.has(a.id) ? 'sel' : ''}" data-id="${a.id}">${a.nome}<span class="pos">${a.grupo}</span></span>`).join('');
@@ -693,33 +954,37 @@ function renderChips() {
 $('lnkTodos').onclick = e => { e.preventDefault(); S.atletas.forEach(a => S.selAtletas.add(a.id)); renderChips(); };
 $('lnkLimpar').onclick = e => { e.preventDefault(); S.selAtletas.clear(); renderChips(); };
 
-/* ---------- Carga (concorrência limitada — padrão FEC) ---------- */
+/* ---------- Carga ---------- */
 $('btnCarregar').onclick = async () => {
-  const act = $('selAtividade').value, per = $('selPeriodo').value, each = $('selEach').value;
+  const act = $('selAtividade').value, each = $('selEach').value;
   const ids = [...S.selAtletas];
   if (!ids.length) return alert('Selecione ao menos um atleta.');
+  const pids = S.selPeriodos.has('') ? [''] : [...S.selPeriodos];
   $('btnCarregar').disabled = true;
-  S.dados.clear();
+  S.dados.clear(); S.esfCache.clear(); S.esfSel = -1;
+  const tarefas = [];
+  for (const id of ids) for (const pid of pids) tarefas.push({ id, pid });
   let feitos = 0, erros = 0;
-  const fila = [...ids];
+  const fila = [...tarefas];
+  const porAtleta = new Map();   // id → [{pid, slim}]
   const upd = () => {
-    $('barraProg').style.width = `${feitos / ids.length * 100}%`;
-    $('statusCarga').textContent = `${feitos}/${ids.length}${erros ? ` · ${erros} erro(s)` : ''}`;
+    $('barraProg').style.width = `${feitos / tarefas.length * 100}%`;
+    $('statusCarga').textContent = `${feitos}/${tarefas.length}${erros ? ` · ${erros} erro(s)` : ''}`;
   };
   async function trabalhador() {
     while (fila.length) {
-      const id = fila.shift();
-      const chave = `${act}|${per}|${id}|${each}`;
+      const { id, pid } = fila.shift();
+      const chave = `${act}|${pid}|${id}|${each}`;
       try {
         let slim = S.cache.get(chave);
         if (!slim) {
-          const q = per ? `period=${per}` : `activity=${act}`;
+          const q = pid ? `period=${pid}` : `activity=${act}`;
           slim = await api(`/api/gps/sensor?${q}&athlete=${id}&each=${each}`);
           S.cache.set(chave, slim);
         }
         if (slim.n > 50) {
-          const a = S.atletas.find(x => x.id === id);
-          S.dados.set(id, { slim, nome: a.nome, grupo: a.grupo, pos: a.position });
+          if (!porAtleta.has(id)) porAtleta.set(id, []);
+          porAtleta.get(id).push({ pid, slim });
         }
       } catch (e) { erros++; }
       feitos++; upd();
@@ -727,18 +992,37 @@ $('btnCarregar').onclick = async () => {
   }
   upd();
   await Promise.all([0, 1, 2, 3].map(trabalhador));
+  // monta ranges por período e mescla slims por atleta (ordem temporal)
+  const rangeMap = new Map();
+  for (const [id, blocos] of porAtleta) {
+    blocos.sort((a, b) => a.slim.ts[0] - b.slim.ts[0]);
+    const m = { n: 0, ts: [], lat: [], lon: [], v: [], a: [], hr: [] };
+    for (const b of blocos) {
+      for (const k of ['ts', 'lat', 'lon', 'v', 'a', 'hr']) m[k].push(...b.slim[k]);
+      const r = rangeMap.get(b.pid) || { pid: b.pid, t0: Infinity, t1: -Infinity };
+      r.t0 = Math.min(r.t0, b.slim.ts[0]);
+      r.t1 = Math.max(r.t1, b.slim.ts[b.slim.n - 1]);
+      rangeMap.set(b.pid, r);
+    }
+    m.n = m.ts.length;
+    const a = S.atletas.find(x => x.id === id);
+    S.dados.set(id, { slim: m, nome: a.nome, grupo: a.grupo, pos: a.position });
+  }
+  S.ranges = [...rangeMap.values()].sort((a, b) => a.t0 - b.t0).map(r => ({
+    ...r, nome: r.pid === '' ? 'Sessão completa' : (S.periodos.find(p => p.id === r.pid) || {}).name || r.pid,
+  }));
+  for (const r of S.ranges) if (!(r.pid in S.atk)) S.atk[r.pid] = 0;
   $('btnCarregar').disabled = false;
   posProcessar();
 };
 
-/* ---------- Calibração ativa + pós-processamento ---------- */
+/* ---------- Calibração + pós-processamento ---------- */
 function calsSalvas() { return JSON.parse(localStorage.getItem('gps2d_cals') || '{}'); }
 function obterCal() {
   if (!$('chkAutoPCA').checked && S.calAtiva) {
     const c = calsSalvas()[S.calAtiva];
     if (c) { $('avisoAutoCal').classList.add('oculto'); return criarCalibracao(c.cantos, c.L, c.W); }
   }
-  // auto-PCA com todos os pontos carregados
   const lats = [], lons = [];
   for (const d of S.dados.values()) { lats.push(...d.slim.lat); lons.push(...d.slim.lon); }
   $('avisoAutoCal').classList.remove('oculto');
@@ -761,19 +1045,48 @@ function posProcessar() {
     if (slim.n) { t0 = Math.min(t0, slim.ts[0]); t1 = Math.max(t1, slim.ts[slim.n - 1]); }
   }
   S.t0 = t0; S.t1 = t1;
+  S.esfCache.clear(); S.esfSel = -1;
   atualizarSelects();
+  renderAtk();
   renderTudo();
 }
 function atualizarSelects() {
-  $('selHeatAtleta').innerHTML = '<option value="__all__">Todos selecionados</option>' +
-    [...S.dados.entries()].map(([id, d]) => `<option value="${id}">${d.nome}</option>`).join('');
+  const opsAtl = [...S.dados.entries()].map(([id, d]) => `<option value="${id}">${d.nome}</option>`).join('');
+  $('selHeatAtleta').innerHTML = '<option value="__all__">Todos selecionados</option>' + opsAtl;
+  $('selEsfAtleta').innerHTML = '<option value="__all__">Todos selecionados</option>' + opsAtl;
+  $('selMdpEscopo').innerHTML = '<option value="__team__">Equipe (média)</option>' + opsAtl;
   const ops = METRICAS_DEF.map(m => `<option value="${m.k}">${m.label}</option>`).join('');
   ['selMetricaPos', 'selStatX', 'selStatY', 'selWelchMet'].forEach(id => { $(id).innerHTML = ops; });
   $('selStatY').value = 'hsr';
+  $('selMdpMetrica').innerHTML = INTENSIDADE_DEF.map(m => `<option value="${m.k}">${m.label}</option>`).join('');
   const grupos = [...new Set([...S.dados.values()].map(d => d.grupo))];
   const gops = grupos.map(g => `<option>${g}</option>`).join('');
   $('selWelchA').innerHTML = gops; $('selWelchB').innerHTML = gops;
   if (grupos.length > 1) $('selWelchB').selectedIndex = 1;
+}
+
+/* ---------- Direção de ataque (por período carregado) ---------- */
+function renderAtk() {
+  const html = S.ranges.map(r => {
+    const s = S.atk[r.pid] || 0;
+    const nm = `atk_${r.pid || 'sess'}`;
+    return `<div class="atkLinha">⚽ Direção de ataque — <b>${r.nome}</b>:
+      <label><input type="radio" name="${nm}" data-pid="${r.pid}" value="0" ${s === 0 ? 'checked' : ''}> — Não definida</label>
+      <label><input type="radio" name="${nm}" data-pid="${r.pid}" value="1" ${s === 1 ? 'checked' : ''}> ➡ Esq → Dir</label>
+      <label><input type="radio" name="${nm}" data-pid="${r.pid}" value="-1" ${s === -1 ? 'checked' : ''}> ⬅ Dir → Esq</label>
+    </div>`;
+  }).join('');
+  $('atkCampo').innerHTML = html;
+  $('atkEsf').innerHTML = html.replace(/name="atk_/g, 'name="atkE_');
+  document.querySelectorAll('#atkCampo input, #atkEsf input').forEach(inp => inp.onchange = () => {
+    S.atk[inp.dataset.pid] = parseInt(inp.value, 10);
+    salvarAtk(); renderAtk(); renderTudo();
+  });
+}
+/* sinal único (se todos os períodos têm a mesma direção definida) */
+function atkUnico() {
+  const sgs = [...new Set(S.ranges.map(r => S.atk[r.pid] || 0))];
+  return sgs.length === 1 ? sgs[0] : 0;
 }
 
 /* ---------- Desenho do campo ---------- */
@@ -783,9 +1096,8 @@ function prepararCampo(cv) {
   const pad = 30, sw = cv.width - 2 * pad, sh = cv.height - 2 * pad;
   const esc = Math.min(sw / L, sh / W);
   const ox = (cv.width - L * esc) / 2, oy = (cv.height - W * esc) / 2;
-  const X = x => ox + x * esc, Y = y => cv.height - (oy + y * esc); // y invertido
+  const X = x => ox + x * esc, Y = y => cv.height - (oy + y * esc);
   ctx.clearRect(0, 0, cv.width, cv.height);
-  // gramado listrado
   for (let i = 0; i < 10; i++) {
     ctx.fillStyle = i % 2 ? '#0A5C2E' : '#0C6634';
     ctx.fillRect(X(i * L / 10), Y(W), L / 10 * esc, W * esc);
@@ -804,8 +1116,47 @@ function prepararCampo(cv) {
   ctx.beginPath(); ctx.arc(X(L - 11), Y(W / 2), 9.15 * esc, Math.PI - 0.93, Math.PI + 0.93); ctx.stroke();
   return { ctx, X, Y, esc, L, W };
 }
+function desenharSetaAtaque(cf) {
+  const s = atkUnico();
+  if (!s) return;
+  const { ctx, X, Y, L, W } = cf;
+  const y = Y(W) - 14, x0 = X(L / 2 - 12), x1 = X(L / 2 + 12);
+  const [a, b] = s > 0 ? [x0, x1] : [x1, x0];
+  ctx.strokeStyle = '#FFD700'; ctx.fillStyle = '#FFD700'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(a, y); ctx.lineTo(b, y); ctx.stroke();
+  const dir = s > 0 ? 1 : -1;
+  ctx.beginPath(); ctx.moveTo(b, y); ctx.lineTo(b - dir * 10, y - 5); ctx.lineTo(b - dir * 10, y + 5); ctx.fill();
+  ctx.font = 'bold 12px Segoe UI'; ctx.textAlign = 'center';
+  ctx.fillText('ATAQUE', X(L / 2), y - 8);
+}
+function desenharTercos(cf, comPct) {
+  const { ctx, X, Y, esc, L, W } = cf;
+  const s = atkUnico() || 1;
+  const cores = [['rgba(244,67,54,.14)', '#F44336'], ['rgba(255,235,59,.10)', '#FFEB3B'], ['rgba(76,175,80,.14)', '#4CAF50']];
+  const nomes = s > 0 ? ['Defensivo', 'Meio', 'Ataque'] : ['Ataque', 'Meio', 'Defensivo'];
+  // % tempo por terço físico (dos atletas exibidos)
+  let cont = [0, 0, 0], tot = 0;
+  if (comPct) {
+    for (const d of S.dados.values()) {
+      for (let i = 0; i < d.slim.n; i++) {
+        const t = Math.min(2, Math.max(0, Math.floor(d.pts[i * 2] / (L / 3))));
+        cont[t]++; tot++;
+      }
+    }
+  }
+  for (let t = 0; t < 3; t++) {
+    ctx.fillStyle = cores[t][0];
+    ctx.fillRect(X(t * L / 3), Y(W), L / 3 * esc, W * esc);
+    ctx.strokeStyle = cores[t][1]; ctx.setLineDash([4, 4]); ctx.lineWidth = 1.5;
+    ctx.strokeRect(X(t * L / 3), Y(W), L / 3 * esc, W * esc);
+    ctx.setLineDash([]);
+    ctx.fillStyle = cores[t][1]; ctx.font = 'bold 13px Segoe UI'; ctx.textAlign = 'center';
+    const lbl = nomes[t] + (comPct && tot ? ` · ${(cont[t] / tot * 100).toFixed(1)}%` : '');
+    ctx.fillText(lbl, X(t * L / 3 + L / 6), Y(W) + 20);
+  }
+}
 
-/* ---------- Campo 2D: trajetórias ---------- */
+/* ---------- Campo 2D ---------- */
 function faixaTempo() {
   const dur = S.t1 - S.t0;
   const i0 = S.t0 + dur * $('rngIni').value / 100;
@@ -814,8 +1165,12 @@ function faixaTempo() {
   return [Math.min(i0, i1), Math.max(i0, i1)];
 }
 function renderCampo() {
-  const cv = $('cvCampo'); if (!S.dados.size) { prepararCampo(cv); return; }
-  const { ctx, X, Y } = prepararCampo(cv);
+  const cv = $('cvCampo');
+  const cf = prepararCampo(cv);
+  if (!S.dados.size) return;
+  if ($('chkTercosCampo').checked) desenharTercos(cf, true);
+  desenharSetaAtaque(cf);
+  const { ctx, X, Y } = cf;
   const modo = $('selCorModo').value, bMin = +$('selBandaMin').value;
   const [ti, tf] = faixaTempo();
   ctx.lineWidth = 1.6; ctx.globalAlpha = 0.75;
@@ -840,8 +1195,218 @@ function renderCampo() {
     ? BANDAS.map(b => `<span class="item"><span class="cx" style="background:${b.cor}"></span>${b.label} km/h</span>`).join('')
     : [...S.dados.values()].map(d => `<span class="item"><span class="cx" style="background:${d.cor}"></span>${d.nome} (${d.grupo})</span>`).join('');
 }
-['selCorModo', 'selBandaMin'].forEach(id => $(id).onchange = renderCampo);
+['selCorModo', 'selBandaMin', 'chkTercosCampo'].forEach(id => $(id).onchange = renderCampo);
 ['rngIni', 'rngFim'].forEach(id => $(id).oninput = renderCampo);
+
+/* ---------- ESFORÇOS ---------- */
+function esfTipo() { return document.querySelector('input[name=esfTipo]:checked').value; }
+function bandasAtivas() { return esfTipo() === 'acc' ? S.bandasAcc : S.bandasVel; }
+function bandasDef() { return esfTipo() === 'acc' ? BANDAS_ACC : BANDAS; }
+function renderChipsBandas() {
+  const defs = bandasDef(), sel = bandasAtivas();
+  $('chipsBandasEsf').innerHTML = defs.map((b, i) =>
+    `<span class="chip ${sel.has(i) ? 'sel' : ''}" data-b="${i}" style="border-color:${b.cor}">${b.label}</span>`).join('');
+  [...$('chipsBandasEsf').children].forEach(ch => ch.onclick = () => {
+    const i = +ch.dataset.b;
+    sel.has(i) ? sel.delete(i) : sel.add(i);
+    S.esfSel = -1;
+    renderChipsBandas(); renderEsforcos();
+  });
+}
+function obterEsforcos() {
+  const tipo = esfTipo();
+  const dur = tipo === 'acc' ? (+$('inpDurAcc').value || 0.6) : (+$('inpDurVel').value || 1.0);
+  const chave = `${tipo}|${dur}`;
+  if (!S.esfCache.has(chave)) {
+    const m = new Map();
+    for (const [id, d] of S.dados) m.set(id, detectarEsforcos(d.slim, d.pts, tipo, dur));
+    S.esfCache.set(chave, m);
+  }
+  return S.esfCache.get(chave);
+}
+function esforcosFiltrados() {
+  const alvo = $('selEsfAtleta').value, sel = bandasAtivas();
+  const porAtleta = obterEsforcos();
+  const lista = [];
+  for (const [id, esfs] of porAtleta) {
+    if (alvo !== '__all__' && id !== alvo) continue;
+    const d = S.dados.get(id);
+    for (const e of esfs) {
+      if (!sel.has(e.banda)) continue;
+      const cls = classificarEsforco(e, S.cal.L, S.cal.W, atkSignAt(e.ts0));
+      lista.push({ ...e, ...cls, id, nome: d.nome, cor: d.cor, vmaxSessao: d.met.vmax });
+    }
+  }
+  lista.sort((a, b) => a.ts0 - b.ts0);
+  return lista;
+}
+function renderEsforcos() {
+  const cv = $('cvEsf');
+  const cf = prepararCampo(cv);
+  const defs = bandasDef();
+  $('legEsf').innerHTML = defs.map(b => `<span class="item"><span class="cx" style="background:${b.cor}"></span>${b.label}</span>`).join('');
+  if (!S.dados.size) { $('tabEsf').innerHTML = ''; $('tabZonas').innerHTML = ''; $('tabTercos').innerHTML = ''; return; }
+  if ($('chkTercosEsf').checked) desenharTercos(cf, false);
+  desenharSetaAtaque(cf);
+  const { ctx, X, Y, esc, L, W } = cf;
+  // grade 3×5
+  if ($('chkZonas5').checked) {
+    ctx.strokeStyle = 'rgba(255,255,255,.25)'; ctx.setLineDash([3, 5]); ctx.lineWidth = 1;
+    for (let i = 1; i < 5; i++) { ctx.beginPath(); ctx.moveTo(X(i * L / 5), Y(0)); ctx.lineTo(X(i * L / 5), Y(W)); ctx.stroke(); }
+    for (let i = 1; i < 3; i++) { ctx.beginPath(); ctx.moveTo(X(0), Y(i * W / 3)); ctx.lineTo(X(L), Y(i * W / 3)); ctx.stroke(); }
+    ctx.setLineDash([]);
+  }
+  S.esfLista = esforcosFiltrados();
+  const setas = $('chkSetas').checked;
+  // desenha
+  for (let k = 0; k < S.esfLista.length; k++) {
+    const e = S.esfLista[k], d = S.dados.get(e.id);
+    const selecionado = k === S.esfSel;
+    ctx.strokeStyle = selecionado ? '#FFFFFF' : defs[e.banda].cor;
+    ctx.lineWidth = selecionado ? 3.5 : 2;
+    ctx.globalAlpha = selecionado ? 1 : (S.esfSel >= 0 ? 0.25 : 0.8);
+    ctx.beginPath();
+    let comecou = false;
+    for (let i = e.i0; i <= e.i1; i++) {
+      const px = X(d.pts[i * 2]), py = Y(d.pts[i * 2 + 1]);
+      comecou ? ctx.lineTo(px, py) : ctx.moveTo(px, py); comecou = true;
+    }
+    ctx.stroke();
+    if (setas || selecionado) {
+      // direção: últimos ~20% dos pontos
+      const nT = Math.min(e.i1, Math.max(2, Math.min(Math.floor((e.i1 - e.i0) / 5), 12)));
+      let dx = d.pts[e.i1 * 2] - d.pts[(e.i1 - nT) * 2];
+      let dy = d.pts[e.i1 * 2 + 1] - d.pts[(e.i1 - nT) * 2 + 1];
+      let nrm = Math.hypot(dx, dy);
+      if (nrm < 0.3) { dx = e.x1 - e.x0; dy = e.y1 - e.y0; nrm = Math.hypot(dx, dy); }
+      if (nrm >= 0.3) {
+        dx /= nrm; dy /= nrm;
+        const tx = X(e.x1 + dx * 1.2), ty = Y(e.y1 + dy * 1.2);
+        const ang = Math.atan2(-(dy), dx);
+        ctx.fillStyle = selecionado ? '#FFFFFF' : defs[e.banda].cor;
+        ctx.save(); ctx.translate(tx, ty); ctx.rotate(ang);
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-9, -4.5); ctx.lineTo(-9, 4.5); ctx.fill();
+        ctx.restore();
+      }
+    }
+  }
+  ctx.globalAlpha = 1;
+  // KPIs
+  const n = S.esfLista.length;
+  $('kEsfN').textContent = n;
+  $('kEsfDur').textContent = n ? S.esfLista.reduce((s, e) => s + e.dur, 0).toFixed(1) : '—';
+  $('kEsfDist').textContent = n ? S.esfLista.reduce((s, e) => s + e.dist, 0).toFixed(1) : '—';
+  $('kEsfPct').textContent = n ? (S.esfLista.reduce((s, e) => s + (e.vmaxSessao ? e.vmax / e.vmaxSessao * 100 : 0), 0) / n).toFixed(1) : '—';
+  renderTabEsforcos(defs);
+  renderZonas();
+  renderTercosTab();
+}
+function renderTabEsforcos(defs) {
+  const ehAcc = esfTipo() === 'acc';
+  const cab = `<tr><th>#</th><th>Atleta</th><th class="num">Início</th><th class="num">Dur (s)</th>
+    <th class="num">${ehAcc ? 'Pico (m/s²)' : 'Vel. Máx'}</th><th class="num">Vel. Inicial</th>
+    <th class="num">Dist (m)</th><th class="num">% Máx</th><th>Banda</th><th>Terço</th><th>Zona</th><th>Flanco</th><th>Direção</th></tr>`;
+  const linhas = S.esfLista.slice(0, 400).map((e, k) =>
+    `<tr data-k="${k}" class="${k === S.esfSel ? 'selEsf' : ''}" style="cursor:pointer">
+      <td>${k + 1}</td><td><span style="color:${e.cor}">●</span> ${e.nome}</td>
+      <td class="num">${fmtMin(e.ts0 - S.t0)}</td><td class="num">${e.dur}</td>
+      <td class="num">${ehAcc ? e.pico : e.vmax}</td><td class="num">${e.vini}</td>
+      <td class="num">${e.dist}</td>
+      <td class="num">${e.vmaxSessao ? (e.vmax / e.vmaxSessao * 100).toFixed(1) : '—'}</td>
+      <td style="color:${defs[e.banda].cor}">${defs[e.banda].label}</td>
+      <td>${e.terco}</td><td>${e.zona5}</td><td>${e.lane}</td><td>${e.direcao}</td></tr>`).join('');
+  $('tabEsf').innerHTML = cab + linhas;
+  $('tabEsf').querySelectorAll('tr[data-k]').forEach(tr => tr.onclick = () => {
+    const k = +tr.dataset.k;
+    S.esfSel = S.esfSel === k ? -1 : k;
+    renderEsforcos();
+  });
+}
+function renderZonas() {
+  // matriz lane(3) × zona5(5)
+  const cont = LANES3.map(() => ZONAS5.map(() => 0));
+  for (const e of S.esfLista) cont[LANES3.indexOf(e.lane)][ZONAS5.indexOf(e.zona5)]++;
+  const mx = Math.max(1, ...cont.flat());
+  let html = '<table class="matriz"><tr><th></th>' + ZONAS5.map(z => `<th style="font-size:9px">${z}</th>`).join('') + '</tr>';
+  for (let r = 0; r < 3; r++) {
+    html += `<tr><th style="font-size:9.5px">${LANES3[r]}</th>`;
+    for (let c = 0; c < 5; c++) {
+      const t = cont[r][c] / mx, [cr, cg, cb] = corCalor(t * 0.85 + (cont[r][c] ? 0.15 : 0));
+      html += `<td style="background:rgba(${cr},${cg},${cb},${cont[r][c] ? 0.85 : 0.15})">${cont[r][c]}</td>`;
+    }
+    html += '</tr>';
+  }
+  $('tabZonas').innerHTML = html + '</table>';
+  let maxV = -1, maxR = 0, maxC = 0;
+  for (let r = 0; r < 3; r++) for (let c = 0; c < 5; c++) if (cont[r][c] > maxV) { maxV = cont[r][c]; maxR = r; maxC = c; }
+  if (maxV > 0) $('tabZonas').innerHTML += `<p style="font-size:11.5px;color:var(--dourado);margin-top:6px">📍 Zona mais ativa: <b>${LANES3[maxR]}</b> × <b>${ZONAS5[maxC]}</b> (${maxV} ações)</p>`;
+  S._zonasCont = cont;
+}
+function renderTercosTab() {
+  // % tempo por terço tático (amostras) + contagens de esforços
+  const alvo = $('selEsfAtleta').value;
+  const tempo = [0, 0, 0]; let tot = 0;
+  for (const [id, d] of S.dados) {
+    if (alvo !== '__all__' && id !== alvo) continue;
+    for (let i = 0; i < d.slim.n; i++) {
+      const s = atkSignAt(d.slim.ts[i]) < 0 ? -1 : 1;
+      const xa = s > 0 ? d.pts[i * 2] : S.cal.L - d.pts[i * 2];
+      const t = Math.min(2, Math.max(0, Math.floor(xa / (S.cal.L / 3))));
+      tempo[t]++; tot++;
+    }
+  }
+  const linhas = TERCOS.map(tc => {
+    const es = S.esfLista.filter(e => e.terco === tc);
+    return {
+      terco: tc,
+      pct: tot ? Math.round(tempo[TERCOS.indexOf(tc)] / tot * 1000) / 10 : 0,
+      n: es.length,
+      dist: Math.round(es.reduce((s, e) => s + e.dist, 0)),
+      hsr: es.filter(e => esfTipo() === 'vel' && e.banda >= 4).length,
+      sprint: es.filter(e => esfTipo() === 'vel' && e.banda >= 5).length,
+      acel: es.filter(e => esfTipo() === 'acc' && e.banda <= 2).length,
+      des: es.filter(e => esfTipo() === 'acc' && e.banda >= 3).length,
+      of: es.filter(e => e.direcao.includes('Ofensivo')).length,
+      df: es.filter(e => e.direcao.includes('Defensivo')).length,
+      lt: es.filter(e => e.direcao.includes('Lateral')).length,
+    };
+  });
+  const cab = '<tr><th>Terço</th><th class="num">% tempo</th><th class="num">Esforços</th><th class="num">Dist (m)</th><th class="num">HSR</th><th class="num">Sprint</th><th class="num">Acel</th><th class="num">Desacel</th><th class="num">⬆ Ofens.</th><th class="num">⬇ Defen.</th><th class="num">↔ Later.</th></tr>';
+  $('tabTercos').innerHTML = cab + linhas.map(l =>
+    `<tr><td><b>${l.terco}</b></td><td class="num">${l.pct}%</td><td class="num">${l.n}</td><td class="num">${l.dist}</td>
+     <td class="num">${l.hsr}</td><td class="num">${l.sprint}</td><td class="num">${l.acel}</td><td class="num">${l.des}</td>
+     <td class="num">${l.of}</td><td class="num">${l.df}</td><td class="num">${l.lt}</td></tr>`).join('');
+  S._tercosLinhas = linhas;
+}
+document.querySelectorAll('input[name=esfTipo]').forEach(r => r.onchange = () => { S.esfSel = -1; renderChipsBandas(); renderEsforcos(); });
+['inpDurVel', 'inpDurAcc'].forEach(id => $(id).onchange = () => { S.esfSel = -1; renderEsforcos(); });
+['selEsfAtleta', 'chkSetas', 'chkTercosEsf', 'chkZonas5'].forEach(id => $(id).onchange = () => { S.esfSel = -1; renderEsforcos(); });
+
+/* CSV — esforços / zonas / terços */
+$('btnCsvEsf').onclick = () => {
+  const ehAcc = esfTipo() === 'acc', defs = bandasDef();
+  const cab = ['#', 'Atleta', 'Grupo', 'Início (s)', 'Início (mm:ss)', 'Duração (s)',
+    ehAcc ? 'Pico (m/s²)' : 'Vel Máx (km/h)', 'Vel Inicial (km/h)', 'Distância (m)', '% do Máximo',
+    'Banda', 'Terço', 'Zona', 'Flanco', 'Direção', 'x0', 'y0', 'x1', 'y1'];
+  const linhas = S.esfLista.map((e, k) => [k + 1, e.nome, S.dados.get(e.id).grupo,
+    Math.round((e.ts0 - S.t0) * 10) / 10, fmtMin(e.ts0 - S.t0), e.dur,
+    ehAcc ? e.pico : e.vmax, e.vini, e.dist,
+    e.vmaxSessao ? Math.round(e.vmax / e.vmaxSessao * 1000) / 10 : null,
+    defs[e.banda].label, e.terco, e.zona5, e.lane, e.direcao.replace(/[⬆⬇↔] /, ''),
+    Math.round(e.x0 * 10) / 10, Math.round(e.y0 * 10) / 10, Math.round(e.x1 * 10) / 10, Math.round(e.y1 * 10) / 10]);
+  baixarCSV(`esforcos_${esfTipo()}.csv`, paraCSV(cab, linhas));
+};
+$('btnCsvZonas').onclick = () => {
+  if (!S._zonasCont) return;
+  const cab = ['Flanco', ...ZONAS5];
+  const linhas = LANES3.map((l, r) => [l, ...S._zonasCont[r]]);
+  baixarCSV('zonas_3x5.csv', paraCSV(cab, linhas));
+};
+$('btnCsvTercos').onclick = () => {
+  if (!S._tercosLinhas) return;
+  const cab = ['Terço', '% tempo', 'Esforços', 'Dist (m)', 'HSR', 'Sprint', 'Acel', 'Desacel', 'Ofensivas', 'Defensivas', 'Laterais'];
+  baixarCSV('tercos.csv', paraCSV(cab, S._tercosLinhas.map(l => [l.terco, l.pct, l.n, l.dist, l.hsr, l.sprint, l.acel, l.des, l.of, l.df, l.lt])));
+};
 
 /* ---------- Heatmap ---------- */
 function renderHeat() {
@@ -859,7 +1424,7 @@ function renderHeat() {
       const vk = (slim.v[i] || 0) * 3.6;
       let peso = 0;
       if (tipo === 'presenca') peso = dt;
-      else if (vk >= 19.8) peso = slim.v[i] * dt;   // metros em HSR
+      else if (vk >= HSR_MIN) peso = slim.v[i] * dt;
       if (peso > 0) acumular(grade, pts[i * 2], pts[i * 2 + 1], peso);
     }
   }
@@ -888,45 +1453,174 @@ function renderHeat() {
 $('rngSigma').oninput = renderHeat;
 
 /* ---------- Por posição ---------- */
+function posModo() { return document.querySelector('input[name=posModo]:checked').value === 'min'; }
 function renderPos() {
   if (!S.dados.size) { $('grafPos').innerHTML = ''; $('tabMetricas').innerHTML = ''; return; }
   const met = $('selMetricaPos').value || 'dist';
+  const pm = posModo();
   const def = METRICAS_DEF.find(m => m.k === met);
-  const linhas = [...S.dados.values()].filter(d => d.met[met] != null)
-    .sort((a, b) => a.grupo.localeCompare(b.grupo) || b.met[met] - a.met[met]);
-  const mx = Math.max(...linhas.map(d => d.met[met]), 1);
-  // médias por grupo
+  const sufixo = pm && def.porMin ? ' /min' : '';
+  const val = d => valorMetrica(d.met, met, pm);
+  const linhas = [...S.dados.values()].filter(d => val(d) != null)
+    .sort((a, b) => a.grupo.localeCompare(b.grupo) || val(b) - val(a));
+  const mx = Math.max(...linhas.map(val), 0.001);
   const porGrupo = {};
-  linhas.forEach(d => (porGrupo[d.grupo] = porGrupo[d.grupo] || []).push(d.met[met]));
+  linhas.forEach(d => (porGrupo[d.grupo] = porGrupo[d.grupo] || []).push(val(d)));
   const bw = 26, gap = 6, gGap = 26, altura = 340, pb = 90, pt = 20, pl = 56;
   let x = pl, elems = '', eixoG = '';
   for (const [g, vals] of Object.entries(porGrupo)) {
     const x0 = x;
     const atletas = linhas.filter(d => d.grupo === g);
     for (const d of atletas) {
-      const h = d.met[met] / mx * (altura - pt - 40);
-      elems += `<rect x="${x}" y="${altura - pb - h}" width="${bw}" height="${h}" rx="3" fill="${d.cor}"><title>${d.nome}: ${d.met[met]}</title></rect>
-        <text x="${x + bw / 2}" y="${altura - pb - h - 5}" text-anchor="middle" font-size="10" fill="#EAF0FA">${d.met[met]}</text>
+      const v = val(d);
+      const h = v / mx * (altura - pt - 40);
+      elems += `<rect x="${x}" y="${altura - pb - h}" width="${bw}" height="${h}" rx="3" fill="${d.cor}"><title>${d.nome}: ${v}</title></rect>
+        <text x="${x + bw / 2}" y="${altura - pb - h - 5}" text-anchor="middle" font-size="10" fill="#EAF0FA">${v}</text>
         <text transform="rotate(-45 ${x + bw / 2} ${altura - pb + 12})" x="${x + bw / 2}" y="${altura - pb + 12}" text-anchor="end" font-size="10" fill="#9FB0CC">${d.nome}</text>`;
       x += bw + gap;
     }
     const m = media(vals);
     const ym = altura - pb - m / mx * (altura - pt - 40);
-    elems += `<line x1="${x0 - 3}" y1="${ym}" x2="${x - gap + 3}" y2="${ym}" stroke="#C4952A" stroke-dasharray="4 3" stroke-width="1.5"><title>Média ${g}: ${m.toFixed(1)}</title></line>`;
+    elems += `<line x1="${x0 - 3}" y1="${ym}" x2="${x - gap + 3}" y2="${ym}" stroke="#C4952A" stroke-dasharray="4 3" stroke-width="1.5"><title>Média ${g}: ${m.toFixed(2)}</title></line>`;
     eixoG += `<text x="${(x0 + x - gap) / 2}" y="${altura - 6}" text-anchor="middle" font-size="12" font-weight="700" fill="${corGrupo(g)}">${g}</text>`;
     x += gGap;
   }
   $('grafPos').innerHTML = `<svg width="${Math.max(x, 400)}" height="${altura}" style="overflow:visible;max-width:100%">
-    <text x="${pl}" y="14" font-size="12" fill="#C4952A" font-weight="700">${def.label} — linha tracejada = média do grupo</text>
+    <text x="${pl}" y="14" font-size="12" fill="#C4952A" font-weight="700">${def.label}${sufixo} — linha tracejada = média do grupo</text>
     ${elems}${eixoG}</svg>`;
-  // tabela
-  const cab = '<tr><th>Atleta</th><th>Grupo</th>' + METRICAS_DEF.map(m => `<th class="num">${m.label}</th>`).join('') + '</tr>';
+  const cab = '<tr><th>Atleta</th><th>Grupo</th>' + METRICAS_DEF.map(m => `<th class="num">${m.label}${pm && m.porMin ? ' /min' : ''}</th>`).join('') + '</tr>';
   const corpo = [...S.dados.values()].sort((a, b) => b.met.dist - a.met.dist).map(d =>
     `<tr><td><span class="cx" style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${d.cor};margin-right:6px"></span>${d.nome}</td><td style="color:${corGrupo(d.grupo)};font-weight:700">${d.grupo}</td>` +
-    METRICAS_DEF.map(m => `<td class="num">${d.met[m.k] ?? '—'}</td>`).join('') + '</tr>').join('');
+    METRICAS_DEF.map(m => `<td class="num">${valorMetrica(d.met, m.k, pm) ?? '—'}</td>`).join('') + '</tr>').join('');
   $('tabMetricas').innerHTML = cab + corpo;
 }
 $('selMetricaPos').onchange = renderPos;
+document.querySelectorAll('input[name=posModo]').forEach(r => r.onchange = renderPos);
+$('btnCsvMet').onclick = () => {
+  const pm = posModo();
+  const cab = ['Atleta', 'Grupo', ...METRICAS_DEF.map(m => m.label + (pm && m.porMin ? ' /min' : ''))];
+  const linhas = [...S.dados.values()].sort((a, b) => b.met.dist - a.met.dist)
+    .map(d => [d.nome, d.grupo, ...METRICAS_DEF.map(m => valorMetrica(d.met, m.k, pm))]);
+  baixarCSV(`metricas${pm ? '_por_min' : ''}.csv`, paraCSV(cab, linhas));
+};
+
+/* ---------- Intensidade / MDP ---------- */
+function mdpJanelaS() {
+  const v = $('selMdpJanela').value;
+  return v === 'custom' ? Math.max(20, +$('inpMdpCustom').value || 120) : +v;
+}
+function seriesRolantes() {
+  const mk = $('selMdpMetrica').value || 'dist';
+  const def = INTENSIDADE_DEF.find(m => m.k === mk);
+  const winS = mdpJanelaS(), stepS = +$('selMdpPasso').value;
+  const grade = [];
+  for (let ws = S.t0; ws + winS <= S.t1; ws += stepS) grade.push(ws);
+  const porAtleta = new Map();
+  for (const [id, d] of S.dados) {
+    const s = d.slim, n = s.n;
+    const inc = def.inc(s);
+    const cum = new Float64Array(n);
+    for (let i = 1; i < n; i++) {
+      const dt = s.ts[i] - s.ts[i - 1];
+      cum[i] = cum[i - 1] + ((dt > 0 && dt <= 2) ? inc(i, dt) : 0);
+    }
+    let lo = 0, hi = 0;
+    const val = grade.map(ws => {
+      while (lo < n - 1 && s.ts[lo] < ws) lo++;
+      while (hi < n - 1 && s.ts[hi + 1] <= ws + winS) hi++;
+      if (s.ts[lo] > ws + winS || s.ts[hi] < ws) return null;  // sem cobertura
+      return (cum[hi] - cum[lo]) / (winS / 60);
+    });
+    porAtleta.set(id, val);
+  }
+  // equipe = média (ignorando nulls)
+  const equipe = grade.map((_, i) => {
+    let s = 0, c = 0;
+    for (const val of porAtleta.values()) if (val[i] != null) { s += val[i]; c++; }
+    return c ? s / c : null;
+  });
+  return { grade, porAtleta, equipe, winS, def };
+}
+function renderMdp() {
+  const cv = $('cvMdp'), ctx = cv.getContext('2d');
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  if (!S.dados.size) { $('tabMdp').innerHTML = ''; return; }
+  $('grpMdpCustom').classList.toggle('oculto', $('selMdpJanela').value !== 'custom');
+  const { grade, porAtleta, equipe, winS, def } = seriesRolantes();
+  const escopo = $('selMdpEscopo').value;
+  const serie = escopo === '__team__' ? equipe : porAtleta.get(escopo);
+  if (!serie || !grade.length) return;
+  const vals = serie.filter(v => v != null);
+  if (!vals.length) return;
+  const mx = Math.max(...vals), altaThr = 0.9 * mx, medThr = 0.75 * mx;
+  const pl = 56, pb = 42, pt = 16, pr = 100;
+  const wC = cv.width - pl - pr, hC = cv.height - pt - pb;
+  const t0 = grade[0], t1 = grade[grade.length - 1] + winS;
+  const SX = ts => pl + (ts + winS / 2 - t0) / (t1 - t0) * wC;
+  const SY = v => pt + hC - v / (mx * 1.08) * hC;
+  // eixos
+  ctx.strokeStyle = '#1E3D77'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(pl, pt); ctx.lineTo(pl, pt + hC); ctx.lineTo(pl + wC, pt + hC); ctx.stroke();
+  ctx.fillStyle = '#9FB0CC'; ctx.font = '11px Segoe UI'; ctx.textAlign = 'center';
+  const durMin = (t1 - t0) / 60;
+  for (let m = 0; m <= durMin; m += Math.max(5, Math.round(durMin / 10 / 5) * 5)) {
+    const x = pl + m * 60 / (t1 - t0) * wC;
+    ctx.fillText(m, x, pt + hC + 16);
+  }
+  ctx.fillText('Tempo (minutos)', pl + wC / 2, pt + hC + 32);
+  ctx.textAlign = 'right';
+  for (let f = 0; f <= 1; f += 0.25) ctx.fillText((mx * f).toFixed(0), pl - 8, SY(mx * f) + 4);
+  ctx.save(); ctx.translate(14, pt + hC / 2); ctx.rotate(-Math.PI / 2);
+  ctx.textAlign = 'center'; ctx.fillText(def.label, 0, 0); ctx.restore();
+  // limiares
+  const lim = (v, cor, lbl) => {
+    ctx.strokeStyle = cor; ctx.setLineDash([6, 4]); ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(pl, SY(v)); ctx.lineTo(pl + wC, SY(v)); ctx.stroke();
+    ctx.setLineDash([]); ctx.fillStyle = cor; ctx.textAlign = 'left';
+    ctx.fillText(lbl, pl + wC + 6, SY(v) + 4);
+  };
+  lim(altaThr, '#E8360A', `Alta ≥ ${altaThr.toFixed(1)}`);
+  lim(medThr, '#FF8C42', `M-Alta ≥ ${medThr.toFixed(1)}`);
+  // pontos
+  for (let i = 0; i < grade.length; i++) {
+    const v = serie[i];
+    if (v == null) continue;
+    ctx.fillStyle = v >= altaThr ? '#E8360A' : v >= medThr ? '#FF8C42' : '#38B26E';
+    ctx.beginPath(); ctx.arc(SX(grade[i]), SY(v), 2.6, 0, 7); ctx.fill();
+  }
+  // MDP tabela: top 3 por atleta + equipe
+  const linhas = [];
+  const addTop = (nome, val) => {
+    const t = grade.map(g => g - t0 + winS / 2);
+    const pares = [];
+    for (let i = 0; i < val.length; i++) if (val[i] != null) pares.push(i);
+    const escolhidas = [];
+    for (const i of pares.sort((a, b) => val[b] - val[a])) {
+      if (escolhidas.length >= 3) break;
+      if (escolhidas.every(j => Math.abs(t[j] - t[i]) >= winS)) escolhidas.push(i);
+    }
+    escolhidas.forEach((i, r) => linhas.push({
+      nome, rank: r + 1, ini: grade[i] - t0, fim: grade[i] - t0 + winS,
+      valor: Math.round(val[i] * 10) / 10,
+    }));
+  };
+  addTop('EQUIPE (média)', equipe);
+  for (const [id, val] of porAtleta) addTop(S.dados.get(id).nome, val);
+  const cab = '<tr><th>Atleta</th><th class="num">#</th><th class="num">Início</th><th class="num">Fim</th><th class="num">' + def.label + '</th></tr>';
+  $('tabMdp').innerHTML = cab + linhas.map(l =>
+    `<tr${l.nome.startsWith('EQUIPE') ? ' style="background:rgba(196,149,42,.08)"' : ''}><td>${l.nome}</td><td class="num">${l.rank}º</td>
+     <td class="num">${fmtMin(l.ini)}</td><td class="num">${fmtMin(l.fim)}</td><td class="num"><b>${l.valor}</b></td></tr>`).join('');
+  S._mdpLinhas = { linhas, label: def.label, winS };
+}
+['selMdpMetrica', 'selMdpJanela', 'selMdpPasso', 'selMdpEscopo'].forEach(id => $(id).onchange = renderMdp);
+$('inpMdpCustom').onchange = renderMdp;
+$('btnCsvMdp').onclick = () => {
+  if (!S._mdpLinhas) return;
+  const { linhas, label, winS } = S._mdpLinhas;
+  const cab = ['Atleta', 'Rank', 'Início (s)', 'Início (mm:ss)', 'Fim (mm:ss)', `Janela (s)`, label];
+  baixarCSV(`mdp_${winS}s.csv`, paraCSV(cab, linhas.map(l =>
+    [l.nome, l.rank, Math.round(l.ini), fmtMin(l.ini), fmtMin(l.fim), winS, l.valor])));
+};
 
 /* ---------- Replay ---------- */
 const R = { tocando: false, t: 0, ultimoFrame: 0 };
@@ -937,13 +1631,15 @@ function idxPorTs(slim, t) {
 }
 function renderReplayFrame() {
   const cv = $('cvReplay');
-  const { ctx, X, Y } = prepararCampo(cv);
+  const cf = prepararCampo(cv);
   if (!S.dados.size) return;
+  desenharSetaAtaque(cf);
+  const { ctx, X, Y } = cf;
   const t = S.t0 + R.t, rastro = +$('selRastro').value;
   for (const d of S.dados.values()) {
     const { slim, pts } = d;
     const i = idxPorTs(slim, t);
-    if (slim.ts[i] > t + 3 || t - slim.ts[i] > 3) continue;  // atleta sem dado neste instante
+    if (slim.ts[i] > t + 3 || t - slim.ts[i] > 3) continue;
     if (rastro > 0) {
       ctx.strokeStyle = d.cor; ctx.globalAlpha = 0.4; ctx.lineWidth = 1.5;
       ctx.beginPath();
@@ -999,7 +1695,6 @@ function renderStat() {
   $('resCorr').innerHTML = isNaN(ct.r)
     ? 'Amostra insuficiente (mín. 4 atletas com >5 min).'
     : `<b>${lx}</b> × <b>${ly}</b><br>${metodo === 'pearson' ? 'r de Pearson' : 'ρ de Spearman'} = <b>${ct.r.toFixed(3)}</b> · n = ${ct.n}<br>p-valor (bicaudal) = <span class="${cls}">${ct.p < 0.001 ? '<0,001' : ct.p.toFixed(3)}</span> ${ct.p < 0.05 ? '— significativo (α=0,05)' : '— não significativo'}`;
-  // scatter
   if (pares.length >= 3) {
     const wS = 460, hS = 320, plS = 52, pbS = 40, ptS = 14, prS = 14;
     const x0 = Math.min(...x), x1 = Math.max(...x), y0 = Math.min(...y), y1 = Math.max(...y);
@@ -1021,7 +1716,6 @@ function renderStat() {
       <text x="${plS - 6}" y="${SY(y1) + 4}" text-anchor="end" font-size="10" fill="#9FB0CC">${y1}</text></svg>`;
     $('scatter').innerHTML = svg;
   } else $('scatter').innerHTML = '<p style="font-size:12.5px;color:var(--txt2)">Amostra insuficiente.</p>';
-  // matriz
   const ks = METRICAS_DEF.filter(m => m.k !== 'fcMedia' || vetores('fcMedia').length >= 4);
   let html = '<table class="matriz"><tr><th></th>' + ks.map(m => `<th title="${m.label}">${m.k}</th>`).join('') + '</tr>';
   for (const mi of ks) {
@@ -1052,11 +1746,11 @@ function renderWelch() {
 ['selStatX', 'selStatY', 'selStatMetodo'].forEach(id => $(id).onchange = renderStat);
 ['selWelchMet', 'selWelchA', 'selWelchB'].forEach(id => $(id).onchange = renderWelch);
 
-/* ---------- Calibração (Leaflet + satélite Esri) ---------- */
+/* ---------- Calibração (Leaflet) ---------- */
 let mapa = null, marcadores = [], poligono = null;
 function initMapa() {
   if (mapa) return;
-  mapa = L.map('mapa').setView([-3.7469, -38.5312], 16); // Fortaleza
+  mapa = L.map('mapa').setView([-3.7469, -38.5312], 16);
   L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
     maxZoom: 19, attribution: 'Esri World Imagery',
   }).addTo(mapa);
@@ -1116,7 +1810,7 @@ function renderListaCal() {
 }
 $('chkAutoPCA').onchange = posProcessar;
 
-/* ---------- Abas / render geral ---------- */
+/* ---------- Abas ---------- */
 document.querySelectorAll('.aba').forEach(a => a.onclick = () => {
   document.querySelectorAll('.aba').forEach(x => x.classList.remove('ativa'));
   document.querySelectorAll('.painel').forEach(x => x.classList.remove('ativo'));
@@ -1128,13 +1822,16 @@ document.querySelectorAll('.aba').forEach(a => a.onclick = () => {
 function renderTudo() {
   const ativo = document.querySelector('.painel.ativo').id;
   if (ativo === 'painel-campo') renderCampo();
+  else if (ativo === 'painel-esf') renderEsforcos();
   else if (ativo === 'painel-heat') renderHeat();
   else if (ativo === 'painel-pos') renderPos();
+  else if (ativo === 'painel-mdp') renderMdp();
   else if (ativo === 'painel-replay') renderReplayFrame();
   else if (ativo === 'painel-stat') renderStat();
 }
 
 prepararCampo($('cvCampo'));
+renderChipsBandas();
 initAtividades();
 })();
 </script>
