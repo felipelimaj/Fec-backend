@@ -19,7 +19,7 @@ body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--
 .cabecalho{position:relative;background:
   repeating-linear-gradient(135deg,var(--noite) 0 22px,#0A2150 22px 44px);
   border-bottom:4px solid var(--dourado);padding:16px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
-.cabecalho .escudo{width:46px;height:46px;border-radius:50%;background:conic-gradient(var(--azul) 0 33%,var(--vermelho) 33% 66%,#fff 66% 100%);border:2px solid var(--dourado);flex:none}
+.cabecalho .escudo{width:52px;height:60px;flex:none}
 .cabecalho h1{font-size:19px;letter-spacing:.5px;text-transform:uppercase}
 .cabecalho h1 small{display:block;font-size:11px;font-weight:400;color:var(--dourado);letter-spacing:2px}
 .cabecalho .direita{margin-left:auto;display:flex;gap:8px;align-items:center}
@@ -72,8 +72,12 @@ canvas.grafico{width:100%;max-width:1050px;display:block;border-radius:6px;backg
 .legenda .item{display:flex;align-items:center;gap:5px}
 .legenda .cx{width:14px;height:14px;border-radius:3px;flex:none}
 
-table{width:100%;border-collapse:collapse;font-size:12.5px}
-th{text-align:left;padding:8px;color:var(--dourado);text-transform:uppercase;font-size:10.5px;letter-spacing:.5px;border-bottom:2px solid var(--borda)}
+table{width:100%;border-collapse:collapse;font-size:12.5px;white-space:nowrap}
+th{text-align:left;padding:8px;color:var(--dourado);text-transform:uppercase;font-size:10.5px;letter-spacing:.5px;border-bottom:2px solid var(--borda);cursor:pointer;user-select:none;position:sticky;top:0;background:var(--card)}
+th:hover{color:#fff}
+th .setaOrd{font-size:9px;margin-left:3px}
+.delta{font-size:10px;margin-left:4px}
+.deltaUp{color:var(--verde)}.deltaDown{color:var(--vermelho)}
 td{padding:7px 8px;border-bottom:1px solid rgba(30,61,119,.5)}
 tr:hover td{background:rgba(0,48,135,.25)}
 tr.selEsf td{background:rgba(232,54,10,.28)!important}
@@ -83,7 +87,11 @@ th.num{text-align:right}
 
 .resultadoStat{font-size:14px;line-height:1.9;background:var(--card2);border-left:3px solid var(--dourado);padding:12px 16px;border-radius:0 6px 6px 0}
 .sig{color:var(--verde);font-weight:700}.nsig{color:var(--txt2)}
-.matriz td{text-align:center;font-size:11.5px;padding:6px;border:1px solid var(--noite)}
+.matriz{width:auto}
+.matriz td{text-align:center;font-size:11.5px;padding:6px 10px;border:1px solid var(--noite)}
+.matriz th{position:static;cursor:default;font-size:9px;white-space:normal;max-width:64px}
+.grade2.esf{grid-template-columns:minmax(0,1fr) minmax(0,1.35fr)}
+.grade2>.card{min-width:0;overflow-x:auto}
 svg text{font-family:'Segoe UI',sans-serif}
 .radios{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
 .radios label{font-size:12.5px;cursor:pointer;display:inline-flex;gap:4px;align-items:center}
@@ -103,7 +111,18 @@ h3 .btnCsv{float:right;margin-top:-4px}
 <body>
 
 <header class="cabecalho">
-  <div class="escudo"></div>
+  <svg class="escudo" viewBox="0 0 120 148" xmlns="http://www.w3.org/2000/svg">
+    <polygon points="60,0 64.9,14.9 80.5,14.9 67.8,24.1 72.7,39 60,29.8 47.3,39 52.2,24.1 39.5,14.9 55.1,14.9" fill="#C4952A"/>
+    <!-- moldura azul -->
+    <path d="M2,44 H118 V76 L60,146 L2,76 Z" fill="#1467B2"/>
+    <!-- miolo branco -->
+    <path d="M7,49 H113 V74 L60,138 L7,74 Z" fill="#F4F6F8"/>
+    <!-- faixa FORTALEZA -->
+    <text x="60" y="66" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-weight="900" font-size="15" fill="#1467B2" letter-spacing=".3">FORTALEZA</text>
+    <!-- triângulos internos -->
+    <path d="M14,78 H56 V128 Z" fill="#1467B2"/>
+    <path d="M106,78 H64 V128 Z" fill="#E8360A"/>
+  </svg>
   <h1>Fortaleza EC · GPS 2D<small>Visualização georreferenciada — Catapult</small></h1>
   <div class="direita">
     <button class="btn fantasma" id="btnConfig">⚙ Backend</button>
@@ -146,6 +165,8 @@ h3 .btnCsv{float:right;margin-top:-4px}
   <div class="aba" data-aba="mdp">Intensidade · MDP</div>
   <div class="aba" data-aba="replay">Replay</div>
   <div class="aba" data-aba="stat">Estatísticas</div>
+  <div class="aba" data-aba="cmp">Comparar Jogos</div>
+  <div class="aba" data-aba="ref">Referências</div>
   <div class="aba" data-aba="cal">Calibração</div>
 </nav>
 
@@ -199,7 +220,7 @@ h3 .btnCsv{float:right;margin-top:-4px}
     <canvas class="campo" id="cvEsf" width="1050" height="720"></canvas>
     <div class="legenda" id="legEsf"></div>
   </div>
-  <div class="grade2">
+  <div class="grade2 esf">
     <div class="card"><h3>Freq. por Zona (3×5) <button class="btn mini btnCsv" id="btnCsvZonas">⬇ CSV</button></h3>
       <p style="font-size:11.5px;color:var(--txt2);margin-bottom:8px">Eixo tático: ajustado pela direção de ataque de cada período.</p>
       <div id="tabZonas"></div></div>
@@ -259,14 +280,76 @@ h3 .btnCsv{float:right;margin-top:-4px}
       <div class="grupo"><label class="mini">Passo (s)</label>
         <select id="selMdpPasso"><option value="10" selected>10</option><option value="5">5</option><option value="30">30</option><option value="60">60</option></select></div>
       <div class="grupo"><label class="mini">Escopo</label><select id="selMdpEscopo"><option value="__team__">Equipe (média)</option></select></div>
+      <div class="grupo"><label class="chk"><input type="checkbox" id="chkTempoMorto" checked> 🛑 Detectar tempo morto</label></div>
+      <div class="grupo"><label class="mini">Limiar (unid./min)</label><input type="number" id="inpTmLimiar" value="40" min="0" step="5" style="width:70px"></div>
     </div>
     <canvas class="grafico" id="cvMdp" width="1050" height="420"></canvas>
     <div class="legenda"><span class="item"><span class="cx" style="background:#38B26E"></span>Baixa</span>
       <span class="item"><span class="cx" style="background:#FF8C42"></span>Média-Alta (≥75% do máx)</span>
       <span class="item"><span class="cx" style="background:#E8360A"></span>Alta (≥90% do máx)</span></div>
   </div>
-  <div class="card"><h3>Most Demanding Periods (top 3 por atleta) <button class="btn mini btnCsv" id="btnCsvMdp">⬇ CSV</button></h3>
-    <div class="tblWrap"><table id="tabMdp"></table></div></div>
+  <div class="grade2">
+    <div class="card"><h3>Tempo morto detectado <button class="btn mini btnCsv" id="btnCsvTm">⬇ CSV</button></h3>
+      <p style="font-size:11.5px;color:var(--txt2);margin-bottom:8px">Janelas da série exibida abaixo do limiar — faixas cinza no gráfico. Compare o total entre jogos para contextualizar acumulados.</p>
+      <div class="kpis"><div class="kpi"><div class="v" id="kTmTotal">—</div><div class="l">Tempo morto total</div></div>
+        <div class="kpi"><div class="v" id="kTmN">—</div><div class="l">Interrupções</div></div></div>
+      <div class="tblWrap"><table id="tabTm"></table></div></div>
+    <div class="card"><h3>Most Demanding Periods (top 3 por atleta) <button class="btn mini btnCsv" id="btnCsvMdp">⬇ CSV</button></h3>
+      <div class="tblWrap"><table id="tabMdp"></table></div></div>
+  </div>
+</section>
+
+<!-- ================= COMPARAR JOGOS ================= -->
+<section class="painel" id="painel-cmp">
+  <div class="card">
+    <h3>Comparação entre jogos — ações por terço × posição</h3>
+    <p style="font-size:12.5px;color:var(--txt2);margin-bottom:10px">
+      Selecione até 6 jogos. Cada jogo é carregado a 2 Hz (períodos 1tempo/2tempo, todos os atletas) e o resumo fica
+      salvo no navegador — a partir da 2ª vez a comparação abre na hora. A direção de ataque usa o que você definiu
+      ao abrir cada jogo nas outras abas (senão assume Esq→Dir, marcado com *).</p>
+    <div class="chips" id="chipsJogosCmp" style="max-width:100%"><span style="font-size:12px;color:var(--txt2)">Carregando lista…</span></div>
+    <div class="linha" style="margin-top:10px">
+      <div class="grupo"><label class="mini">Ação</label>
+        <select id="selCmpAcao">
+          <option value="hsr">Esforços HSR (B5–B7)</option>
+          <option value="sprint">Sprints (B6+B7)</option>
+          <option value="acc">Acelerações ≥3</option>
+          <option value="dec">Desacelerações ≤−3</option>
+          <option value="dist">Distância (m)</option>
+        </select></div>
+      <button class="btn vm" id="btnCmpCarregar">Carregar comparação</button>
+      <div class="progresso" style="align-self:center"><div id="barraCmp"></div></div>
+      <span id="statusCmp" style="font-size:12px;color:var(--txt2)"></span>
+    </div>
+  </div>
+  <div class="card"><h3>Acumulado por terço (barras empilhadas por posição)</h3><div id="grafCmp" style="overflow-x:auto"></div>
+    <div class="legenda" id="legCmp"></div></div>
+  <div class="card"><h3>Tabela jogo × terço × posição <button class="btn mini btnCsv" id="btnCsvCmp">⬇ CSV</button></h3>
+    <div class="tblWrap"><table id="tabCmp"></table></div></div>
+</section>
+
+<!-- ================= REFERÊNCIAS ================= -->
+<section class="painel" id="painel-ref">
+  <div class="card">
+    <h3>Valores referenciais históricos — jogos oficiais</h3>
+    <p style="font-size:12.5px;color:var(--txt2);margin-bottom:10px">
+      Média e máximo por atleta em jogos (atividades com "Jogo" no nome), somando períodos <b>1tempo+2tempo</b> e
+      incluindo apenas participações com <b>≥ 85 min</b>. Construído via estatísticas oficiais da Catapult
+      (<code>/stats</code>) — rápido, sem baixar sensor. Depois de gerado, as tabelas de métricas passam a mostrar
+      o Δ% de cada atleta vs. a própria média histórica.</p>
+    <div class="linha">
+      <div class="grupo"><label class="mini">Jogos a varrer (mais recentes)</label>
+        <select id="selRefN"><option value="20">20</option><option value="40" selected>40</option><option value="60">60</option><option value="999">Todos</option></select></div>
+      <button class="btn vm" id="btnRefGerar">Gerar / atualizar histórico</button>
+      <div class="progresso" style="align-self:center"><div id="barraRef"></div></div>
+      <span id="statusRef" style="font-size:12px;color:var(--txt2)"></span>
+    </div>
+    <p id="refInfo" style="font-size:12px;color:var(--dourado);margin-top:8px"></p>
+  </div>
+  <div class="card"><h3>Médias históricas <button class="btn mini btnCsv" id="btnCsvRefMed">⬇ CSV</button></h3>
+    <div class="tblWrap"><table id="tabRefMed"></table></div></div>
+  <div class="card"><h3>Máximos históricos <button class="btn mini btnCsv" id="btnCsvRefMax">⬇ CSV</button></h3>
+    <div class="tblWrap"><table id="tabRefMax"></table></div></div>
 </section>
 
 <!-- ================= REPLAY ================= -->
@@ -323,10 +406,29 @@ h3 .btnCsv{float:right;margin-top:-4px}
     <div>
       <div class="card">
         <h3>Nova calibração</h3>
-        <p style="font-size:12.5px;color:var(--txt2);line-height:1.6;margin-bottom:10px">
-          Clique nos <b>4 cantos do gramado</b> na imagem de satélite, <b>em sentido anti-horário</b>,
-          começando por um escanteio: <b>1</b> → <b>2</b> ao longo da linha lateral (comprimento),
-          <b>3</b> canto oposto, <b>4</b> fecha o retângulo.</p>
+        <svg viewBox="0 0 300 200" style="width:100%;max-width:300px;display:block;margin-bottom:10px">
+          <rect x="20" y="30" width="260" height="150" fill="#0A5C2E" rx="4"/>
+          <rect x="30" y="40" width="240" height="130" fill="none" stroke="#fff" stroke-width="1.5"/>
+          <line x1="150" y1="40" x2="150" y2="170" stroke="#fff" stroke-width="1"/>
+          <circle cx="150" cy="105" r="18" fill="none" stroke="#fff" stroke-width="1"/>
+          <g font-family="Segoe UI" font-weight="700" font-size="13" text-anchor="middle">
+            <circle cx="30" cy="170" r="11" fill="#E8360A"/><text x="30" y="174.5" fill="#fff">1</text>
+            <circle cx="270" cy="170" r="11" fill="#E8360A"/><text x="270" y="174.5" fill="#fff">2</text>
+            <circle cx="270" cy="40" r="11" fill="#E8360A"/><text x="270" y="44.5" fill="#fff">3</text>
+            <circle cx="30" cy="40" r="11" fill="#E8360A"/><text x="30" y="44.5" fill="#fff">4</text>
+          </g>
+          <g font-family="Segoe UI" font-size="10" fill="#C4952A" text-anchor="middle">
+            <text x="150" y="192">1 → 2 : linha LATERAL (comprimento)</text>
+            <text x="150" y="24">3 → 4 : linha LATERAL oposta</text>
+            <text x="292" y="105" transform="rotate(90 292 105)">2 → 3 : linha de FUNDO</text>
+          </g>
+          <defs><marker id="seta" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#C4952A"/></marker></defs>
+          <line x1="48" y1="170" x2="252" y2="170" stroke="#C4952A" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#seta)"/>
+          <line x1="270" y1="152" x2="270" y2="58" stroke="#C4952A" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#seta)"/>
+          <line x1="252" y1="40" x2="48" y2="40" stroke="#C4952A" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#seta)"/>
+        </svg>
+        <p id="calPasso" style="font-size:13px;color:#fff;background:var(--card2);border-left:3px solid var(--vermelho);padding:8px 12px;border-radius:0 6px 6px 0;margin-bottom:10px;line-height:1.55">
+          <b>Passo 1/4:</b> clique num <b>escanteio</b> qualquer do gramado (ele vira o canto <b>1</b> — referência).</p>
         <div class="linha" style="margin-bottom:10px">
           <div class="grupo"><label class="mini">Nome do local</label><input type="text" id="inpCalNome" placeholder="Ex.: CT Ribamar Bezerra" style="width:200px"></div>
           <div class="grupo"><label class="mini">Compr. (m)</label><input type="number" id="inpCalL" value="105" style="width:70px"></div>
@@ -334,6 +436,7 @@ h3 .btnCsv{float:right;margin-top:-4px}
         </div>
         <div class="linha">
           <button class="btn ok" id="btnCalSalvar" disabled>Salvar calibração</button>
+          <button class="btn fantasma" id="btnCalDesfazer">↩ Desfazer último</button>
           <button class="btn fantasma" id="btnCalLimpar">Limpar marcadores</button>
           <button class="btn" id="btnCalCentrar">Centrar nos dados</button>
         </div>
@@ -875,6 +978,51 @@ function baixarCSV(nome, conteudo) {
   a.click();
   URL.revokeObjectURL(a.href);
 }
+/* nome normalizado p/ casar com athlete_name das stats ("16 L.SASHA" → "L.SASHA") */
+function normNome(s) { return String(s || '').replace(/^\d+\s*/, '').trim().toUpperCase(); }
+/* classificação de período (regra do clube — includes, não startsWith) */
+function classifyPeriod(name) {
+  const n = String(name || '').trim().toLowerCase();
+  if (n.includes('1tempo')) return 't1';
+  if (n.includes('2tempo')) return 't2';
+  return null;
+}
+/* correção do max_vel (quirk do tenant: pode vir em m/s ou km/h) */
+function fixVmax(v) {
+  if (v == null) return null;
+  if (v > 45) return Math.round(v / 3.6 * 10) / 10;
+  if (v < 20) return Math.round(v * 3.6 * 10) / 10;
+  return Math.round(v * 10) / 10;
+}
+/* ordenação por clique no cabeçalho (numérica pt-BR com fallback texto) */
+function tornarOrdenavel(tab) {
+  const trs = [...tab.querySelectorAll('tr')];
+  if (!trs.length) return;
+  const cab = trs[0];
+  cab.querySelectorAll('th').forEach((th, ci) => {
+    th.onclick = () => {
+      const asc = th.dataset.ord !== 'asc';
+      cab.querySelectorAll('th').forEach(t => { t.dataset.ord = ''; const s = t.querySelector('.setaOrd'); if (s) s.remove(); });
+      th.dataset.ord = asc ? 'asc' : 'desc';
+      th.insertAdjacentHTML('beforeend', `<span class="setaOrd">${asc ? '▲' : '▼'}</span>`);
+      const linhas = [...tab.querySelectorAll('tr')].slice(1);
+      const valor = tr => {
+        const c = tr.children[ci];
+        if (!c) return '';
+        let t = c.textContent.trim().replace('%', '');
+        if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');
+        const n = parseFloat(t);
+        return isNaN(n) ? c.textContent.trim().toLowerCase() : n;
+      };
+      linhas.sort((a, b) => {
+        const va = valor(a), vb = valor(b);
+        if (typeof va === 'number' && typeof vb === 'number') return asc ? va - vb : vb - va;
+        return asc ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va));
+      });
+      linhas.forEach(l => tab.appendChild(l));
+    };
+  });
+}
 function atkSignAt(ts) {
   const r = S.ranges.find(r => ts >= r.t0 - 1 && ts <= r.t1 + 1);
   return r ? (S.atk[r.pid] || 0) : 0;
@@ -1049,7 +1197,178 @@ function posProcessar() {
   atualizarSelects();
   renderAtk();
   renderTudo();
+  carregarStatsFMP();   // assíncrono — re-renderiza quando chegar
 }
+
+/* ---------- Stats oficiais (FMP + conferência) da atividade carregada ---------- */
+const FMP_DEFS = [
+  { k: 'fmpDyn',    label: 'FMP Dynamic (min)',   porMin: false },
+  { k: 'fmpRun',    label: 'FMP Running (min)',   porMin: false },
+  { k: 'fmpDynPct', label: 'FMP Dynamic (%)',     porMin: false },
+  { k: 'fmpRunPct', label: 'FMP Running (%)',     porMin: false },
+];
+async function carregarStatsFMP() {
+  const act = $('selAtividade').value;
+  if (!act) return;
+  let rows;
+  try { rows = await api(`/api/gps/stats?activity=${act}`); }
+  catch (e) { return; }   // stats indisponíveis — segue sem FMP
+  if (!Array.isArray(rows) || !rows.length) return;
+  const pids = S.selPeriodos.has('') ? null : S.selPeriodos;
+  const montar = filtrar => {
+    const m = new Map();
+    for (const r of rows) {
+      if (filtrar && pids && !pids.has(r.period_id)) continue;
+      const ch = r.athlete_id || normNome(r.athlete_name);
+      const a = m.get(ch) || { dur: 0, dyn: 0, run: 0 };
+      a.dur += r.total_duration || 0;
+      a.dyn += r.fmp_dynamic_total_duration || 0;
+      a.run += r.fmp_running_total_duration || 0;
+      m.set(ch, a);
+    }
+    return m;
+  };
+  let porAtleta = montar(true);
+  if (!porAtleta.size) porAtleta = montar(false);   // ids de período não bateram — usa tudo
+  let algum = false;
+  for (const [id, d] of S.dados) {
+    const st = porAtleta.get(id) || porAtleta.get(normNome(d.nome));
+    if (!st || !(st.dyn || st.run)) continue;
+    d.met.fmpDyn = Math.round(st.dyn / 60 * 10) / 10;
+    d.met.fmpRun = Math.round(st.run / 60 * 10) / 10;
+    if (st.dur > 0) {
+      d.met.fmpDynPct = Math.round(st.dyn / st.dur * 1000) / 10;
+      d.met.fmpRunPct = Math.round(st.run / st.dur * 1000) / 10;
+    }
+    algum = true;
+  }
+  if (algum && !METRICAS_DEF.some(m => m.k === 'fmpDyn')) METRICAS_DEF.push(...FMP_DEFS);
+  if (algum) { atualizarSelects(); renderTudo(); }
+}
+
+/* ---------- Referências históricas (média/máx em jogos ≥85 min) ---------- */
+const REF_KEYS = [
+  { k: 'minutos', label: 'Minutos' }, { k: 'dist', label: 'Distância (m)' },
+  { k: 'hsr', label: 'HSR (m)' }, { k: 'sprint', label: 'Sprint (m)' },
+  { k: 'dens', label: 'Densidade (m/min)' }, { k: 'vmax', label: 'Vel. Máx (km/h)' },
+  { k: 'acc', label: 'Acel' }, { k: 'dec', label: 'Desacel' },
+  { k: 'fmpDyn', label: 'FMP Dyn (min)' }, { k: 'fmpRun', label: 'FMP Run (min)' },
+];
+function refsSalvas() {
+  try { return JSON.parse(localStorage.getItem('gps2d_refs') || 'null'); } catch (e) { return null; }
+}
+function refDoAtleta(nome) {
+  const refs = refsSalvas();
+  return refs && refs.dados ? refs.dados[normNome(nome)] : null;
+}
+function deltaHtml(valor, ref) {
+  if (valor == null || ref == null || !ref) return '';
+  const pct = (valor - ref) / ref * 100;
+  if (!isFinite(pct)) return '';
+  const cls = pct >= 0 ? 'deltaUp' : 'deltaDown';
+  return ` <span class="delta ${cls}" title="vs média histórica ${Math.round(ref * 10) / 10}">${pct >= 0 ? '▲' : '▼'}${Math.abs(pct).toFixed(0)}%</span>`;
+}
+function jogoParaMetricas(rows) {
+  // rows de /stats de UM jogo → {NOME: métricas t1+t2} (só ≥85 min)
+  const por = new Map();
+  for (const r of rows) {
+    if (!classifyPeriod(r.period_name)) continue;
+    const ch = normNome(r.athlete_name);
+    const a = por.get(ch) || { dur: 0, dist: 0, hsr: 0, sprint: 0, acc: 0, dec: 0, vmax: 0, dyn: 0, run: 0 };
+    a.dur += r.total_duration || 0;
+    a.dist += r.total_distance || 0;
+    a.hsr += (r.velocity_band6_total_distance || 0) + (r.velocity_band7_total_distance || 0);
+    a.sprint += r.velocity_band7_total_distance || 0;
+    a.acc += r.gen2_acceleration_band7plus_total_effort_count || 0;
+    a.dec += (r.gen2_acceleration_band1_total_effort_count || 0) + (r.gen2_acceleration_band2_total_effort_count || 0);
+    a.vmax = Math.max(a.vmax, fixVmax(r.max_vel) || 0);
+    a.dyn += r.fmp_dynamic_total_duration || 0;
+    a.run += r.fmp_running_total_duration || 0;
+    por.set(ch, a);
+  }
+  const out = {};
+  for (const [nome, a] of por) {
+    const min = a.dur / 60;
+    if (min < 85) continue;
+    out[nome] = {
+      minutos: Math.round(min * 10) / 10, dist: Math.round(a.dist),
+      hsr: Math.round(a.hsr), sprint: Math.round(a.sprint),
+      dens: Math.round(a.dist / min * 10) / 10, vmax: a.vmax,
+      acc: Math.round(a.acc), dec: Math.round(a.dec),
+      fmpDyn: Math.round(a.dyn / 60 * 10) / 10, fmpRun: Math.round(a.run / 60 * 10) / 10,
+    };
+  }
+  return out;
+}
+$('btnRefGerar').onclick = async () => {
+  const nMax = +$('selRefN').value;
+  $('btnRefGerar').disabled = true;
+  $('statusRef').textContent = 'Buscando lista de jogos…';
+  try {
+    const acts = (S.atividades.length ? S.atividades : await api('/api/gps/activities?limit=500'))
+      .filter(a => /jogo/i.test(a.name || '')).slice(0, nMax);
+    const dados = {};   // NOME → {n, media, max}
+    let feitos = 0, comDados = 0;
+    for (const atv of acts) {
+      $('statusRef').textContent = `Processando ${feitos + 1}/${acts.length} — ${atv.name}`;
+      $('barraRef').style.width = `${feitos / acts.length * 100}%`;
+      try {
+        const rows = await api(`/api/gps/stats?activity=${atv.id}`);
+        const jogo = jogoParaMetricas(rows);
+        if (Object.keys(jogo).length) comDados++;
+        for (const [nome, met] of Object.entries(jogo)) {
+          const d = dados[nome] || { n: 0, media: {}, max: {} };
+          d.n++;
+          for (const { k } of REF_KEYS) {
+            if (met[k] == null) continue;
+            d.media[k] = ((d.media[k] || 0) * (d.n - 1) + met[k]) / d.n;
+            d.max[k] = Math.max(d.max[k] || 0, met[k]);
+          }
+          dados[nome] = d;
+        }
+      } catch (e) { /* jogo sem stats — segue */ }
+      feitos++;
+    }
+    for (const d of Object.values(dados))
+      for (const k of Object.keys(d.media)) d.media[k] = Math.round(d.media[k] * 10) / 10;
+    const refs = { gerado: Date.now(), jogos: comDados, dados };
+    localStorage.setItem('gps2d_refs', JSON.stringify(refs));
+    $('barraRef').style.width = '100%';
+    $('statusRef').textContent = `Concluído: ${comDados} jogos com dados válidos.`;
+    renderRef(); renderPos();
+  } catch (e) {
+    $('statusRef').textContent = `Erro: ${e.message}`;
+  }
+  $('btnRefGerar').disabled = false;
+};
+function renderRef() {
+  const refs = refsSalvas();
+  if (!refs) {
+    $('refInfo').textContent = 'Nenhum histórico gerado ainda — clique em "Gerar / atualizar histórico".';
+    $('tabRefMed').innerHTML = ''; $('tabRefMax').innerHTML = '';
+    return;
+  }
+  $('refInfo').textContent = `Histórico de ${refs.jogos} jogos · ${Object.keys(refs.dados).length} atletas · gerado em ${new Date(refs.gerado).toLocaleDateString('pt-BR')} (critério: 1tempo+2tempo ≥ 85 min).`;
+  const cab = '<tr><th>Atleta</th><th class="num">Jogos</th>' + REF_KEYS.map(r => `<th class="num">${r.label}</th>`).join('') + '</tr>';
+  const ord = Object.entries(refs.dados).sort((a, b) => b[1].n - a[1].n);
+  const fazer = (campo, tab) => {
+    $(tab).innerHTML = cab + ord.map(([nome, d]) =>
+      `<tr><td>${nome}</td><td class="num">${d.n}</td>` +
+      REF_KEYS.map(r => `<td class="num">${d[campo][r.k] ?? '—'}</td>`).join('') + '</tr>').join('');
+    tornarOrdenavel($(tab));
+  };
+  fazer('media', 'tabRefMed');
+  fazer('max', 'tabRefMax');
+}
+const csvRef = campo => () => {
+  const refs = refsSalvas();
+  if (!refs) return;
+  const cab = ['Atleta', 'Jogos', ...REF_KEYS.map(r => r.label)];
+  baixarCSV(`referencias_${campo}.csv`, paraCSV(cab,
+    Object.entries(refs.dados).map(([nome, d]) => [nome, d.n, ...REF_KEYS.map(r => d[campo][r.k])])));
+};
+$('btnCsvRefMed').onclick = csvRef('media');
+$('btnCsvRefMax').onclick = csvRef('max');
 function atualizarSelects() {
   const opsAtl = [...S.dados.entries()].map(([id, d]) => `<option value="${id}">${d.nome}</option>`).join('');
   $('selHeatAtleta').innerHTML = '<option value="__all__">Todos selecionados</option>' + opsAtl;
@@ -1321,6 +1640,7 @@ function renderTabEsforcos(defs) {
     S.esfSel = S.esfSel === k ? -1 : k;
     renderEsforcos();
   });
+  tornarOrdenavel($('tabEsf'));
 }
 function renderZonas() {
   // matriz lane(3) × zona5(5)
@@ -1377,6 +1697,7 @@ function renderTercosTab() {
      <td class="num">${l.hsr}</td><td class="num">${l.sprint}</td><td class="num">${l.acel}</td><td class="num">${l.des}</td>
      <td class="num">${l.of}</td><td class="num">${l.df}</td><td class="num">${l.lt}</td></tr>`).join('');
   S._tercosLinhas = linhas;
+  tornarOrdenavel($('tabTercos'));
 }
 document.querySelectorAll('input[name=esfTipo]').forEach(r => r.onchange = () => { S.esfSel = -1; renderChipsBandas(); renderEsforcos(); });
 ['inpDurVel', 'inpDurAcc'].forEach(id => $(id).onchange = () => { S.esfSel = -1; renderEsforcos(); });
@@ -1466,33 +1787,41 @@ function renderPos() {
   const mx = Math.max(...linhas.map(val), 0.001);
   const porGrupo = {};
   linhas.forEach(d => (porGrupo[d.grupo] = porGrupo[d.grupo] || []).push(val(d)));
-  const bw = 26, gap = 6, gGap = 26, altura = 340, pb = 90, pt = 20, pl = 56;
+  const bw = 26, gap = 6, gGap = 26, altura = 400, pb = 90, pt = 40, pl = 56;
+  const hUtil = altura - pb - pt - 18;   // 18px para o rótulo acima da barra
   let x = pl, elems = '', eixoG = '';
   for (const [g, vals] of Object.entries(porGrupo)) {
     const x0 = x;
     const atletas = linhas.filter(d => d.grupo === g);
     for (const d of atletas) {
       const v = val(d);
-      const h = v / mx * (altura - pt - 40);
+      const h = v / mx * hUtil;
       elems += `<rect x="${x}" y="${altura - pb - h}" width="${bw}" height="${h}" rx="3" fill="${d.cor}"><title>${d.nome}: ${v}</title></rect>
         <text x="${x + bw / 2}" y="${altura - pb - h - 5}" text-anchor="middle" font-size="10" fill="#EAF0FA">${v}</text>
         <text transform="rotate(-45 ${x + bw / 2} ${altura - pb + 12})" x="${x + bw / 2}" y="${altura - pb + 12}" text-anchor="end" font-size="10" fill="#9FB0CC">${d.nome}</text>`;
       x += bw + gap;
     }
     const m = media(vals);
-    const ym = altura - pb - m / mx * (altura - pt - 40);
+    const ym = altura - pb - m / mx * hUtil;
     elems += `<line x1="${x0 - 3}" y1="${ym}" x2="${x - gap + 3}" y2="${ym}" stroke="#C4952A" stroke-dasharray="4 3" stroke-width="1.5"><title>Média ${g}: ${m.toFixed(2)}</title></line>`;
     eixoG += `<text x="${(x0 + x - gap) / 2}" y="${altura - 6}" text-anchor="middle" font-size="12" font-weight="700" fill="${corGrupo(g)}">${g}</text>`;
     x += gGap;
   }
-  $('grafPos').innerHTML = `<svg width="${Math.max(x, 400)}" height="${altura}" style="overflow:visible;max-width:100%">
-    <text x="${pl}" y="14" font-size="12" fill="#C4952A" font-weight="700">${def.label}${sufixo} — linha tracejada = média do grupo</text>
-    ${elems}${eixoG}</svg>`;
+  $('grafPos').innerHTML = `<div style="overflow-x:auto"><svg width="${Math.max(x, 400)}" height="${altura}" style="max-width:none">
+    <text x="${pl}" y="20" font-size="12" fill="#C4952A" font-weight="700">${def.label}${sufixo} — linha tracejada = média do grupo</text>
+    ${elems}${eixoG}</svg></div>`;
   const cab = '<tr><th>Atleta</th><th>Grupo</th>' + METRICAS_DEF.map(m => `<th class="num">${m.label}${pm && m.porMin ? ' /min' : ''}</th>`).join('') + '</tr>';
-  const corpo = [...S.dados.values()].sort((a, b) => b.met.dist - a.met.dist).map(d =>
-    `<tr><td><span class="cx" style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${d.cor};margin-right:6px"></span>${d.nome}</td><td style="color:${corGrupo(d.grupo)};font-weight:700">${d.grupo}</td>` +
-    METRICAS_DEF.map(m => `<td class="num">${valorMetrica(d.met, m.k, pm) ?? '—'}</td>`).join('') + '</tr>').join('');
+  const corpo = [...S.dados.values()].sort((a, b) => b.met.dist - a.met.dist).map(d => {
+    const ref = pm ? null : refDoAtleta(d.nome);   // Δ vs média histórica só no modo absoluto
+    return `<tr><td><span class="cx" style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${d.cor};margin-right:6px"></span>${d.nome}</td><td style="color:${corGrupo(d.grupo)};font-weight:700">${d.grupo}</td>` +
+      METRICAS_DEF.map(m => {
+        const v = valorMetrica(d.met, m.k, pm);
+        const dh = ref && ref.media && v != null ? deltaHtml(v, ref.media[m.k]) : '';
+        return `<td class="num">${v ?? '—'}${dh}</td>`;
+      }).join('') + '</tr>';
+  }).join('');
   $('tabMetricas').innerHTML = cab + corpo;
+  tornarOrdenavel($('tabMetricas'));
 }
 $('selMetricaPos').onchange = renderPos;
 document.querySelectorAll('input[name=posModo]').forEach(r => r.onchange = renderPos);
@@ -1558,6 +1887,35 @@ function renderMdp() {
   const t0 = grade[0], t1 = grade[grade.length - 1] + winS;
   const SX = ts => pl + (ts + winS / 2 - t0) / (t1 - t0) * wC;
   const SY = v => pt + hC - v / (mx * 1.08) * hC;
+  // ── tempo morto: janelas abaixo do limiar → faixas cinza ──
+  let tmSegs = [];
+  if ($('chkTempoMorto').checked) {
+    const thr = +$('inpTmLimiar').value || 0;
+    const passo = +$('selMdpPasso').value;
+    let ini = -1;
+    for (let i = 0; i <= grade.length; i++) {
+      const baixo = i < grade.length && serie[i] != null && serie[i] < thr;
+      if (baixo && ini < 0) ini = i;
+      if (!baixo && ini >= 0) {
+        tmSegs.push({ ini: grade[ini] - t0, fim: grade[i - 1] - t0 + winS, minVal: Math.min(...serie.slice(ini, i).filter(v => v != null)) });
+        ini = -1;
+      }
+    }
+    ctx.fillStyle = 'rgba(160,170,190,0.18)';
+    for (const s2 of tmSegs) {
+      const x0 = pl + (s2.ini) / (t1 - t0) * wC, x1 = pl + (s2.fim) / (t1 - t0) * wC;
+      ctx.fillRect(x0, pt, Math.max(2, x1 - x0), hC);
+    }
+  }
+  const durTm = tmSegs.reduce((s2, x) => s2 + (x.fim - x.ini), 0);
+  $('kTmTotal').textContent = tmSegs.length ? fmtMin(durTm) : '—';
+  $('kTmN').textContent = tmSegs.length || '—';
+  $('tabTm').innerHTML = tmSegs.length
+    ? '<tr><th class="num">#</th><th class="num">Início</th><th class="num">Fim</th><th class="num">Duração</th><th class="num">Mín (unid./min)</th></tr>' +
+      tmSegs.map((x, i) => `<tr><td class="num">${i + 1}</td><td class="num">${fmtMin(x.ini)}</td><td class="num">${fmtMin(x.fim)}</td><td class="num">${fmtMin(x.fim - x.ini)}</td><td class="num">${x.minVal.toFixed(1)}</td></tr>`).join('')
+    : '<tr><td style="color:var(--txt2)">Nenhuma janela abaixo do limiar.</td></tr>';
+  tornarOrdenavel($('tabTm'));
+  S._tmSegs = tmSegs;
   // eixos
   ctx.strokeStyle = '#1E3D77'; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(pl, pt); ctx.lineTo(pl, pt + hC); ctx.lineTo(pl + wC, pt + hC); ctx.stroke();
@@ -1611,15 +1969,191 @@ function renderMdp() {
     `<tr${l.nome.startsWith('EQUIPE') ? ' style="background:rgba(196,149,42,.08)"' : ''}><td>${l.nome}</td><td class="num">${l.rank}º</td>
      <td class="num">${fmtMin(l.ini)}</td><td class="num">${fmtMin(l.fim)}</td><td class="num"><b>${l.valor}</b></td></tr>`).join('');
   S._mdpLinhas = { linhas, label: def.label, winS };
+  tornarOrdenavel($('tabMdp'));
 }
-['selMdpMetrica', 'selMdpJanela', 'selMdpPasso', 'selMdpEscopo'].forEach(id => $(id).onchange = renderMdp);
+['selMdpMetrica', 'selMdpJanela', 'selMdpPasso', 'selMdpEscopo', 'chkTempoMorto', 'inpTmLimiar'].forEach(id => $(id).onchange = renderMdp);
 $('inpMdpCustom').onchange = renderMdp;
+$('btnCsvTm').onclick = () => {
+  if (!S._tmSegs || !S._tmSegs.length) return;
+  baixarCSV('tempo_morto.csv', paraCSV(['#', 'Início (s)', 'Fim (s)', 'Duração (s)', 'Mín (unid/min)'],
+    S._tmSegs.map((x, i) => [i + 1, Math.round(x.ini), Math.round(x.fim), Math.round(x.fim - x.ini), Math.round(x.minVal * 10) / 10])));
+};
 $('btnCsvMdp').onclick = () => {
   if (!S._mdpLinhas) return;
   const { linhas, label, winS } = S._mdpLinhas;
   const cab = ['Atleta', 'Rank', 'Início (s)', 'Início (mm:ss)', 'Fim (mm:ss)', `Janela (s)`, label];
   baixarCSV(`mdp_${winS}s.csv`, paraCSV(cab, linhas.map(l =>
     [l.nome, l.rank, Math.round(l.ini), fmtMin(l.ini), fmtMin(l.fim), winS, l.valor])));
+};
+
+/* ---------- Comparar Jogos ---------- */
+const CMP = { sel: new Set(), resumos: new Map() };
+const CMP_ACOES = { hsr: 'Esforços HSR', sprint: 'Sprints', acc: 'Acelerações', dec: 'Desacelerações', dist: 'Distância (m)' };
+function cmpInitChips() {
+  const jogos = S.atividades.filter(a => /jogo/i.test(a.name || '')).slice(0, 40);
+  if (!jogos.length) { $('chipsJogosCmp').innerHTML = '<span style="font-size:12px;color:var(--txt2)">Nenhuma atividade com "Jogo" no nome.</span>'; return; }
+  $('chipsJogosCmp').innerHTML = jogos.map(a =>
+    `<span class="chip ${CMP.sel.has(a.id) ? 'sel' : ''}" data-id="${a.id}">${fmtData(a.start_time)} · ${a.name}${localStorage.getItem(`gps2d_cmpres_${a.id}`) ? ' ✓' : ''}</span>`).join('');
+  [...$('chipsJogosCmp').children].forEach(ch => ch.onclick = () => {
+    const id = ch.dataset.id;
+    if (CMP.sel.has(id)) CMP.sel.delete(id);
+    else if (CMP.sel.size < 6) CMP.sel.add(id);
+    ch.classList.toggle('sel', CMP.sel.has(id));
+  });
+}
+async function cmpResumoJogo(actId, statusFn) {
+  const salvo = localStorage.getItem(`gps2d_cmpres_${actId}`);
+  if (salvo) return JSON.parse(salvo);
+  const [ath, per] = await Promise.all([
+    api(`/api/gps/athletes?activity=${actId}`),
+    api(`/api/gps/periods?activity=${actId}`),
+  ]);
+  const tempos = per.filter(p => classifyPeriod(p.name));
+  if (!tempos.length) throw new Error('sem períodos 1tempo/2tempo');
+  const atkMap = JSON.parse(localStorage.getItem(`gps2d_atk_${actId}`) || '{}');
+  const atkDefinido = tempos.some(p => atkMap[p.id]);
+  const tarefas = [];
+  for (const a of ath) for (const p of tempos) tarefas.push({ a, p });
+  const porAtleta = new Map();   // id → {grupo, blocos:[{pid, slim}]}
+  let feitos = 0;
+  const fila = [...tarefas];
+  async function trab() {
+    while (fila.length) {
+      const { a, p } = fila.shift();
+      try {
+        const slim = await api(`/api/gps/sensor?period=${p.id}&athlete=${a.id}&each=5`);
+        if (slim.n > 50) {
+          if (!porAtleta.has(a.id)) porAtleta.set(a.id, { grupo: grupoPos(a.position), blocos: [] });
+          porAtleta.get(a.id).blocos.push({ pid: p.id, slim });
+        }
+      } catch (e) { /* atleta sem sensor no período */ }
+      feitos++; statusFn(feitos / tarefas.length);
+    }
+  }
+  await Promise.all([0, 1, 2, 3].map(trab));
+  // calibração automática (nuvem do jogo inteiro)
+  const lats = [], lons = [];
+  for (const d of porAtleta.values()) for (const b of d.blocos) { lats.push(...b.slim.lat); lons.push(...b.slim.lon); }
+  const cal = autoCalibrar(lats, lons, 105, 68);
+  if (!cal) throw new Error('dados GPS insuficientes');
+  // acumula por posição × terço
+  const zera = () => ({});
+  const res = { hsr: zera(), sprint: zera(), acc: zera(), dec: zera(), dist: zera() };
+  const add = (tipo, grupo, terco, v) => {
+    if (!res[tipo][grupo]) res[tipo][grupo] = [0, 0, 0];
+    res[tipo][grupo][terco] += v;
+  };
+  for (const d of porAtleta.values()) {
+    for (const b of d.blocos) {
+      const s = atkMap[b.pid] === -1 ? -1 : 1;
+      const pts = new Float32Array(b.slim.n * 2);
+      for (let i = 0; i < b.slim.n; i++) {
+        const p2 = cal.map(b.slim.lat[i], b.slim.lon[i]);
+        pts[i * 2] = p2.x; pts[i * 2 + 1] = p2.y;
+      }
+      const tercoDe = x => Math.min(2, Math.max(0, Math.floor((s > 0 ? x : cal.L - x) / (cal.L / 3))));
+      // distância por terço
+      for (let i = 1; i < b.slim.n; i++) {
+        const dt = b.slim.ts[i] - b.slim.ts[i - 1];
+        if (dt > 0 && dt <= 2 && b.slim.v[i] != null)
+          add('dist', d.grupo, tercoDe(pts[i * 2]), b.slim.v[i] * dt);
+      }
+      // esforços
+      for (const e of detectarEsforcos(b.slim, pts, 'vel', 1.0)) {
+        const tc = tercoDe(e.x0);
+        if (e.banda >= 4) add('hsr', d.grupo, tc, 1);
+        if (e.banda >= 5) add('sprint', d.grupo, tc, 1);
+      }
+      for (const e of detectarEsforcos(b.slim, pts, 'acc', 0.6)) {
+        const tc = tercoDe(e.x0);
+        if (e.banda <= 2) add('acc', d.grupo, tc, 1); else add('dec', d.grupo, tc, 1);
+      }
+    }
+  }
+  for (const tipo of Object.keys(res))
+    for (const g of Object.keys(res[tipo]))
+      res[tipo][g] = res[tipo][g].map(v => Math.round(v));
+  const atv = S.atividades.find(a => a.id === actId);
+  const resumo = { nome: atv ? atv.name : actId, data: atv ? fmtData(atv.start_time) : '', atkDefinido, res };
+  try { localStorage.setItem(`gps2d_cmpres_${actId}`, JSON.stringify(resumo)); } catch (e) { /* quota */ }
+  return resumo;
+}
+$('btnCmpCarregar').onclick = async () => {
+  if (!CMP.sel.size) return alert('Selecione ao menos 2 jogos.');
+  $('btnCmpCarregar').disabled = true;
+  const ids = [...CMP.sel];
+  CMP.resumos.clear();
+  for (let i = 0; i < ids.length; i++) {
+    const atv = S.atividades.find(a => a.id === ids[i]);
+    $('statusCmp').textContent = `Jogo ${i + 1}/${ids.length}: ${atv ? atv.name : ''}`;
+    try {
+      const r = await cmpResumoJogo(ids[i], f => { $('barraCmp').style.width = `${(i + f) / ids.length * 100}%`; });
+      CMP.resumos.set(ids[i], r);
+    } catch (e) {
+      $('statusCmp').textContent = `Erro em ${atv ? atv.name : ids[i]}: ${e.message}`;
+    }
+  }
+  $('barraCmp').style.width = '100%';
+  $('statusCmp').textContent = `${CMP.resumos.size} jogo(s) processado(s).`;
+  $('btnCmpCarregar').disabled = false;
+  cmpInitChips();
+  renderCmp();
+};
+function renderCmp() {
+  if (!CMP.resumos.size) { $('grafCmp').innerHTML = ''; $('tabCmp').innerHTML = ''; return; }
+  const acao = $('selCmpAcao').value;
+  const jogos = [...CMP.resumos.values()];
+  const grupos = [...new Set(jogos.flatMap(j => Object.keys(j.res[acao])))]
+    .sort((a, b) => POS_GRUPOS.findIndex(g => g.g === a) - POS_GRUPOS.findIndex(g => g.g === b));
+  // barras empilhadas: 3 blocos (terços) × n jogos
+  const bw = 44, gap = 10, blocoGap = 46, alt = 380, pb = 74, pt = 30;
+  const totais = [];
+  for (let tc = 0; tc < 3; tc++) for (const j of jogos)
+    totais.push(grupos.reduce((s, g) => s + ((j.res[acao][g] || [0, 0, 0])[tc]), 0));
+  const mx = Math.max(...totais, 1);
+  let x = 56, elems = '', eixo = '';
+  for (let tc = 0; tc < 3; tc++) {
+    const x0 = x;
+    for (const j of jogos) {
+      let yAcc = alt - pb;
+      const tot = grupos.reduce((s, g) => s + ((j.res[acao][g] || [0, 0, 0])[tc]), 0);
+      for (const g of grupos) {
+        const v = (j.res[acao][g] || [0, 0, 0])[tc];
+        if (!v) continue;
+        const h = v / mx * (alt - pb - pt - 16);
+        yAcc -= h;
+        elems += `<rect x="${x}" y="${yAcc}" width="${bw}" height="${h}" fill="${corGrupo(g)}"><title>${j.nome} · ${TERCOS[tc]} · ${g}: ${v}</title></rect>`;
+      }
+      elems += `<text x="${x + bw / 2}" y="${yAcc - 5}" text-anchor="middle" font-size="10.5" fill="#EAF0FA">${tot}</text>
+        <text transform="rotate(-40 ${x + bw / 2} ${alt - pb + 12})" x="${x + bw / 2}" y="${alt - pb + 12}" text-anchor="end" font-size="9.5" fill="#9FB0CC">${j.data}${j.atkDefinido ? '' : '*'}</text>`;
+      x += bw + gap;
+    }
+    eixo += `<text x="${(x0 + x - gap) / 2}" y="${alt - 8}" text-anchor="middle" font-size="12.5" font-weight="700" fill="#C4952A">${TERCOS[tc]}</text>`;
+    x += blocoGap;
+  }
+  $('grafCmp').innerHTML = `<svg width="${Math.max(x, 500)}" height="${alt}" style="max-width:none">
+    <text x="56" y="16" font-size="12" fill="#C4952A" font-weight="700">${CMP_ACOES[acao]} — acumulado por terço, empilhado por posição (* = direção de ataque assumida Esq→Dir)</text>
+    ${elems}${eixo}</svg>`;
+  $('legCmp').innerHTML = grupos.map(g => `<span class="item"><span class="cx" style="background:${corGrupo(g)}"></span>${g}</span>`).join('');
+  // tabela
+  const cab = '<tr><th>Jogo</th><th>Posição</th><th class="num">Defensivo</th><th class="num">Meio</th><th class="num">Ataque</th><th class="num">Total</th></tr>';
+  const linhas = [];
+  for (const j of jogos) for (const g of grupos) {
+    const v = j.res[acao][g] || [0, 0, 0];
+    linhas.push({ jogo: `${j.data} ${j.nome}`, g, v });
+  }
+  $('tabCmp').innerHTML = cab + linhas.map(l =>
+    `<tr><td>${l.jogo}</td><td style="color:${corGrupo(l.g)};font-weight:700">${l.g}</td>
+     <td class="num">${l.v[0]}</td><td class="num">${l.v[1]}</td><td class="num">${l.v[2]}</td><td class="num">${l.v[0] + l.v[1] + l.v[2]}</td></tr>`).join('');
+  tornarOrdenavel($('tabCmp'));
+  S._cmpLinhas = { acao, linhas };
+}
+$('selCmpAcao').onchange = renderCmp;
+$('btnCsvCmp').onclick = () => {
+  if (!S._cmpLinhas) return;
+  const { acao, linhas } = S._cmpLinhas;
+  baixarCSV(`comparacao_${acao}.csv`, paraCSV(['Jogo', 'Posição', 'Defensivo', 'Meio', 'Ataque', 'Total'],
+    linhas.map(l => [l.jogo, l.g, l.v[0], l.v[1], l.v[2], l.v[0] + l.v[1] + l.v[2]])));
 };
 
 /* ---------- Replay ---------- */
@@ -1764,14 +2298,27 @@ function initMapa() {
   });
   renderListaCal();
 }
+const CAL_PASSOS = [
+  '<b>Passo 1/4:</b> clique num <b>escanteio</b> qualquer do gramado (ele vira o canto <b>1</b> — referência).',
+  '<b>Passo 2/4:</b> siga pela <b>linha lateral</b> (lado do comprimento, ~105 m) e clique no <b>escanteio seguinte</b> (canto <b>2</b>).',
+  '<b>Passo 3/4:</b> atravesse a <b>linha de fundo</b> (~68 m) e clique no canto <b>3</b> — diagonal ao canto 1.',
+  '<b>Passo 4/4:</b> feche o retângulo: clique no canto <b>4</b> (mesmo lado do 1, na outra lateral).',
+  '✅ <b>4 cantos marcados.</b> Confira o contorno dourado sobre o gramado — arraste os marcadores para ajuste fino. Depois dê um nome e <b>salve</b>.',
+];
 function desenharPoligono() {
   if (poligono) { mapa.removeLayer(poligono); poligono = null; }
-  if (marcadores.length >= 3) {
-    poligono = L.polygon(marcadores.map(m => m.getLatLng()), { color: '#C4952A', weight: 2, fillOpacity: 0.08 }).addTo(mapa);
+  if (marcadores.length >= 2) {
+    poligono = L.polygon(marcadores.map(m => m.getLatLng()), { color: '#C4952A', weight: 2.5, fillOpacity: 0.08, dashArray: marcadores.length < 4 ? '6 6' : null }).addTo(mapa);
   }
   $('calStatus').textContent = `${marcadores.length} / 4 cantos marcados`;
+  $('calPasso').innerHTML = CAL_PASSOS[Math.min(marcadores.length, 4)];
   $('btnCalSalvar').disabled = marcadores.length !== 4;
 }
+$('btnCalDesfazer').onclick = () => {
+  const m = marcadores.pop();
+  if (m) mapa.removeLayer(m);
+  desenharPoligono();
+};
 $('btnCalLimpar').onclick = () => { marcadores.forEach(m => mapa.removeLayer(m)); marcadores = []; desenharPoligono(); };
 $('btnCalCentrar').onclick = () => {
   for (const d of S.dados.values()) {
@@ -1817,6 +2364,7 @@ document.querySelectorAll('.aba').forEach(a => a.onclick = () => {
   a.classList.add('ativa');
   $(`painel-${a.dataset.aba}`).classList.add('ativo');
   if (a.dataset.aba === 'cal') setTimeout(() => { initMapa(); mapa.invalidateSize(); }, 50);
+  if (a.dataset.aba === 'cmp') cmpInitChips();
   renderTudo();
 });
 function renderTudo() {
@@ -1828,6 +2376,8 @@ function renderTudo() {
   else if (ativo === 'painel-mdp') renderMdp();
   else if (ativo === 'painel-replay') renderReplayFrame();
   else if (ativo === 'painel-stat') renderStat();
+  else if (ativo === 'painel-cmp') renderCmp();
+  else if (ativo === 'painel-ref') renderRef();
 }
 
 prepararCampo($('cvCampo'));
