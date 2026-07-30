@@ -17,6 +17,22 @@ const PARAMS = [
   'fmp_running_total_duration', 'fmp_running_med_duration', 'fmp_running_high_duration',
 ];
 
+// Métrica personalizada do tenant: "Esforços Explosivos 2" — slug resolvido
+// dinamicamente via GET /parameters (cacheado entre invocações da função).
+let _explosivosSlug;   // undefined = ainda não buscado · null = não existe no tenant
+async function slugExplosivos() {
+  if (_explosivosSlug !== undefined) return _explosivosSlug;
+  try {
+    const r = await fetch(`${BASE}/parameters`, {
+      headers: { Authorization: `Bearer ${process.env.CATAPULT_TOKEN}` } });
+    const ps = r.ok ? await r.json() : [];
+    const alvo = (Array.isArray(ps) ? ps : []).find(p =>
+      /esfor\S*\s*explos/i.test(p.name || '') && /2/.test(p.name || ''));
+    _explosivosSlug = alvo ? alvo.slug : null;
+  } catch (e) { _explosivosSlug = null; }
+  return _explosivosSlug;
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -24,6 +40,8 @@ export default async function handler(req, res) {
   const activity = req.query.activity;
   if (!activity) return res.status(400).json({ error: 'Parâmetro obrigatório: activity' });
   try {
+    const exSlug = await slugExplosivos();
+    const params = exSlug ? [...PARAMS, exSlug] : PARAMS;
     let delay = 500, r = null;
     for (let i = 0; i < 4; i++) {
       r = await fetch(`${BASE}/stats`, {
@@ -34,7 +52,7 @@ export default async function handler(req, res) {
         },
         body: JSON.stringify({
           filters: [{ name: 'activity_id', comparison: '=', values: [activity] }],
-          parameters: PARAMS,
+          parameters: params,
           group_by: ['period', 'athlete'],
         }),
       });
@@ -51,6 +69,7 @@ export default async function handler(req, res) {
         period_id: x.period_id, period_name: x.period_name,
       };
       for (const p of PARAMS) o[p] = x[p] != null ? Math.round(x[p] * 100) / 100 : null;
+      if (exSlug) o.explosivos2 = x[exSlug] != null ? Math.round(x[exSlug] * 100) / 100 : null;
       return o;
     });
     res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=86400');
