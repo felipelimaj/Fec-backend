@@ -388,6 +388,11 @@ h3 .btnCsv{float:right;margin-top:-4px}
           <div class="grupo"><label class="mini">Y</label><select id="selStatY"></select></div>
           <div class="grupo"><label class="mini">Método</label>
             <select id="selStatMetodo"><option value="auto" selected>Automático (Shapiro-Wilk)</option><option value="pearson">Pearson</option><option value="spearman">Spearman</option></select></div>
+          <div class="grupo"><label class="mini">Valores</label>
+            <div class="radios">
+              <label><input type="radio" name="statVal" value="abs" checked> Volume</label>
+              <label><input type="radio" name="statVal" value="min"> Por minuto (densidade)</label>
+            </div></div>
         </div>
         <div class="resultadoStat" id="resNorm" style="margin-bottom:10px;border-left-color:var(--azul)">—</div>
         <div class="resultadoStat" id="resCorr">Carregue os dados GPS para calcular.</div>
@@ -1189,6 +1194,17 @@ function tornarOrdenavel(tab) {
     };
   });
 }
+/* tempo de JOGO acumulado (emenda os períodos, descontando intervalo) */
+function tempoJogoDe(ts) {
+  if (!S.ranges.length) return ts - S.t0;
+  let acc = 0;
+  for (const r of S.ranges) {
+    if (ts < r.t0) return acc;                      // no intervalo → fim do período anterior
+    if (ts <= r.t1 + 2) return acc + (ts - r.t0);   // dentro deste período
+    acc += r.t1 - r.t0;
+  }
+  return acc;
+}
 function atkSignAt(ts) {
   const r = S.ranges.find(r => ts >= r.t0 - 1 && ts <= r.t1 + 1);
   if (!r) return 0;
@@ -1478,8 +1494,9 @@ function jogoParaMetricas(rows) {
       id: (String(r.athlete_name || '').match(/^(\d+)/) || [])[1] || null };
     a.dur += r.total_duration || 0;
     a.dist += r.total_distance || 0;
-    a.hsr += (r.velocity_band6_total_distance || 0) + (r.velocity_band7_total_distance || 0);
-    a.sprint += r.velocity_band7_total_distance || 0;
+    // HSR = ≥19,8 (bandas 6+7+8 da API) · Sprint = ≥25,2 (bandas 7+8)
+    a.hsr += (r.velocity_band6_total_distance || 0) + (r.velocity_band7_total_distance || 0) + (r.velocity_band8_total_distance || 0);
+    a.sprint += (r.velocity_band7_total_distance || 0) + (r.velocity_band8_total_distance || 0);
     a.acc += r.gen2_acceleration_band7plus_total_effort_count || 0;
     a.dec += (r.gen2_acceleration_band1_total_effort_count || 0) + (r.gen2_acceleration_band2_total_effort_count || 0);
     const vm = fixVmax(r.max_vel) || 0;
@@ -1977,7 +1994,7 @@ function renderTabEsforcos(defs) {
   const linhas = S.esfLista.slice(0, 400).map((e, k) =>
     `<tr data-k="${k}" class="${k === S.esfSel ? 'selEsf' : ''}" style="cursor:pointer">
       <td>${k + 1}</td><td><span style="color:${e.cor}">●</span> ${e.nome}</td>
-      <td class="num">${fmtMin(e.ts0 - S.t0)}</td><td class="num">${e.dur}</td>
+      <td class="num">${fmtMin(tempoJogoDe(e.ts0))}</td><td class="num">${e.dur}</td>
       <td class="num">${ehAcc ? e.pico : e.vmax}</td><td class="num">${e.vini}</td>
       <td class="num">${e.dist}</td>
       <td class="num">${e.vmaxSessao ? (e.vmax / e.vmaxSessao * 100).toFixed(1) : '—'}</td>
@@ -2098,7 +2115,7 @@ $('btnCsvEsf').onclick = () => {
     ehAcc ? 'Pico (m/s²)' : 'Vel Máx (km/h)', 'Vel Inicial (km/h)', 'Distância (m)', '% do Máximo',
     'Banda', 'Terço', 'Zona', 'Flanco', 'Direção', 'x0', 'y0', 'x1', 'y1'];
   const linhas = S.esfLista.map((e, k) => [k + 1, e.nome, S.dados.get(e.id).grupo,
-    Math.round((e.ts0 - S.t0) * 10) / 10, fmtMin(e.ts0 - S.t0), e.dur,
+    Math.round(tempoJogoDe(e.ts0) * 10) / 10, fmtMin(tempoJogoDe(e.ts0)), e.dur,
     ehAcc ? e.pico : e.vmax, e.vini, e.dist,
     e.vmaxSessao ? Math.round(e.vmax / e.vmaxSessao * 1000) / 10 : null,
     defs[e.banda].label, e.terco, e.zona5, e.lane, e.direcao.replace(/[⬆⬇↔] /, ''),
@@ -2306,7 +2323,7 @@ function renderMdp() {
       const baixo = i < grade.length && serie[i] != null && serie[i] < thr;
       if (baixo && ini < 0) ini = i;
       if (!baixo && ini >= 0) {
-        tmSegs.push({ ini: grade[ini] - t0, fim: grade[i - 1] - t0 + winS, minVal: Math.min(...serie.slice(ini, i).filter(v => v != null)) });
+        tmSegs.push({ ini: grade[ini] - t0, fim: grade[i - 1] - t0 + winS, iniAbs: grade[ini], fimAbs: grade[i - 1] + winS, minVal: Math.min(...serie.slice(ini, i).filter(v => v != null)) });
         ini = -1;
       }
     }
@@ -2322,7 +2339,7 @@ function renderMdp() {
   $('kTmPlan').textContent = (S.ctxAtual && S.ctxAtual['Tempo Morto']) || '—';
   $('tabTm').innerHTML = tmSegs.length
     ? '<tr><th class="num">#</th><th class="num">Início</th><th class="num">Fim</th><th class="num">Duração</th><th class="num">Mín (unid./min)</th></tr>' +
-      tmSegs.map((x, i) => `<tr><td class="num">${i + 1}</td><td class="num">${fmtMin(x.ini)}</td><td class="num">${fmtMin(x.fim)}</td><td class="num">${fmtMin(x.fim - x.ini)}</td><td class="num">${x.minVal.toFixed(1)}</td></tr>`).join('')
+      tmSegs.map((x, i) => `<tr><td class="num">${i + 1}</td><td class="num">${fmtMin(tempoJogoDe(x.iniAbs))}</td><td class="num">${fmtMin(tempoJogoDe(x.fimAbs))}</td><td class="num">${fmtMin(x.fim - x.ini)}</td><td class="num">${x.minVal.toFixed(1)}</td></tr>`).join('')
     : '<tr><td style="color:var(--txt2)">Nenhuma janela abaixo do limiar.</td></tr>';
   tornarOrdenavel($('tabTm'));
   S._tmSegs = tmSegs;
@@ -2369,6 +2386,7 @@ function renderMdp() {
     }
     escolhidas.forEach((i, r) => linhas.push({
       nome, rank: r + 1, ini: grade[i] - t0, fim: grade[i] - t0 + winS,
+      iniAbs: grade[i], fimAbs: grade[i] + winS,
       valor: Math.round(val[i] * 10) / 10,
     }));
   };
@@ -2399,7 +2417,7 @@ function renderMdp() {
   $('tabMdp').innerHTML = cab + linhas.map(l => {
     const r = refDe(l.nome);
     return `<tr${l.nome.startsWith('EQUIPE') ? ' style="background:rgba(196,149,42,.08)"' : ''}><td>${l.nome}</td><td class="num">${l.rank}º</td>
-     <td class="num">${fmtMin(l.ini)}</td><td class="num">${fmtMin(l.fim)}</td><td class="num"><b>${l.valor}</b></td>
+     <td class="num">${fmtMin(tempoJogoDe(l.iniAbs))}</td><td class="num">${fmtMin(tempoJogoDe(l.fimAbs))}</td><td class="num"><b>${l.valor}</b></td>
      <td class="num">${r ? pct(l.valor, r.max) : '—'}</td>
      <td class="num" ${r ? `title="média ${r.med.toFixed(1)} em ${r.n} jogo(s)"` : ''}>${r ? pct(l.valor, r.med) : '—'}</td></tr>`;
   }).join('');
@@ -2419,7 +2437,7 @@ $('btnCsvMdp').onclick = () => {
   const cab = ['Atleta', 'Rank', 'Início (s)', 'Início (mm:ss)', 'Fim (mm:ss)', 'Janela (s)', label, 'Máx hist', 'Méd hist', 'N jogos hist'];
   baixarCSV(`mdp_${winS}s.csv`, paraCSV(cab, linhas.map(l => {
     const r = refDe ? refDe(l.nome) : null;
-    return [l.nome, l.rank, Math.round(l.ini), fmtMin(l.ini), fmtMin(l.fim), winS, l.valor,
+    return [l.nome, l.rank, Math.round(tempoJogoDe(l.iniAbs)), fmtMin(tempoJogoDe(l.iniAbs)), fmtMin(tempoJogoDe(l.fimAbs)), winS, l.valor,
       r ? Math.round(r.max * 10) / 10 : null, r ? Math.round(r.med * 10) / 10 : null, r ? r.n : null];
   })));
 };
@@ -2735,12 +2753,16 @@ $('selRastro').onchange = renderReplayFrame;
 function vetores(k) {
   return [...S.dados.values()].filter(d => d.met[k] != null && d.met.minutos > 5).map(d => ({ v: d.met[k], d }));
 }
+function statPorMin() { return document.querySelector('input[name=statVal]:checked').value === 'min'; }
 function renderStat() {
   if (!S.dados.size) return;
   const kx = $('selStatX').value, ky = $('selStatY').value;
-  const lx = METRICAS_DEF.find(m => m.k === kx).label, ly = METRICAS_DEF.find(m => m.k === ky).label;
-  const pares = [...S.dados.values()].filter(d => d.met[kx] != null && d.met[ky] != null && d.met.minutos > 5);
-  const x = pares.map(d => d.met[kx]), y = pares.map(d => d.met[ky]);
+  const pm = statPorMin();
+  const sfx = k => { const def = METRICAS_DEF.find(m => m.k === k); return pm && def.porMin ? ' /min' : ''; };
+  const lx = METRICAS_DEF.find(m => m.k === kx).label + sfx(kx), ly = METRICAS_DEF.find(m => m.k === ky).label + sfx(ky);
+  const vDe = (d, k) => valorMetrica(d.met, k, pm);
+  const pares = [...S.dados.values()].filter(d => vDe(d, kx) != null && vDe(d, ky) != null && d.met.minutos > 5);
+  const x = pares.map(d => vDe(d, kx)), y = pares.map(d => vDe(d, ky));
   // ── Normalidade (Shapiro-Wilk) e escolha do método ──
   const swx = shapiroWilk(x), swy = shapiroWilk(y);
   const nx = swx.p > 0.05, ny = swy.p > 0.05;
@@ -2796,8 +2818,8 @@ function renderStat() {
   for (const mi of ks) {
     html += `<tr><th title="${mi.label}">${mi.k}</th>`;
     for (const mj of ks) {
-      const pares2 = [...S.dados.values()].filter(d => d.met[mi.k] != null && d.met[mj.k] != null && d.met.minutos > 5);
-      const r = pares2.length >= 4 ? (metodo === 'pearson' ? pearson : spearman)(pares2.map(d => d.met[mi.k]), pares2.map(d => d.met[mj.k])) : NaN;
+      const pares2 = [...S.dados.values()].filter(d => vDe(d, mi.k) != null && vDe(d, mj.k) != null && d.met.minutos > 5);
+      const r = pares2.length >= 4 ? (metodo === 'pearson' ? pearson : spearman)(pares2.map(d => vDe(d, mi.k)), pares2.map(d => vDe(d, mj.k))) : NaN;
       const t = isNaN(r) ? 0 : Math.abs(r);
       const cor = isNaN(r) ? '#0E2A5C' : (r >= 0 ? `rgba(56,178,110,${t * 0.85})` : `rgba(232,54,10,${t * 0.85})`);
       html += `<td style="background:${cor}">${isNaN(r) ? '—' : r.toFixed(2)}</td>`;
@@ -2844,6 +2866,7 @@ function renderGlobal() {
   $('resGlobal').innerHTML = html;
 }
 ['selStatX', 'selStatY', 'selStatMetodo'].forEach(id => $(id).onchange = renderStat);
+document.querySelectorAll('input[name=statVal]').forEach(r => r.onchange = renderStat);
 ['selWelchMet', 'selWelchA', 'selWelchB'].forEach(id => $(id).onchange = renderWelch);
 
 /* ---------- Calibração (Leaflet) ---------- */
