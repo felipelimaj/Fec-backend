@@ -137,6 +137,7 @@ h3 .btnCsv{float:right;margin-top:-4px}
   </div>
   <div class="grupo">
     <label class="mini">Atletas <a href="#" id="lnkTodos" style="color:var(--dourado)">todos</a> · <a href="#" id="lnkLimpar" style="color:var(--txt2)">limpar</a></label>
+    <div id="chipsGrupos" style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:4px"></div>
     <div class="chips" id="chipsAtletas"><span style="font-size:12px;color:var(--txt2)">Selecione uma atividade…</span></div>
   </div>
   <div class="grupo">
@@ -200,6 +201,7 @@ h3 .btnCsv{float:right;margin-top:-4px}
       <label class="chk"><input type="checkbox" id="chkSetas" checked> 🏹 Setas de direção</label>
       <label class="chk"><input type="checkbox" id="chkTercosEsf" checked> Terços do campo</label>
       <label class="chk"><input type="checkbox" id="chkZonas5"> Grade de zonas 3×5</label>
+      <label class="chk"><input type="checkbox" id="chkCompact"> ▣ Compactação média da equipe</label>
     </div>
     <div class="kpis">
       <div class="kpi"><div class="v" id="kEsfN">—</div><div class="l">Total de esforços</div></div>
@@ -231,6 +233,7 @@ h3 .btnCsv{float:right;margin-top:-4px}
       <div class="grupo"><label class="mini">Atleta</label><select id="selHeatAtleta"><option value="__all__">Todos selecionados</option></select></div>
       <div class="grupo"><label class="mini">Suavização (σ m): <span id="lblSigma">2.5</span></label>
         <input type="range" id="rngSigma" min="1" max="6" step="0.5" value="2.5"></div>
+      <div class="grupo"><label class="chk"><input type="checkbox" id="chkHeatEspelho" checked> Espelhar pela direção de ataque (1T/2T no mesmo referencial)</label></div>
     </div>
     <canvas class="campo" id="cvHeat" width="1050" height="720"></canvas>
     <div class="legenda"><span class="item"><span class="cx" style="background:linear-gradient(90deg,#071A3E,#003087,#38B26E,#C4952A,#E8360A);width:120px"></span> menor → maior</span></div>
@@ -286,6 +289,7 @@ h3 .btnCsv{float:right;margin-top:-4px}
         <div class="kpi"><div class="v" id="kTmPlan">—</div><div class="l">Tempo morto (planilha)</div></div></div>
       <div class="tblWrap"><table id="tabTm"></table></div></div>
     <div class="card"><h3>Most Demanding Periods (top 3 por atleta) <button class="btn mini btnCsv" id="btnCsvMdp">⬇ CSV</button></h3>
+      <p style="font-size:11.5px;color:var(--txt2);margin-bottom:8px">As colunas "% máx" e "% méd" comparam com o histórico de MDP do atleta nesta métrica/janela — o histórico acumula automaticamente a cada jogo carregado nesta aba.</p>
       <div class="tblWrap"><table id="tabMdp"></table></div></div>
   </div>
 </section>
@@ -383,8 +387,9 @@ h3 .btnCsv{float:right;margin-top:-4px}
           <div class="grupo"><label class="mini">X</label><select id="selStatX"></select></div>
           <div class="grupo"><label class="mini">Y</label><select id="selStatY"></select></div>
           <div class="grupo"><label class="mini">Método</label>
-            <select id="selStatMetodo"><option value="pearson">Pearson</option><option value="spearman">Spearman</option></select></div>
+            <select id="selStatMetodo"><option value="auto" selected>Automático (Shapiro-Wilk)</option><option value="pearson">Pearson</option><option value="spearman">Spearman</option></select></div>
         </div>
+        <div class="resultadoStat" id="resNorm" style="margin-bottom:10px;border-left-color:var(--azul)">—</div>
         <div class="resultadoStat" id="resCorr">Carregue os dados GPS para calcular.</div>
       </div>
       <div class="card">
@@ -396,6 +401,16 @@ h3 .btnCsv{float:right;margin-top:-4px}
         </div>
         <div class="resultadoStat" id="resWelch">—</div>
       </div>
+      <div class="card">
+        <h3>Comparação global (todas as posições) + post hoc</h3>
+        <div class="resultadoStat" id="resGlobal">—</div>
+      </div>
+      <p style="font-size:10.5px;color:var(--txt2);line-height:1.7;margin-top:4px">
+        Notas metodológicas: normalidade por Shapiro-Wilk (Shapiro &amp; Wilk, 1965; algoritmo de Royston, 1995) — se X e Y forem normais (p&gt;0,05), sugere-se Pearson; caso contrário, Spearman.
+        Comparação global por ANOVA one-way (dados normais) e Kruskal-Wallis (não paramétrico); post hoc por t de Welch pareado com correção de Holm-Bonferroni (Holm, 1979).
+        Magnitude do efeito — d de Cohen interpretado pela escala de ciência do esporte de Hopkins et&nbsp;al. (2009, <i>Med Sci Sports Exerc</i> 41(1):3-13): &lt;0,2 trivial · 0,2–0,6 pequeno · 0,6–1,2 moderado · 1,2–2,0 grande · &gt;2,0 muito grande;
+        correlação r: &lt;0,1 trivial · 0,1–0,3 pequena · 0,3–0,5 moderada · 0,5–0,7 grande · 0,7–0,9 muito grande · &gt;0,9 quase perfeita. Ver também Cohen (1988).
+      </p>
     </div>
     <div>
       <div class="card"><h3>Dispersão + regressão</h3><div id="scatter"></div></div>
@@ -890,6 +905,150 @@ function welch(x, y) {
   const d = (mx - my) / Math.sqrt(((nx - 1) * vx + (ny - 1) * vy) / (nx + ny - 2) || 1);
   return { t, df, p: pValorT(Math.abs(t), df), mx, my, d };
 }
+/* ---------- Normalidade: Shapiro-Wilk (Royston 1995, AS R94) ---------- */
+function normInv(p) {   // inversa da normal padrão (Acklam)
+  const a = [-3.969683028665376e+01, 2.209460984245205e+02, -2.759285104469687e+02, 1.383577518672690e+02, -3.066479806614716e+01, 2.506628277459239e+00];
+  const b = [-5.447609879822406e+01, 1.615858368580409e+02, -1.556989798598866e+02, 6.680131188771972e+01, -1.328068155288572e+01];
+  const c = [-7.784894002430293e-03, -3.223964580411365e-01, -2.400758277161838e+00, -2.549732539343734e+00, 4.374664141464968e+00, 2.938163982698783e+00];
+  const d2 = [7.784695709041462e-03, 3.224671290700398e-01, 2.445134137142996e+00, 3.754408661907416e+00];
+  const pl = 0.02425;
+  let q, r;
+  if (p < pl) { q = Math.sqrt(-2 * Math.log(p)); return (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / ((((d2[0] * q + d2[1]) * q + d2[2]) * q + d2[3]) * q + 1); }
+  if (p <= 1 - pl) { q = p - 0.5; r = q * q; return (((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) * q / (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1); }
+  q = Math.sqrt(-2 * Math.log(1 - p)); return -(((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / ((((d2[0] * q + d2[1]) * q + d2[2]) * q + d2[3]) * q + 1);
+}
+function normCdf(z) { return 0.5 * (1 + erf(z / Math.SQRT2)); }
+function erf(x) {
+  const s = x < 0 ? -1 : 1; x = Math.abs(x);
+  const t = 1 / (1 + 0.3275911 * x);
+  const y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x);
+  return s * y;
+}
+function shapiroWilk(xOrig) {
+  const x = [...xOrig].filter(v => v != null && isFinite(v)).sort((a, b) => a - b);
+  const n = x.length;
+  if (n < 4 || n > 5000) return { W: NaN, p: NaN, n };
+  if (x[0] === x[n - 1]) return { W: 1, p: 1, n };   // amostra constante
+  // coeficientes m (quantis normais esperados)
+  const m = new Array(n);
+  for (let i = 0; i < n; i++) m[i] = normInv((i + 1 - 0.375) / (n + 0.25));
+  const mm = m.reduce((s, v) => s + v * v, 0);
+  const rsn = 1 / Math.sqrt(n);
+  const a = new Array(n).fill(0);
+  // Royston: polinômios para a_n e a_{n-1}
+  const an = -2.706056 * rsn ** 5 + 4.434685 * rsn ** 4 - 2.071190 * rsn ** 3 - 0.147981 * rsn ** 2 + 0.221157 * rsn + m[n - 1] / Math.sqrt(mm);
+  const an1 = -3.582633 * rsn ** 5 + 5.682633 * rsn ** 4 - 1.752461 * rsn ** 3 - 0.293762 * rsn ** 2 + 0.042981 * rsn + m[n - 2] / Math.sqrt(mm);
+  let phi;
+  if (n > 5) {
+    phi = (mm - 2 * m[n - 1] ** 2 - 2 * m[n - 2] ** 2) / (1 - 2 * an ** 2 - 2 * an1 ** 2);
+    a[n - 1] = an; a[0] = -an; a[n - 2] = an1; a[1] = -an1;
+    for (let i = 2; i < n - 2; i++) a[i] = m[i] / Math.sqrt(phi);
+  } else {
+    phi = (mm - 2 * m[n - 1] ** 2) / (1 - 2 * an ** 2);
+    a[n - 1] = an; a[0] = -an;
+    for (let i = 1; i < n - 1; i++) a[i] = m[i] / Math.sqrt(phi);
+  }
+  const xm = media(x);
+  let num = 0, den = 0;
+  for (let i = 0; i < n; i++) { num += a[i] * x[i]; den += (x[i] - xm) ** 2; }
+  const W = num * num / den;
+  // p-valor (transformação normal de Royston)
+  let p;
+  const lw = Math.log(1 - W), ln = Math.log(n);
+  if (n === 3) p = 6 / Math.PI * (Math.asin(Math.sqrt(W)) - Math.asin(Math.sqrt(0.75)));
+  else if (n <= 11) {
+    const g = -2.273 + 0.459 * n, mu = 0.5440 - 0.39978 * n + 0.025054 * n * n - 0.0006714 * n ** 3;
+    const sig = Math.exp(1.3822 - 0.77857 * n + 0.062767 * n * n - 0.0020322 * n ** 3);
+    p = 1 - normCdf((-Math.log(g - lw) - mu) / sig);
+  } else {
+    const mu = -1.5861 - 0.31082 * ln - 0.083751 * ln * ln + 0.0038915 * ln ** 3;
+    const sig = Math.exp(-0.4803 - 0.082676 * ln + 0.0030302 * ln * ln);
+    p = 1 - normCdf((lw - mu) / sig);
+  }
+  return { W, p: Math.min(1, Math.max(0, p)), n };
+}
+
+/* ---------- ANOVA one-way + Kruskal-Wallis + post hoc (Holm) ---------- */
+function pValorF(F, df1, df2) {
+  if (!(F > 0)) return 1;
+  return betaInc(df2 / 2, df1 / 2, df2 / (df2 + df1 * F));
+}
+function gammqSerie(a, x) {   // Q(a,x) regularizada — p-valor do qui-quadrado
+  if (x < a + 1) {
+    let ap = a, sum = 1 / a, del = sum;
+    for (let i = 0; i < 200; i++) { ap++; del *= x / ap; sum += del; if (Math.abs(del) < Math.abs(sum) * 1e-9) break; }
+    return 1 - sum * Math.exp(-x + a * Math.log(x) - lnGamma(a));
+  }
+  let b = x + 1 - a, c = 1e30, d = 1 / b, h = d;
+  for (let i = 1; i <= 200; i++) {
+    const an = -i * (i - a);
+    b += 2; d = an * d + b; if (Math.abs(d) < 1e-30) d = 1e-30;
+    c = b + an / c; if (Math.abs(c) < 1e-30) c = 1e-30;
+    d = 1 / d; const del = d * c; h *= del;
+    if (Math.abs(del - 1) < 1e-9) break;
+  }
+  return Math.exp(-x + a * Math.log(x) - lnGamma(a)) * h;
+}
+function pValorQui2(x, df) { return x <= 0 ? 1 : gammqSerie(df / 2, x / 2); }
+function anovaOneWay(grupos) {
+  const ks = grupos.filter(g => g.length >= 2);
+  if (ks.length < 2) return { F: NaN, p: NaN };
+  const todos = ks.flat(), gm = media(todos), N = todos.length, k = ks.length;
+  let ssb = 0, ssw = 0;
+  for (const g of ks) { const m = media(g); ssb += g.length * (m - gm) ** 2; for (const v of g) ssw += (v - m) ** 2; }
+  const df1 = k - 1, df2 = N - k;
+  const F = (ssb / df1) / (ssw / df2 || 1e-12);
+  return { F, df1, df2, p: pValorF(F, df1, df2) };
+}
+function kruskalWallis(grupos) {
+  const ks = grupos.filter(g => g.length >= 2);
+  if (ks.length < 2) return { H: NaN, p: NaN };
+  const todos = ks.flat();
+  const rk = postos(todos);
+  const N = todos.length;
+  let i0 = 0, H = 0;
+  for (const g of ks) {
+    const rs = rk.slice(i0, i0 + g.length).reduce((s, v) => s + v, 0);
+    H += rs * rs / g.length;
+    i0 += g.length;
+  }
+  H = 12 / (N * (N + 1)) * H - 3 * (N + 1);
+  // correção de empates
+  const cont = {};
+  todos.forEach(v => cont[v] = (cont[v] || 0) + 1);
+  const T = Object.values(cont).reduce((s, t) => s + t ** 3 - t, 0);
+  const C = 1 - T / (N ** 3 - N);
+  if (C > 0) H /= C;
+  return { H, df: ks.length - 1, p: pValorQui2(H, ks.length - 1) };
+}
+function postHocHolm(nomes, grupos) {
+  // Welch t pairwise + correção de Holm-Bonferroni (Holm, 1979)
+  const pares = [];
+  for (let i = 0; i < grupos.length; i++)
+    for (let j = i + 1; j < grupos.length; j++) {
+      if (grupos[i].length < 2 || grupos[j].length < 2) continue;
+      const w = welch(grupos[i], grupos[j]);
+      pares.push({ a: nomes[i], b: nomes[j], p: w.p, d: w.d });
+    }
+  pares.sort((x, y) => x.p - y.p);
+  const m = pares.length;
+  let pMaxAnterior = 0;
+  return pares.map((par, i) => {
+    let pAdj = Math.min(1, par.p * (m - i));
+    pAdj = Math.max(pAdj, pMaxAnterior); pMaxAnterior = pAdj;
+    return { ...par, pAdj, sig: pAdj < 0.05 };
+  });
+}
+/* Magnitude do efeito — escala de Hopkins et al. (2009) p/ ciência do esporte */
+function magD(d) {
+  const a = Math.abs(d);
+  return a < 0.2 ? 'trivial' : a < 0.6 ? 'pequeno' : a < 1.2 ? 'moderado' : a < 2.0 ? 'grande' : 'muito grande';
+}
+function magR(r) {
+  const a = Math.abs(r);
+  return a < 0.1 ? 'trivial' : a < 0.3 ? 'pequena' : a < 0.5 ? 'moderada' : a < 0.7 ? 'grande' : a < 0.9 ? 'muito grande' : 'quase perfeita';
+}
+
 function regressao(x, y) {
   const n = x.length, mx = media(x), my = media(y);
   let sxy = 0, sxx = 0;
@@ -927,6 +1086,8 @@ if (typeof module !== 'undefined') module.exports = {
   classificarEsforco, ZONAS5, LANES3, TERCOS, janelasRolantes, topJanelas,
   INTENSIDADE_DEF, paraCSV, criarGrade, acumular, blurGauss, pearson, spearman,
   corrTest, welch, regressao, nomeExibicao, corCalor, media, desvio,
+  shapiroWilk, anovaOneWay, kruskalWallis, postHocHolm, magD, magR,
+  pValorF, pValorQui2, normCdf, normInv,
 };
 
 /* ==================== APP GPS2D v2 ==================== */
@@ -986,7 +1147,8 @@ function baixarCSV(nome, conteudo) {
 function normNome(s) { return String(s || '').replace(/^\d+\s*/, '').trim().toUpperCase(); }
 /* classificação de período (regra do clube — includes, não startsWith) */
 function classifyPeriod(name) {
-  const n = String(name || '').trim().toLowerCase();
+  // normaliza espaços/º para pegar todos os radicais: "2tempo2", "2º tempo", "SASHA 2tempo"…
+  const n = String(name || '').toLowerCase().replace(/[\sº°_-]/g, '');
   if (n.includes('1tempo')) return 't1';
   if (n.includes('2tempo')) return 't2';
   return null;
@@ -1106,12 +1268,27 @@ function renderChipsPeriodos() {
   });
 }
 function renderChips() {
+  // atalhos por grupo posicional
+  const grupos = [...new Set(S.atletas.map(a => a.grupo))]
+    .sort((a, b) => POS_GRUPOS.findIndex(g => g.g === a) - POS_GRUPOS.findIndex(g => g.g === b));
+  $('chipsGrupos').innerHTML = grupos.map(g => {
+    const doGrupo = S.atletas.filter(a => a.grupo === g);
+    const todosSel = doGrupo.every(a => S.selAtletas.has(a.id));
+    return `<span class="chip ${todosSel ? 'sel' : ''}" data-g="${g}" style="border-color:${corGrupo(g)};font-weight:700;color:${todosSel ? '#fff' : corGrupo(g)}">${g} (${doGrupo.length})</span>`;
+  }).join('');
+  [...$('chipsGrupos').children].forEach(ch => ch.onclick = () => {
+    const g = ch.dataset.g;
+    const doGrupo = S.atletas.filter(a => a.grupo === g);
+    const todosSel = doGrupo.every(a => S.selAtletas.has(a.id));
+    doGrupo.forEach(a => todosSel ? S.selAtletas.delete(a.id) : S.selAtletas.add(a.id));
+    renderChips();
+  });
   $('chipsAtletas').innerHTML = S.atletas.map(a =>
     `<span class="chip ${S.selAtletas.has(a.id) ? 'sel' : ''}" data-id="${a.id}">${a.nome}<span class="pos">${a.grupo}</span></span>`).join('');
   [...$('chipsAtletas').children].forEach(ch => ch.onclick = () => {
     const id = ch.dataset.id;
     S.selAtletas.has(id) ? S.selAtletas.delete(id) : S.selAtletas.add(id);
-    ch.classList.toggle('sel');
+    renderChips();
   });
 }
 $('lnkTodos').onclick = e => { e.preventDefault(); S.atletas.forEach(a => S.selAtletas.add(a.id)); renderChips(); };
@@ -1221,6 +1398,7 @@ const FMP_DEFS = [
   { k: 'fmpRun',    label: 'FMP Running (min)',   porMin: false },
   { k: 'fmpDynPct', label: 'FMP Dynamic (%)',     porMin: false },
   { k: 'fmpRunPct', label: 'FMP Running (%)',     porMin: false },
+  { k: 'explo2',    label: 'Esf. Explosivos 2',   porMin: true },
 ];
 async function carregarStatsFMP() {
   const act = $('selAtividade').value;
@@ -1235,10 +1413,11 @@ async function carregarStatsFMP() {
     for (const r of rows) {
       if (filtrar && pids && !pids.has(r.period_id)) continue;
       const ch = r.athlete_id || normNome(r.athlete_name);
-      const a = m.get(ch) || { dur: 0, dyn: 0, run: 0 };
+      const a = m.get(ch) || { dur: 0, dyn: 0, run: 0, ex2: 0 };
       a.dur += r.total_duration || 0;
       a.dyn += r.fmp_dynamic_total_duration || 0;
       a.run += r.fmp_running_total_duration || 0;
+      a.ex2 += r.explosivos2 || 0;
       m.set(ch, a);
     }
     return m;
@@ -1248,9 +1427,10 @@ async function carregarStatsFMP() {
   let algum = false;
   for (const [id, d] of S.dados) {
     const st = porAtleta.get(id) || porAtleta.get(normNome(d.nome));
-    if (!st || !(st.dyn || st.run)) continue;
+    if (!st || !(st.dyn || st.run || st.ex2)) continue;
     d.met.fmpDyn = Math.round(st.dyn / 60 * 10) / 10;
     d.met.fmpRun = Math.round(st.run / 60 * 10) / 10;
+    d.met.explo2 = Math.round(st.ex2);
     if (st.dur > 0) {
       d.met.fmpDynPct = Math.round(st.dyn / st.dur * 1000) / 10;
       d.met.fmpRunPct = Math.round(st.run / st.dur * 1000) / 10;
@@ -1268,6 +1448,7 @@ const REF_KEYS = [
   { k: 'dens', label: 'Densidade (m/min)' }, { k: 'vmax', label: 'Vel. Máx (km/h)' },
   { k: 'acc', label: 'Acel' }, { k: 'dec', label: 'Desacel' },
   { k: 'fmpDyn', label: 'FMP Dyn (min)' }, { k: 'fmpRun', label: 'FMP Run (min)' },
+  { k: 'explo2', label: 'Esf. Explosivos 2' },
 ];
 function refsSalvas() {
   try { return JSON.parse(localStorage.getItem('gps2d_refs_v2') || 'null'); } catch (e) { return null; }
@@ -1293,7 +1474,7 @@ function jogoParaMetricas(rows) {
     if (vistos.has(dup)) continue;                            // linha duplicada
     vistos.add(dup);
     const ch = normNome(r.athlete_name);
-    const a = por.get(ch) || { dur: 0, dist: 0, hsr: 0, sprint: 0, acc: 0, dec: 0, vmax: 0, dyn: 0, run: 0,
+    const a = por.get(ch) || { dur: 0, dist: 0, hsr: 0, sprint: 0, acc: 0, dec: 0, vmax: 0, dyn: 0, run: 0, ex2: 0,
       id: (String(r.athlete_name || '').match(/^(\d+)/) || [])[1] || null };
     a.dur += r.total_duration || 0;
     a.dist += r.total_distance || 0;
@@ -1301,9 +1482,11 @@ function jogoParaMetricas(rows) {
     a.sprint += r.velocity_band7_total_distance || 0;
     a.acc += r.gen2_acceleration_band7plus_total_effort_count || 0;
     a.dec += (r.gen2_acceleration_band1_total_effort_count || 0) + (r.gen2_acceleration_band2_total_effort_count || 0);
-    a.vmax = Math.max(a.vmax, fixVmax(r.max_vel) || 0);
+    const vm = fixVmax(r.max_vel) || 0;
+    if (vm <= 40) a.vmax = Math.max(a.vmax, vm);   // >40 km/h = erro de GPS — ignora
     a.dyn += r.fmp_dynamic_total_duration || 0;
     a.run += r.fmp_running_total_duration || 0;
+    a.ex2 += r.explosivos2 || 0;
     por.set(ch, a);
   }
   const out = {};
@@ -1317,6 +1500,7 @@ function jogoParaMetricas(rows) {
       dens: Math.round(a.dist / min * 10) / 10, vmax: a.vmax,
       acc: Math.round(a.acc), dec: Math.round(a.dec),
       fmpDyn: Math.round(a.dyn / 60 * 10) / 10, fmpRun: Math.round(a.run / 60 * 10) / 10,
+      explo2: Math.round(a.ex2),
     };
   }
   // Guarda anti-contaminação: se um valor idêntico (≠0) de acc/dec/vmax se repete
@@ -1469,13 +1653,13 @@ function renderRef() {
     return;
   }
   $('refInfo').textContent = `Histórico de ${refs.jogos} jogos · ${Object.keys(refs.dados).length} atletas · gerado em ${new Date(refs.gerado).toLocaleDateString('pt-BR')} (critério: 1tempo+2tempo ≥ 85 min · acc/dec/vmáx descartados quando o jogo devolve valor agregado idêntico p/ todos).`;
-  const cab = '<tr><th>Atleta</th><th class="num">ID</th><th class="num">Jogos</th>' + REF_KEYS.map(r => `<th class="num">${r.label}</th>`).join('') + '</tr>';
+  const cab = '<tr><th>Atleta</th><th class="num">Jogos</th>' + REF_KEYS.map(r => `<th class="num">${r.label}</th>`).join('') + '</tr>';
   const ord = Object.entries(refs.dados).filter(([, d]) => passaFiltro(d)).sort((a, b) => b[1].n - a[1].n);
   $('tabRefMed').innerHTML = cab + ord.map(([nome, d]) =>
-    `<tr><td>${nome}</td><td class="num">${d.id || '—'}</td><td class="num">${d.n}</td>` +
+    `<tr><td>${nome}</td><td class="num">${d.n}</td>` +
     REF_KEYS.map(r => `<td class="num">${d.media[r.k] ?? '—'}</td>`).join('') + '</tr>').join('');
   $('tabRefMax').innerHTML = cab + ord.map(([nome, d]) =>
-    `<tr><td>${nome}</td><td class="num">${d.id || '—'}</td><td class="num">${d.n}</td>` +
+    `<tr><td>${nome}</td><td class="num">${d.n}</td>` +
     REF_KEYS.map(r => {
       const v = d.max[r.k];
       const j = (d.maxJogo || {})[r.k];
@@ -1500,9 +1684,15 @@ $('btnCsvRefMed').onclick = csvRef('media');
 $('btnCsvRefMax').onclick = csvRef('max');
 function atualizarSelects() {
   const opsAtl = [...S.dados.entries()].map(([id, d]) => `<option value="${id}">${d.nome}</option>`).join('');
-  $('selHeatAtleta').innerHTML = '<option value="__all__">Todos selecionados</option>' + opsAtl;
-  $('selEsfAtleta').innerHTML = '<option value="__all__">Todos selecionados</option>' + opsAtl;
-  $('selMdpEscopo').innerHTML = '<option value="__team__">Equipe (média)</option>' + opsAtl;
+  const gruposAtivos = [...new Set([...S.dados.values()].map(d => d.grupo))]
+    .sort((a, b) => POS_GRUPOS.findIndex(g => g.g === a) - POS_GRUPOS.findIndex(g => g.g === b));
+  const opsGrp = gruposAtivos.length > 1
+    ? `<optgroup label="Grupos posicionais">${gruposAtivos.map(g => `<option value="__g_${g}">Grupo: ${g}</option>`).join('')}</optgroup>`
+    : '';
+  const opsAtlG = `<optgroup label="Atletas">${opsAtl}</optgroup>`;
+  $('selHeatAtleta').innerHTML = '<option value="__all__">Todos selecionados</option>' + opsGrp + opsAtlG;
+  $('selEsfAtleta').innerHTML = '<option value="__all__">Todos selecionados</option>' + opsGrp + opsAtlG;
+  $('selMdpEscopo').innerHTML = '<option value="__team__">Equipe (média)</option>' + opsGrp + opsAtlG;
   const ops = METRICAS_DEF.map(m => `<option value="${m.k}">${m.label}</option>`).join('');
   ['selMetricaPos', 'selStatX', 'selStatY', 'selWelchMet'].forEach(id => { $(id).innerHTML = ops; });
   $('selStatY').value = 'hsr';
@@ -1552,15 +1742,28 @@ function atkUnico() {
   return sgs.length === 1 ? sgs[0] : 0;
 }
 
+/* ---------- Canvas em alta resolução (devicePixelRatio) ---------- */
+function canvasHD(cv, razaoAltura) {
+  const dpr = window.devicePixelRatio || 1;
+  const cssW = cv.clientWidth || +cv.getAttribute('width') || 1050;
+  const cssH = Math.round(cssW * razaoAltura);
+  const bw = Math.round(cssW * dpr), bh = Math.round(cssH * dpr);
+  if (cv.width !== bw || cv.height !== bh) { cv.width = bw; cv.height = bh; }
+  cv.style.height = cssH + 'px';
+  const ctx = cv.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { ctx, cw: cssW, chh: cssH };
+}
+
 /* ---------- Desenho do campo ---------- */
 function prepararCampo(cv) {
-  const ctx = cv.getContext('2d');
+  const { ctx, cw, chh } = canvasHD(cv, 720 / 1050);
   const L = S.cal ? S.cal.L : 105, W = S.cal ? S.cal.W : 68;
-  const pad = 30, sw = cv.width - 2 * pad, sh = cv.height - 2 * pad;
+  const pad = 30, sw = cw - 2 * pad, sh = chh - 2 * pad;
   const esc = Math.min(sw / L, sh / W);
-  const ox = (cv.width - L * esc) / 2, oy = (cv.height - W * esc) / 2;
-  const X = x => ox + x * esc, Y = y => cv.height - (oy + y * esc);
-  ctx.clearRect(0, 0, cv.width, cv.height);
+  const ox = (cw - L * esc) / 2, oy = (chh - W * esc) / 2;
+  const X = x => ox + x * esc, Y = y => chh - (oy + y * esc);
+  ctx.clearRect(0, 0, cw, chh);
   for (let i = 0; i < 10; i++) {
     ctx.fillStyle = i % 2 ? '#0A5C2E' : '#0C6634';
     ctx.fillRect(X(i * L / 10), Y(W), L / 10 * esc, W * esc);
@@ -1692,7 +1895,8 @@ function esforcosFiltrados() {
   const porAtleta = obterEsforcos();
   const lista = [];
   for (const [id, esfs] of porAtleta) {
-    if (alvo !== '__all__' && id !== alvo) continue;
+    const d0 = S.dados.get(id);
+    if (alvo !== '__all__' && !(alvo.startsWith('__g_') ? d0.grupo === alvo.slice(4) : id === alvo)) continue;
     const d = S.dados.get(id);
     for (const e of esfs) {
       if (!sel.has(e.banda)) continue;
@@ -1719,6 +1923,7 @@ function renderEsforcos() {
     for (let i = 1; i < 3; i++) { ctx.beginPath(); ctx.moveTo(X(0), Y(i * W / 3)); ctx.lineTo(X(L), Y(i * W / 3)); ctx.stroke(); }
     ctx.setLineDash([]);
   }
+  if ($('chkCompact').checked) desenharCompactacao(cf);
   S.esfLista = esforcosFiltrados();
   const setas = $('chkSetas').checked;
   // desenha
@@ -1811,7 +2016,7 @@ function renderTercosTab() {
   const alvo = $('selEsfAtleta').value;
   const tempo = [0, 0, 0]; let tot = 0;
   for (const [id, d] of S.dados) {
-    if (alvo !== '__all__' && id !== alvo) continue;
+    if (alvo !== '__all__' && !(alvo.startsWith('__g_') ? d.grupo === alvo.slice(4) : id === alvo)) continue;
     for (let i = 0; i < d.slim.n; i++) {
       const s = atkSignAt(d.slim.ts[i]) < 0 ? -1 : 1;
       const xa = s > 0 ? d.pts[i * 2] : S.cal.L - d.pts[i * 2];
@@ -1845,7 +2050,46 @@ function renderTercosTab() {
 }
 document.querySelectorAll('input[name=esfTipo]').forEach(r => r.onchange = () => { S.esfSel = -1; renderChipsBandas(); renderEsforcos(); });
 ['inpDurVel', 'inpDurAcc'].forEach(id => $(id).onchange = () => { S.esfSel = -1; renderEsforcos(); });
-['selEsfAtleta', 'chkSetas', 'chkTercosEsf', 'chkZonas5'].forEach(id => $(id).onchange = () => { S.esfSel = -1; renderEsforcos(); });
+['selEsfAtleta', 'chkSetas', 'chkTercosEsf', 'chkZonas5', 'chkCompact'].forEach(id => $(id).onchange = () => { S.esfSel = -1; renderEsforcos(); });
+
+/* ---------- Compactação média da equipe (jogadores de linha) ----------
+   Amostra a cada 2 s: bounding box (profundidade × largura) e centróide da
+   equipe no eixo tático (períodos D→E espelhados). Média da sessão. */
+function desenharCompactacao(cf) {
+  const { ctx, X, Y, esc, L, W } = cf;
+  const atl = [...S.dados.values()].filter(d => d.grupo !== 'GOL');
+  if (atl.length < 5) return;   // precisa da maior parte da linha em campo
+  let sProf = 0, sLarg = 0, sCx = 0, sCy = 0, nA = 0;
+  for (let t = S.t0; t <= S.t1; t += 2) {
+    const s = atkSignAt(t) < 0 ? -1 : 1;
+    let minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9, c = 0, cx = 0, cy = 0;
+    for (const d of atl) {
+      const i = idxPorTs(d.slim, t);
+      if (Math.abs(d.slim.ts[i] - t) > 2) continue;
+      let px = d.pts[i * 2], py = d.pts[i * 2 + 1];
+      if (s < 0) { px = L - px; py = W - py; }
+      if (px < minX) minX = px; if (px > maxX) maxX = px;
+      if (py < minY) minY = py; if (py > maxY) maxY = py;
+      cx += px; cy += py; c++;
+    }
+    if (c < 6) continue;
+    sProf += maxX - minX; sLarg += maxY - minY; sCx += cx / c; sCy += cy / c; nA++;
+  }
+  if (!nA) return;
+  const prof = sProf / nA, larg = sLarg / nA, cx = sCx / nA, cy = sCy / nA;
+  const x0 = cx - prof / 2, y0 = cy - larg / 2;
+  ctx.fillStyle = 'rgba(91,141,239,0.30)';
+  ctx.fillRect(X(x0), Y(y0 + larg), prof * esc, larg * esc);
+  ctx.strokeStyle = '#8FB4FF'; ctx.setLineDash([7, 5]); ctx.lineWidth = 2;
+  ctx.strokeRect(X(x0), Y(y0 + larg), prof * esc, larg * esc);
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 12px Segoe UI'; ctx.textAlign = 'center';
+  ctx.fillText(`${prof.toFixed(1)} m`, X(cx), Y(y0 + larg) - 6);
+  ctx.save(); ctx.translate(X(x0) - 9, Y(cy)); ctx.rotate(-Math.PI / 2);
+  ctx.fillText(`${larg.toFixed(1)} m`, 0, 0); ctx.restore();
+  ctx.fillStyle = '#C4952A'; ctx.font = '11px Segoe UI';
+  ctx.fillText(`compactação média (linha) · centróide a ${cx.toFixed(1)} m do gol defendido`, X(cx), Y(y0) + 16);
+}
 
 /* CSV — esforços / zonas / terços */
 $('btnCsvEsf').onclick = () => {
@@ -1879,9 +2123,10 @@ function renderHeat() {
   const { ctx, X, Y, esc, L, W } = prepararCampo(cv);
   const tipo = $('selHeatTipo').value, alvo = $('selHeatAtleta').value;
   const sigma = +$('rngSigma').value; $('lblSigma').textContent = sigma;
+  const espelhar = $('chkHeatEspelho').checked;
   const cell = 0.5, grade = criarGrade(L, W, cell);
   for (const [id, d] of S.dados) {
-    if (alvo !== '__all__' && id !== alvo) continue;
+    if (alvo !== '__all__' && !(alvo.startsWith('__g_') ? d.grupo === alvo.slice(4) : id === alvo)) continue;
     const { slim, pts } = d;
     for (let i = 1; i < slim.n; i++) {
       const dt = slim.ts[i] - slim.ts[i - 1];
@@ -1890,7 +2135,12 @@ function renderHeat() {
       let peso = 0;
       if (tipo === 'presenca') peso = dt;
       else if (vk >= HSR_MIN) peso = slim.v[i] * dt;
-      if (peso > 0) acumular(grade, pts[i * 2], pts[i * 2 + 1], peso);
+      if (peso > 0) {
+        let px = pts[i * 2], py = pts[i * 2 + 1];
+        // espelha períodos com ataque D→E para o mesmo referencial tático (1T = 2T)
+        if (espelhar && atkSignAt(slim.ts[i]) < 0) { px = L - px; py = W - py; }
+        acumular(grade, px, py, peso);
+      }
     }
   }
   blurGauss(grade, sigma / cell);
@@ -1907,14 +2157,16 @@ function renderHeat() {
     tmp.width = grade.gw; tmp.height = grade.gh;
     tmp.getContext('2d').putImageData(img, 0, 0);
     ctx.save();
-    ctx.translate(X(0), Y(W));
-    ctx.scale(esc * cell, esc * cell);
+    // origem no canto inferior-esquerdo com eixo y invertido — linha 0 da grade
+    // (y=0 do campo) desenhada embaixo, alinhada com trajetórias/esforços
+    ctx.translate(X(0), Y(0));
+    ctx.scale(esc * cell, -esc * cell);
     ctx.imageSmoothingEnabled = true;
     ctx.drawImage(tmp, 0, 0, grade.gw, grade.gh);
     ctx.restore();
   }
 }
-['selHeatTipo', 'selHeatAtleta'].forEach(id => $(id).onchange = renderHeat);
+['selHeatTipo', 'selHeatAtleta', 'chkHeatEspelho'].forEach(id => $(id).onchange = renderHeat);
 $('rngSigma').oninput = renderHeat;
 
 /* ---------- Por posição ---------- */
@@ -2015,19 +2267,32 @@ function seriesRolantes() {
   return { grade, porAtleta, equipe, winS, def };
 }
 function renderMdp() {
-  const cv = $('cvMdp'), ctx = cv.getContext('2d');
-  ctx.clearRect(0, 0, cv.width, cv.height);
+  const cv = $('cvMdp');
+  const { ctx, cw, chh } = canvasHD(cv, 0.4);
+  ctx.clearRect(0, 0, cw, chh);
   if (!S.dados.size) { $('tabMdp').innerHTML = ''; return; }
   $('grpMdpCustom').classList.toggle('oculto', $('selMdpJanela').value !== 'custom');
   const { grade, porAtleta, equipe, winS, def } = seriesRolantes();
   const escopo = $('selMdpEscopo').value;
-  const serie = escopo === '__team__' ? equipe : porAtleta.get(escopo);
+  let serie;
+  if (escopo === '__team__') serie = equipe;
+  else if (escopo.startsWith('__g_')) {
+    const g = escopo.slice(4);
+    serie = grade.map((_, i) => {
+      let s = 0, c = 0;
+      for (const [id, val] of porAtleta) {
+        if (S.dados.get(id).grupo !== g) continue;
+        if (val[i] != null) { s += val[i]; c++; }
+      }
+      return c ? s / c : null;
+    });
+  } else serie = porAtleta.get(escopo);
   if (!serie || !grade.length) return;
   const vals = serie.filter(v => v != null);
   if (!vals.length) return;
   const mx = Math.max(...vals), altaThr = 0.9 * mx, medThr = 0.75 * mx;
   const pl = 56, pb = 42, pt = 16, pr = 100;
-  const wC = cv.width - pl - pr, hC = cv.height - pt - pb;
+  const wC = cw - pl - pr, hC = chh - pt - pb;
   const t0 = grade[0], t1 = grade[grade.length - 1] + winS;
   const SX = ts => pl + (ts + winS / 2 - t0) / (t1 - t0) * wC;
   const SY = v => pt + hC - v / (mx * 1.08) * hC;
@@ -2109,11 +2374,36 @@ function renderMdp() {
   };
   addTop('EQUIPE (média)', equipe);
   for (const [id, val] of porAtleta) addTop(S.dados.get(id).nome, val);
-  const cab = '<tr><th>Atleta</th><th class="num">#</th><th class="num">Início</th><th class="num">Fim</th><th class="num">' + def.label + '</th></tr>';
-  $('tabMdp').innerHTML = cab + linhas.map(l =>
-    `<tr${l.nome.startsWith('EQUIPE') ? ' style="background:rgba(196,149,42,.08)"' : ''}><td>${l.nome}</td><td class="num">${l.rank}º</td>
-     <td class="num">${fmtMin(l.ini)}</td><td class="num">${fmtMin(l.fim)}</td><td class="num"><b>${l.valor}</b></td></tr>`).join('');
-  S._mdpLinhas = { linhas, label: def.label, winS };
+  // ── referência histórica de MDP (acumula o top-1 de cada jogo carregado) ──
+  const chaveRef = `${def.k}|${winS}`;
+  let mdprefs = {};
+  try { mdprefs = JSON.parse(localStorage.getItem('gps2d_mdprefs') || '{}'); } catch (e) { mdprefs = {}; }
+  const base = mdprefs[chaveRef] = mdprefs[chaveRef] || {};
+  const atv = S.atividades.find(a => a.id === $('selAtividade').value);
+  if (atv && /jogo/i.test(atv.name || '')) {
+    for (const l of linhas) if (l.rank === 1) {
+      const b = base[l.nome] = base[l.nome] || { jogos: {} };
+      b.jogos[atv.id] = l.valor;
+    }
+    try { localStorage.setItem('gps2d_mdprefs', JSON.stringify(mdprefs)); } catch (e) { /* quota */ }
+  }
+  const refDe = nome => {
+    const b = base[nome];
+    if (!b) return null;
+    const vs = Object.values(b.jogos);
+    if (!vs.length) return null;
+    return { max: Math.max(...vs), med: vs.reduce((s2, v) => s2 + v, 0) / vs.length, n: vs.length };
+  };
+  const pct = (v, r) => r > 0 ? `${(v / r * 100).toFixed(0)}%` : '—';
+  const cab = '<tr><th>Atleta</th><th class="num">#</th><th class="num">Início</th><th class="num">Fim</th><th class="num">' + def.label + '</th><th class="num">% máx hist</th><th class="num">% méd hist</th></tr>';
+  $('tabMdp').innerHTML = cab + linhas.map(l => {
+    const r = refDe(l.nome);
+    return `<tr${l.nome.startsWith('EQUIPE') ? ' style="background:rgba(196,149,42,.08)"' : ''}><td>${l.nome}</td><td class="num">${l.rank}º</td>
+     <td class="num">${fmtMin(l.ini)}</td><td class="num">${fmtMin(l.fim)}</td><td class="num"><b>${l.valor}</b></td>
+     <td class="num">${r ? pct(l.valor, r.max) : '—'}</td>
+     <td class="num" ${r ? `title="média ${r.med.toFixed(1)} em ${r.n} jogo(s)"` : ''}>${r ? pct(l.valor, r.med) : '—'}</td></tr>`;
+  }).join('');
+  S._mdpLinhas = { linhas, label: def.label, winS, refDe };
   tornarOrdenavel($('tabMdp'));
 }
 ['selMdpMetrica', 'selMdpJanela', 'selMdpPasso', 'selMdpEscopo', 'chkTempoMorto', 'inpTmLimiar'].forEach(id => $(id).onchange = renderMdp);
@@ -2125,10 +2415,13 @@ $('btnCsvTm').onclick = () => {
 };
 $('btnCsvMdp').onclick = () => {
   if (!S._mdpLinhas) return;
-  const { linhas, label, winS } = S._mdpLinhas;
-  const cab = ['Atleta', 'Rank', 'Início (s)', 'Início (mm:ss)', 'Fim (mm:ss)', `Janela (s)`, label];
-  baixarCSV(`mdp_${winS}s.csv`, paraCSV(cab, linhas.map(l =>
-    [l.nome, l.rank, Math.round(l.ini), fmtMin(l.ini), fmtMin(l.fim), winS, l.valor])));
+  const { linhas, label, winS, refDe } = S._mdpLinhas;
+  const cab = ['Atleta', 'Rank', 'Início (s)', 'Início (mm:ss)', 'Fim (mm:ss)', 'Janela (s)', label, 'Máx hist', 'Méd hist', 'N jogos hist'];
+  baixarCSV(`mdp_${winS}s.csv`, paraCSV(cab, linhas.map(l => {
+    const r = refDe ? refDe(l.nome) : null;
+    return [l.nome, l.rank, Math.round(l.ini), fmtMin(l.ini), fmtMin(l.fim), winS, l.valor,
+      r ? Math.round(r.max * 10) / 10 : null, r ? Math.round(r.med * 10) / 10 : null, r ? r.n : null];
+  })));
 };
 
 /* ---------- Comparar Jogos ---------- */
@@ -2444,15 +2737,26 @@ function vetores(k) {
 }
 function renderStat() {
   if (!S.dados.size) return;
-  const kx = $('selStatX').value, ky = $('selStatY').value, metodo = $('selStatMetodo').value;
+  const kx = $('selStatX').value, ky = $('selStatY').value;
   const lx = METRICAS_DEF.find(m => m.k === kx).label, ly = METRICAS_DEF.find(m => m.k === ky).label;
   const pares = [...S.dados.values()].filter(d => d.met[kx] != null && d.met[ky] != null && d.met.minutos > 5);
   const x = pares.map(d => d.met[kx]), y = pares.map(d => d.met[ky]);
+  // ── Normalidade (Shapiro-Wilk) e escolha do método ──
+  const swx = shapiroWilk(x), swy = shapiroWilk(y);
+  const nx = swx.p > 0.05, ny = swy.p > 0.05;
+  const sugerido = nx && ny ? 'pearson' : 'spearman';
+  let metodo = $('selStatMetodo').value;
+  const auto = metodo === 'auto';
+  if (auto) metodo = sugerido;
+  const fmtSW = (sw, ok) => isNaN(sw.W) ? '—' : `W=${sw.W.toFixed(3)}, p=${sw.p < 0.001 ? '<0,001' : sw.p.toFixed(3)} ${ok ? '✓ normal' : '✗ não normal'}`;
+  $('resNorm').innerHTML = `<b>Normalidade (Shapiro-Wilk):</b><br>
+    ${lx}: ${fmtSW(swx, nx)}<br>${ly}: ${fmtSW(swy, ny)}<br>
+    Teste sugerido: <b>${sugerido === 'pearson' ? 'Pearson' : 'Spearman'}</b>${auto ? ' (aplicado automaticamente)' : (metodo !== sugerido ? ' — <span class="nsig">você está usando outro método</span>' : ' (em uso)')}`;
   const ct = corrTest(x, y, metodo);
   const cls = ct.p < 0.05 ? 'sig' : 'nsig';
   $('resCorr').innerHTML = isNaN(ct.r)
     ? 'Amostra insuficiente (mín. 4 atletas com >5 min).'
-    : `<b>${lx}</b> × <b>${ly}</b><br>${metodo === 'pearson' ? 'r de Pearson' : 'ρ de Spearman'} = <b>${ct.r.toFixed(3)}</b> · n = ${ct.n}<br>p-valor (bicaudal) = <span class="${cls}">${ct.p < 0.001 ? '<0,001' : ct.p.toFixed(3)}</span> ${ct.p < 0.05 ? '— significativo (α=0,05)' : '— não significativo'}`;
+    : `<b>${lx}</b> × <b>${ly}</b><br>${metodo === 'pearson' ? 'r de Pearson' : 'ρ de Spearman'} = <b>${ct.r.toFixed(3)}</b> · magnitude <b>${magR(ct.r)}</b> (Hopkins) · n = ${ct.n}<br>p-valor (bicaudal) = <span class="${cls}">${ct.p < 0.001 ? '<0,001' : ct.p.toFixed(3)}</span> ${ct.p < 0.05 ? '— significativo (α=0,05)' : '— não significativo'}`;
   if (pares.length >= 3) {
     const wS = 460, hS = 320, plS = 52, pbS = 40, ptS = 14, prS = 14;
     const x0 = Math.min(...x), x1 = Math.max(...x), y0 = Math.min(...y), y1 = Math.max(...y);
@@ -2464,7 +2768,7 @@ function renderStat() {
       <line x1="${plS}" y1="${ptS}" x2="${plS}" y2="${hS - pbS}" stroke="#1E3D77"/>
       <line x1="${SX(x0)}" y1="${SY(reg.a + reg.b * x0)}" x2="${SX(x1)}" y2="${SY(reg.a + reg.b * x1)}" stroke="#C4952A" stroke-width="2" stroke-dasharray="6 4"/>`;
     pares.forEach((d, i) => {
-      svg += `<circle cx="${SX(x[i])}" cy="${SY(y[i])}" r="5.5" fill="${d.cor}" stroke="#071A3E"><title>${d.nome}: ${x[i]} / ${y[i]}</title></circle>`;
+      svg += `<circle cx="${SX(x[i])}" cy="${SY(y[i])}" r="5.5" fill="${d.cor}" stroke="#071A3E" data-nome="${d.nome}" data-v="${x[i]} · ${y[i]}" style="cursor:pointer"><title>${d.nome}: ${x[i]} / ${y[i]}</title></circle>`;
     });
     svg += `<text x="${(plS + wS) / 2}" y="${hS - 8}" text-anchor="middle" font-size="11" fill="#9FB0CC">${lx}</text>
       <text transform="rotate(-90 14 ${hS / 2})" x="14" y="${hS / 2}" text-anchor="middle" font-size="11" fill="#9FB0CC">${ly}</text>
@@ -2473,6 +2777,19 @@ function renderStat() {
       <text x="${plS - 6}" y="${SY(y0)}" text-anchor="end" font-size="10" fill="#9FB0CC">${y0}</text>
       <text x="${plS - 6}" y="${SY(y1) + 4}" text-anchor="end" font-size="10" fill="#9FB0CC">${y1}</text></svg>`;
     $('scatter').innerHTML = svg;
+    // tooltip flutuante com o nome do atleta
+    let tip = $('tipScatter');
+    if (!tip) {
+      tip = document.createElement('div');
+      tip.id = 'tipScatter';
+      tip.style.cssText = 'position:fixed;pointer-events:none;background:#071A3E;border:1px solid var(--dourado);border-radius:6px;padding:5px 10px;font-size:12px;color:#fff;z-index:99;display:none;box-shadow:0 3px 10px rgba(0,0,0,.5)';
+      document.body.appendChild(tip);
+    }
+    $('scatter').querySelectorAll('circle[data-nome]').forEach(c => {
+      c.onmouseenter = e => { tip.innerHTML = `<b>${c.dataset.nome}</b><br>${c.dataset.v}`; tip.style.display = 'block'; };
+      c.onmousemove = e => { tip.style.left = (e.clientX + 14) + 'px'; tip.style.top = (e.clientY - 10) + 'px'; };
+      c.onmouseleave = () => { tip.style.display = 'none'; };
+    });
   } else $('scatter').innerHTML = '<p style="font-size:12.5px;color:var(--txt2)">Amostra insuficiente.</p>';
   const ks = METRICAS_DEF.filter(m => m.k !== 'fcMedia' || vetores('fcMedia').length >= 4);
   let html = '<table class="matriz"><tr><th></th>' + ks.map(m => `<th title="${m.label}">${m.k}</th>`).join('') + '</tr>';
@@ -2498,8 +2815,33 @@ function renderWelch() {
   const w = welch(va, vb);
   const cls = w.p < 0.05 ? 'sig' : 'nsig';
   $('resWelch').innerHTML = `<b>${gA}</b> (n=${va.length}, x̄=${w.mx.toFixed(1)}) × <b>${gB}</b> (n=${vb.length}, x̄=${w.my.toFixed(1)})<br>
-    t = ${w.t.toFixed(2)} · gl ≈ ${w.df.toFixed(1)} · d de Cohen = ${w.d.toFixed(2)}<br>
+    t = ${w.t.toFixed(2)} · gl ≈ ${w.df.toFixed(1)} · d de Cohen = ${w.d.toFixed(2)} — magnitude <b>${magD(w.d)}</b> (Hopkins)<br>
     p-valor = <span class="${cls}">${w.p < 0.001 ? '<0,001' : w.p.toFixed(3)}</span> ${w.p < 0.05 ? '— diferença significativa' : '— sem diferença significativa'}`;
+  renderGlobal();
+}
+const fmtP = p => isNaN(p) ? '—' : (p < 0.001 ? '<0,001' : p.toFixed(3));
+function renderGlobal() {
+  const k = $('selWelchMet').value;
+  const grupos = {};
+  for (const d of S.dados.values())
+    if (d.met[k] != null && d.met.minutos > 5) (grupos[d.grupo] = grupos[d.grupo] || []).push(d.met[k]);
+  const nomes = Object.keys(grupos).filter(g => grupos[g].length >= 2);
+  if (nomes.length < 2) { $('resGlobal').innerHTML = 'Mínimo de 2 grupos posicionais com 2+ atletas (>5 min).'; return; }
+  const arrs = nomes.map(g => grupos[g]);
+  const an = anovaOneWay(arrs), kw = kruskalWallis(arrs);
+  const todosNormais = arrs.every(a => { const s = shapiroWilk(a); return isNaN(s.p) || s.p > 0.05; });
+  const pG = todosNormais ? an.p : kw.p;
+  let html = `<b>${METRICAS_DEF.find(m => m.k === k).label}</b> — ${nomes.map(g => `${g} (n=${grupos[g].length})`).join(' · ')}<br>
+    ANOVA one-way: F=${an.F.toFixed(2)} · p=${fmtP(an.p)} &nbsp;|&nbsp; Kruskal-Wallis: H=${kw.H.toFixed(2)} · p=${fmtP(kw.p)}<br>
+    Teste indicado (${todosNormais ? 'grupos normais → ANOVA' : 'ao menos um grupo não normal → Kruskal-Wallis'}): p=${fmtP(pG)} `;
+  if (pG < 0.05) {
+    const ph = postHocHolm(nomes, arrs);
+    html += `<span class="sig">— diferença global significativa</span><br><b>Post hoc (Welch pareado + correção de Holm):</b><br>` +
+      ph.map(p2 => `${p2.a} × ${p2.b}: p<sub>adj</sub>=${fmtP(p2.pAdj)} · d=${isNaN(p2.d) ? '—' : p2.d.toFixed(2)} (${magD(p2.d)}) ${p2.sig ? '<span class="sig">✱</span>' : ''}`).join('<br>');
+  } else {
+    html += '<span class="nsig">— sem diferença global; post hoc não indicado</span>';
+  }
+  $('resGlobal').innerHTML = html;
 }
 ['selStatX', 'selStatY', 'selStatMetodo'].forEach(id => $(id).onchange = renderStat);
 ['selWelchMet', 'selWelchA', 'selWelchB'].forEach(id => $(id).onchange = renderWelch);
