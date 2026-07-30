@@ -1,0 +1,1142 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FEC · GPS 2D — Visualização Georreferenciada</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+:root{
+  --noite:#071A3E; --azul:#003087; --vermelho:#E8360A; --dourado:#C4952A;
+  --fundo:#0B2149; --card:#0E2A5C; --card2:#123168; --borda:#1E3D77;
+  --txt:#EAF0FA; --txt2:#9FB0CC; --verde:#38B26E;
+  --az:var(--azul); --vm:var(--vermelho); --az3:var(--card2);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--noite);color:var(--txt);min-height:100vh}
+
+/* ---------- Header FEC ---------- */
+.cabecalho{position:relative;background:
+  repeating-linear-gradient(135deg,var(--noite) 0 22px,#0A2150 22px 44px);
+  border-bottom:4px solid var(--dourado);padding:16px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.cabecalho .escudo{width:46px;height:46px;border-radius:50%;background:conic-gradient(var(--azul) 0 33%,var(--vermelho) 33% 66%,#fff 66% 100%);border:2px solid var(--dourado);flex:none}
+.cabecalho h1{font-size:19px;letter-spacing:.5px;text-transform:uppercase}
+.cabecalho h1 small{display:block;font-size:11px;font-weight:400;color:var(--dourado);letter-spacing:2px}
+.cabecalho .direita{margin-left:auto;display:flex;gap:8px;align-items:center}
+
+/* ---------- Botões / inputs ---------- */
+.btn{background:var(--azul);color:#fff;border:1px solid var(--borda);border-radius:6px;padding:8px 14px;font-size:13px;cursor:pointer;transition:.15s}
+.btn:hover{filter:brightness(1.2)}
+.btn.vm{background:var(--vermelho)}
+.btn.ok{background:var(--verde)}
+.btn.fantasma{background:transparent;color:var(--txt2)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+select,input[type=text],input[type=number]{background:var(--card);color:var(--txt);border:1px solid var(--borda);border-radius:6px;padding:7px 10px;font-size:13px}
+input[type=range]{accent-color:var(--vermelho)}
+label.mini{font-size:11px;color:var(--txt2);display:block;margin-bottom:3px;text-transform:uppercase;letter-spacing:.5px}
+
+/* ---------- Barra de controle ---------- */
+.controle{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;padding:14px 24px;background:var(--fundo);border-bottom:1px solid var(--borda)}
+.controle .grupo{display:flex;flex-direction:column}
+#selAtividade{min-width:290px;max-width:420px}
+.progresso{height:6px;background:var(--card);border-radius:3px;overflow:hidden;width:180px}
+.progresso>div{height:100%;width:0;background:linear-gradient(90deg,var(--azul),var(--vermelho));transition:width .2s}
+#statusCarga{font-size:12px;color:var(--txt2)}
+
+/* ---------- Atletas (chips) ---------- */
+.chips{display:flex;flex-wrap:wrap;gap:6px;max-height:96px;overflow-y:auto;padding:4px 0;max-width:640px}
+.chip{background:var(--card);border:1px solid var(--borda);border-radius:14px;padding:4px 11px;font-size:12px;cursor:pointer;user-select:none;white-space:nowrap}
+.chip.sel{background:var(--azul);border-color:var(--dourado)}
+.chip .pos{color:var(--dourado);font-size:10px;margin-left:4px}
+
+/* ---------- Abas placar ---------- */
+.abas{display:flex;gap:2px;padding:0 24px;background:var(--fundo);border-bottom:1px solid var(--borda);overflow-x:auto}
+.aba{padding:11px 18px;font-size:13px;letter-spacing:1px;text-transform:uppercase;color:var(--txt2);cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap;font-weight:600}
+.aba:hover{color:var(--txt)}
+.aba.ativa{color:#fff;border-bottom-color:var(--vermelho);background:linear-gradient(180deg,transparent,rgba(232,54,10,.08))}
+.painel{display:none;padding:20px 24px}
+.painel.ativo{display:block}
+
+/* ---------- Cards ---------- */
+.card{background:var(--card);border:1px solid var(--borda);border-radius:6px;padding:16px;margin-bottom:16px}
+.card h3{font-size:13px;text-transform:uppercase;letter-spacing:1px;color:var(--dourado);margin-bottom:12px}
+.linha{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end}
+.grade2{display:grid;grid-template-columns:340px 1fr;gap:16px}
+@media(max-width:900px){.grade2{grid-template-columns:1fr}}
+
+/* ---------- Canvas / mapa ---------- */
+canvas.campo{width:100%;max-width:1050px;display:block;border-radius:6px;background:#0A5C2E}
+#mapa{height:480px;border-radius:6px;border:1px solid var(--borda)}
+.legenda{display:flex;gap:12px;flex-wrap:wrap;margin-top:10px;font-size:12px;color:var(--txt2)}
+.legenda .item{display:flex;align-items:center;gap:5px}
+.legenda .cx{width:14px;height:14px;border-radius:3px;flex:none}
+
+/* ---------- Tabelas ---------- */
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{text-align:left;padding:8px;color:var(--dourado);text-transform:uppercase;font-size:10.5px;letter-spacing:.5px;border-bottom:2px solid var(--borda);cursor:pointer}
+td{padding:7px 8px;border-bottom:1px solid rgba(30,61,119,.5)}
+tr:hover td{background:rgba(0,48,135,.25)}
+td.num{text-align:right;font-variant-numeric:tabular-nums}
+th.num{text-align:right}
+
+/* ---------- Estatística ---------- */
+.resultadoStat{font-size:14px;line-height:1.9;background:var(--card2);border-left:3px solid var(--dourado);padding:12px 16px;border-radius:0 6px 6px 0}
+.sig{color:var(--verde);font-weight:700}.nsig{color:var(--txt2)}
+.matriz td{text-align:center;font-size:11.5px;padding:6px;border:1px solid var(--noite)}
+svg text{font-family:'Segoe UI',sans-serif}
+
+.aviso{background:rgba(196,149,42,.12);border:1px solid var(--dourado);border-radius:6px;padding:10px 14px;font-size:12.5px;color:#E8D9AE;margin-bottom:14px}
+.oculto{display:none!important}
+.rodape{padding:14px 24px;font-size:11px;color:var(--txt2);border-top:1px solid var(--borda);margin-top:24px}
+#listaCal .itemCal{display:flex;justify-content:space-between;align-items:center;background:var(--card2);border-radius:6px;padding:8px 12px;margin-bottom:6px;font-size:13px}
+#listaCal .itemCal.ativa{border:1px solid var(--dourado)}
+.replayCtl{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.relogio{font-size:22px;font-variant-numeric:tabular-nums;color:var(--dourado);font-weight:700;min-width:90px}
+</style>
+</head>
+<body>
+
+<header class="cabecalho">
+  <div class="escudo"></div>
+  <h1>Fortaleza EC · GPS 2D<small>Visualização georreferenciada — Catapult</small></h1>
+  <div class="direita">
+    <button class="btn fantasma" id="btnConfig">⚙ Backend</button>
+  </div>
+</header>
+
+<div class="controle">
+  <div class="grupo">
+    <label class="mini">Atividade (jogo / treino)</label>
+    <select id="selAtividade"><option>Carregando…</option></select>
+  </div>
+  <div class="grupo">
+    <label class="mini">Período</label>
+    <select id="selPeriodo"><option value="">Sessão completa</option></select>
+  </div>
+  <div class="grupo">
+    <label class="mini">Resolução</label>
+    <select id="selEach">
+      <option value="2" selected>5 Hz (recomendado)</option>
+      <option value="1">10 Hz (máxima)</option>
+      <option value="5">2 Hz (leve)</option>
+    </select>
+  </div>
+  <div class="grupo">
+    <label class="mini">Atletas <a href="#" id="lnkTodos" style="color:var(--dourado)">todos</a> · <a href="#" id="lnkLimpar" style="color:var(--txt2)">limpar</a></label>
+    <div class="chips" id="chipsAtletas"><span style="font-size:12px;color:var(--txt2)">Selecione uma atividade…</span></div>
+  </div>
+  <div class="grupo">
+    <button class="btn vm" id="btnCarregar" disabled>Carregar dados GPS</button>
+    <div style="margin-top:6px" class="progresso"><div id="barraProg"></div></div>
+    <span id="statusCarga"></span>
+  </div>
+</div>
+
+<nav class="abas">
+  <div class="aba ativa" data-aba="campo">Campo 2D</div>
+  <div class="aba" data-aba="heat">Heatmap</div>
+  <div class="aba" data-aba="pos">Por Posição</div>
+  <div class="aba" data-aba="replay">Replay</div>
+  <div class="aba" data-aba="stat">Estatísticas</div>
+  <div class="aba" data-aba="cal">Calibração</div>
+</nav>
+
+<!-- ================= CAMPO 2D ================= -->
+<section class="painel ativo" id="painel-campo">
+  <div class="aviso oculto" id="avisoAutoCal">Sem calibração ativa para este local — usando <b>auto-calibração (PCA)</b> da nuvem de pontos. Para precisão nas bordas, calibre o campo na aba <b>Calibração</b>.</div>
+  <div class="card">
+    <div class="linha" style="margin-bottom:12px">
+      <div class="grupo"><label class="mini">Colorir por</label>
+        <select id="selCorModo"><option value="banda">Banda de velocidade</option><option value="atleta">Atleta</option></select></div>
+      <div class="grupo"><label class="mini">Banda mínima</label>
+        <select id="selBandaMin"><option value="0">Todas</option><option value="3">≥ B4 (14,4)</option><option value="4">≥ B5 — HSR (19,8)</option><option value="5">≥ B6 — Sprint (25,2)</option></select></div>
+      <div class="grupo" style="flex:1;min-width:220px"><label class="mini">Janela de tempo (min): <span id="lblJanela">—</span></label>
+        <div style="display:flex;gap:8px"><input type="range" id="rngIni" min="0" max="100" value="0" style="flex:1"><input type="range" id="rngFim" min="0" max="100" value="100" style="flex:1"></div></div>
+    </div>
+    <canvas class="campo" id="cvCampo" width="1050" height="720"></canvas>
+    <div class="legenda" id="legCampo"></div>
+  </div>
+</section>
+
+<!-- ================= HEATMAP ================= -->
+<section class="painel" id="painel-heat">
+  <div class="card">
+    <div class="linha" style="margin-bottom:12px">
+      <div class="grupo"><label class="mini">Tipo</label>
+        <select id="selHeatTipo"><option value="presenca">Presença (tempo)</option><option value="intensidade">Intensidade (dist. HSR)</option></select></div>
+      <div class="grupo"><label class="mini">Atleta</label><select id="selHeatAtleta"><option value="__all__">Todos selecionados</option></select></div>
+      <div class="grupo"><label class="mini">Suavização (σ m): <span id="lblSigma">2.5</span></label>
+        <input type="range" id="rngSigma" min="1" max="6" step="0.5" value="2.5"></div>
+    </div>
+    <canvas class="campo" id="cvHeat" width="1050" height="720"></canvas>
+    <div class="legenda"><span class="item"><span class="cx" style="background:linear-gradient(90deg,#071A3E,#003087,#38B26E,#C4952A,#E8360A);width:120px"></span> menor → maior</span></div>
+  </div>
+</section>
+
+<!-- ================= POR POSIÇÃO ================= -->
+<section class="painel" id="painel-pos">
+  <div class="card">
+    <div class="linha" style="margin-bottom:8px">
+      <div class="grupo"><label class="mini">Métrica</label><select id="selMetricaPos"></select></div>
+    </div>
+    <div id="grafPos"></div>
+  </div>
+  <div class="card"><h3>Tabela completa</h3><div style="overflow-x:auto"><table id="tabMetricas"></table></div></div>
+</section>
+
+<!-- ================= REPLAY ================= -->
+<section class="painel" id="painel-replay">
+  <div class="card">
+    <div class="replayCtl">
+      <button class="btn vm" id="btnPlay">▶ Play</button>
+      <span class="relogio" id="relogio">00:00</span>
+      <div class="grupo"><label class="mini">Velocidade</label>
+        <select id="selVelRep"><option value="1">1×</option><option value="5">5×</option><option value="10" selected>10×</option><option value="30">30×</option><option value="60">60×</option></select></div>
+      <div class="grupo"><label class="mini">Rastro (s)</label>
+        <select id="selRastro"><option value="0">Sem rastro</option><option value="5" selected>5</option><option value="15">15</option><option value="60">60</option></select></div>
+      <input type="range" id="rngReplay" min="0" max="1000" value="0" style="flex:1;min-width:240px">
+    </div>
+    <canvas class="campo" id="cvReplay" width="1050" height="720"></canvas>
+    <div class="legenda" id="legReplay"></div>
+  </div>
+</section>
+
+<!-- ================= ESTATÍSTICAS ================= -->
+<section class="painel" id="painel-stat">
+  <div class="grade2">
+    <div>
+      <div class="card">
+        <h3>Correlação entre métricas</h3>
+        <div class="linha" style="margin-bottom:10px">
+          <div class="grupo"><label class="mini">X</label><select id="selStatX"></select></div>
+          <div class="grupo"><label class="mini">Y</label><select id="selStatY"></select></div>
+          <div class="grupo"><label class="mini">Método</label>
+            <select id="selStatMetodo"><option value="pearson">Pearson</option><option value="spearman">Spearman</option></select></div>
+        </div>
+        <div class="resultadoStat" id="resCorr">Carregue os dados GPS para calcular.</div>
+      </div>
+      <div class="card">
+        <h3>Comparação de grupos (Welch t)</h3>
+        <div class="linha" style="margin-bottom:10px">
+          <div class="grupo"><label class="mini">Métrica</label><select id="selWelchMet"></select></div>
+          <div class="grupo"><label class="mini">Grupo A</label><select id="selWelchA"></select></div>
+          <div class="grupo"><label class="mini">Grupo B</label><select id="selWelchB"></select></div>
+        </div>
+        <div class="resultadoStat" id="resWelch">—</div>
+      </div>
+    </div>
+    <div>
+      <div class="card"><h3>Dispersão + regressão</h3><div id="scatter"></div></div>
+      <div class="card"><h3>Matriz de correlação (todas as métricas)</h3><div style="overflow-x:auto" id="matrizCorr"></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= CALIBRAÇÃO ================= -->
+<section class="painel" id="painel-cal">
+  <div class="grade2">
+    <div>
+      <div class="card">
+        <h3>Nova calibração</h3>
+        <p style="font-size:12.5px;color:var(--txt2);line-height:1.6;margin-bottom:10px">
+          Clique nos <b>4 cantos do gramado</b> na imagem de satélite, <b>em sentido anti-horário</b>,
+          começando por um escanteio: <b>1</b> → <b>2</b> ao longo da linha lateral (comprimento),
+          <b>3</b> canto oposto, <b>4</b> fecha o retângulo.</p>
+        <div class="linha" style="margin-bottom:10px">
+          <div class="grupo"><label class="mini">Nome do local</label><input type="text" id="inpCalNome" placeholder="Ex.: CT Ribamar Bezerra" style="width:200px"></div>
+          <div class="grupo"><label class="mini">Compr. (m)</label><input type="number" id="inpCalL" value="105" style="width:70px"></div>
+          <div class="grupo"><label class="mini">Larg. (m)</label><input type="number" id="inpCalW" value="68" style="width:70px"></div>
+        </div>
+        <div class="linha">
+          <button class="btn ok" id="btnCalSalvar" disabled>Salvar calibração</button>
+          <button class="btn fantasma" id="btnCalLimpar">Limpar marcadores</button>
+          <button class="btn" id="btnCalCentrar">Centrar nos dados</button>
+        </div>
+        <p id="calStatus" style="font-size:12px;color:var(--dourado);margin-top:8px">0 / 4 cantos marcados</p>
+      </div>
+      <div class="card">
+        <h3>Calibrações salvas</h3>
+        <div id="listaCal"><p style="font-size:12.5px;color:var(--txt2)">Nenhuma calibração salva.</p></div>
+        <div style="margin-top:10px"><label class="mini"><input type="checkbox" id="chkAutoPCA"> Forçar auto-calibração (PCA) mesmo com calibração salva</label></div>
+      </div>
+    </div>
+    <div class="card"><h3>Satélite</h3><div id="mapa"></div></div>
+  </div>
+</section>
+
+<div class="rodape">FEC · Fisiologia — Adriano Lima &amp; Felipe Lima · dados Catapult Connect API (token fixo no backend) · HSR = B5+B6 (≥19,8 km/h) · Sprint ≥25,2 km/h</div>
+
+<script>
+/* ============ GPS2D CORE — lógica pura (validável em Node) ============ */
+'use strict';
+
+/* ---------- Bandas de velocidade (tenant FEC, km/h) ---------- */
+const BANDAS = [
+  { id: 'B1', min: 0.5,   max: 7.2,   cor: '#5B8DEF', label: 'B1 0,5–7,2' },
+  { id: 'B2', min: 7.2,   max: 9.97,  cor: '#38B26E', label: 'B2 7,2–9,97' },
+  { id: 'B3', min: 9.97,  max: 14.4,  cor: '#A9C93A', label: 'B3 9,97–14,4' },
+  { id: 'B4', min: 14.4,  max: 19.8,  cor: '#C4952A', label: 'B4 14,4–19,8' },
+  { id: 'B5', min: 19.8,  max: 25.2,  cor: '#E8360A', label: 'B5 19,8–25,2' },
+  { id: 'B6', min: 25.2,  max: 99,    cor: '#8E1600', label: 'B6 ≥25,2' },
+];
+function bandaDe(vKmh) {
+  if (vKmh == null || vKmh < 0.5) return -1;
+  for (let i = BANDAS.length - 1; i >= 0; i--) if (vKmh >= BANDAS[i].min) return i;
+  return -1;
+}
+
+/* ---------- Grupos posicionais ---------- */
+const POS_GRUPOS = [
+  { g: 'GOL', tags: ['GOL', 'GK', 'GOALKEEPER'],                        cor: '#C4952A' },
+  { g: 'ZAG', tags: ['ZAG', 'CB', 'CENTRE BACK', 'CENTER BACK', 'DEF'], cor: '#003087' },
+  { g: 'LAT', tags: ['LAT', 'LB', 'RB', 'FULL', 'WING BACK', 'ALA'],    cor: '#5B8DEF' },
+  { g: 'VOL', tags: ['VOL', 'DM', 'DEFENSIVE MID', 'PIVOT'],            cor: '#38B26E' },
+  { g: 'MEI', tags: ['MEI', 'MID', 'CM', 'AM', 'MEIA'],                 cor: '#A9C93A' },
+  { g: 'ATA', tags: ['ATA', 'FW', 'ST', 'STRIKER', 'FORWARD', 'PONTA', 'WINGER', 'EXTREMO'], cor: '#E8360A' },
+];
+function grupoPos(posicao) {
+  const p = String(posicao || '').toUpperCase();
+  for (const gr of POS_GRUPOS) if (gr.tags.some(t => p.includes(t))) return gr.g;
+  return 'Outro';
+}
+function corGrupo(g) {
+  const gr = POS_GRUPOS.find(x => x.g === g);
+  return gr ? gr.cor : '#8A93A6';
+}
+
+/* ---------- Geo: lat/lon → metros locais (equiretangular) ---------- */
+function geoParaMetros(lat, lon, lat0, lon0) {
+  const R = 6371000, k = Math.PI / 180;
+  return {
+    x: (lon - lon0) * k * R * Math.cos(lat0 * k),
+    y: (lat - lat0) * k * R,
+  };
+}
+
+/* ---------- Homografia (DLT 4 pontos) ---------- */
+// src: 4 pontos {x,y} (metros locais dos cantos) → dst: cantos do campo
+// ordem: [0,0] (escanteio inf-esq), [L,0], [L,W], [0,W]  (L=comprimento, W=largura)
+function resolverLinear(A, b) {
+  const n = A.length, M = A.map((row, i) => [...row, b[i]]);
+  for (let c = 0; c < n; c++) {
+    let piv = c;
+    for (let r = c + 1; r < n; r++) if (Math.abs(M[r][c]) > Math.abs(M[piv][c])) piv = r;
+    if (Math.abs(M[piv][c]) < 1e-12) throw new Error('Sistema singular — cantos colineares?');
+    [M[c], M[piv]] = [M[piv], M[c]];
+    for (let r = 0; r < n; r++) {
+      if (r === c) continue;
+      const f = M[r][c] / M[c][c];
+      for (let k = c; k <= n; k++) M[r][k] -= f * M[c][k];
+    }
+  }
+  return M.map((row, i) => row[n] / row[i]);
+}
+function homografia(src, dst) {
+  const A = [], b = [];
+  for (let i = 0; i < 4; i++) {
+    const { x, y } = src[i], { x: u, y: v } = dst[i];
+    A.push([x, y, 1, 0, 0, 0, -u * x, -u * y]); b.push(u);
+    A.push([0, 0, 0, x, y, 1, -v * x, -v * y]); b.push(v);
+  }
+  const h = resolverLinear(A, b);
+  return [h[0], h[1], h[2], h[3], h[4], h[5], h[6], h[7], 1];
+}
+function aplicarH(H, x, y) {
+  const w = H[6] * x + H[7] * y + H[8];
+  return { x: (H[0] * x + H[1] * y + H[2]) / w, y: (H[3] * x + H[4] * y + H[5]) / w };
+}
+
+/* Calibração completa: 4 cantos lat/lon + dimensões → função (lat,lon)→(x,y) campo */
+function criarCalibracao(cantos, comprimento, largura) {
+  const lat0 = cantos.reduce((s, c) => s + c.lat, 0) / 4;
+  const lon0 = cantos.reduce((s, c) => s + c.lon, 0) / 4;
+  const src = cantos.map(c => geoParaMetros(c.lat, c.lon, lat0, lon0));
+  const dst = [{ x: 0, y: 0 }, { x: comprimento, y: 0 }, { x: comprimento, y: largura }, { x: 0, y: largura }];
+  const H = homografia(src, dst);
+  return {
+    L: comprimento, W: largura, lat0, lon0, H,
+    map(lat, lon) {
+      const m = geoParaMetros(lat, lon, lat0, lon0);
+      return aplicarH(H, m.x, m.y);
+    },
+  };
+}
+
+/* Auto-calibração por PCA da nuvem de pontos (fallback) */
+function autoCalibrar(lats, lons, comprimento, largura) {
+  let lat0 = 0, lon0 = 0, n = 0;
+  for (let i = 0; i < lats.length; i++) { if (lats[i] != null) { lat0 += lats[i]; lon0 += lons[i]; n++; } }
+  if (n < 100) return null;
+  lat0 /= n; lon0 /= n;
+  let sxx = 0, sxy = 0, syy = 0;
+  const pts = [];
+  for (let i = 0; i < lats.length; i++) {
+    if (lats[i] == null) continue;
+    const m = geoParaMetros(lats[i], lons[i], lat0, lon0);
+    pts.push(m); sxx += m.x * m.x; sxy += m.x * m.y; syy += m.y * m.y;
+  }
+  sxx /= pts.length; sxy /= pts.length; syy /= pts.length;
+  const ang = 0.5 * Math.atan2(2 * sxy, sxx - syy);           // eixo principal
+  const ca = Math.cos(-ang), sa = Math.sin(-ang);
+  let xs = [], ys = [];
+  for (const p of pts) { xs.push(p.x * ca - p.y * sa); ys.push(p.x * sa + p.y * ca); }
+  xs.sort((a, b) => a - b); ys.sort((a, b) => a - b);
+  const q = (arr, f) => arr[Math.floor(f * (arr.length - 1))];
+  const x1 = q(xs, 0.01), x2 = q(xs, 0.99), y1 = q(ys, 0.01), y2 = q(ys, 0.99);
+  return {
+    L: comprimento, W: largura, auto: true,
+    map(lat, lon) {
+      const m = geoParaMetros(lat, lon, lat0, lon0);
+      const rx = m.x * ca - m.y * sa, ry = m.x * sa + m.y * ca;
+      return {
+        x: (rx - x1) / (x2 - x1 || 1) * comprimento,
+        y: (ry - y1) / (y2 - y1 || 1) * largura,
+      };
+    },
+  };
+}
+
+/* ---------- Métricas por atleta (a partir do stream slim) ---------- */
+// d = {ts[], lat[], lon[], v[], a[], hr[]}, v em m/s; dt derivado de ts
+function calcularMetricas(d) {
+  const n = d.ts.length;
+  let dist = 0, hsr = 0, sprint = 0, vmax = 0, tempo = 0, hrSum = 0, hrN = 0;
+  let acc = 0, dec = 0, accRun = 0, decRun = 0;
+  const MIN_DUR = 0.6;                 // s — duração mínima do esforço
+  for (let i = 1; i < n; i++) {
+    let dt = d.ts[i] - d.ts[i - 1];
+    if (!(dt > 0) || dt > 2) { accRun = 0; decRun = 0; continue; }  // buraco no sinal
+    const v = d.v[i];
+    if (v == null) { accRun = 0; decRun = 0; continue; }
+    const vk = v * 3.6;
+    tempo += dt;
+    dist += v * dt;
+    if (vk >= 19.8) hsr += v * dt;
+    if (vk >= 25.2) sprint += v * dt;
+    if (vk > vmax && vk < 45) vmax = vk;
+    if (d.hr[i] != null && d.hr[i] > 30) { hrSum += d.hr[i]; hrN++; }
+    const a = d.a[i];
+    if (a != null && a >= 3)       { accRun += dt; decRun = 0; if (accRun >= MIN_DUR && accRun - dt < MIN_DUR) acc++; }
+    else if (a != null && a <= -3) { decRun += dt; accRun = 0; if (decRun >= MIN_DUR && decRun - dt < MIN_DUR) dec++; }
+    else { accRun = 0; decRun = 0; }
+  }
+  const min = tempo / 60;
+  return {
+    dist: Math.round(dist),
+    hsr: Math.round(hsr),
+    sprint: Math.round(sprint),
+    vmax: Math.round(vmax * 10) / 10,
+    minutos: Math.round(min * 10) / 10,
+    dens: min > 0 ? Math.round(dist / min * 10) / 10 : 0,
+    acc, dec,
+    fcMedia: hrN > 0 ? Math.round(hrSum / hrN) : null,
+  };
+}
+const METRICAS_DEF = [
+  { k: 'dist',    label: 'Distância Total (m)' },
+  { k: 'hsr',     label: 'HSR B5+B6 (m)' },
+  { k: 'sprint',  label: 'Sprint ≥25,2 (m)' },
+  { k: 'vmax',    label: 'Vel. Máx (km/h)' },
+  { k: 'dens',    label: 'Densidade (m/min)' },
+  { k: 'minutos', label: 'Minutos' },
+  { k: 'acc',     label: 'Acelerações ≥3 m/s²' },
+  { k: 'dec',     label: 'Desacelerações ≤-3 m/s²' },
+  { k: 'fcMedia', label: 'FC Média (bpm)' },
+];
+
+/* ---------- Heatmap: grade + blur gaussiano separável ---------- */
+function criarGrade(L, W, cell) {
+  const gw = Math.ceil(L / cell), gh = Math.ceil(W / cell);
+  return { g: new Float32Array(gw * gh), gw, gh, cell };
+}
+function acumular(grade, x, y, peso) {
+  const cx = Math.floor(x / grade.cell), cy = Math.floor(y / grade.cell);
+  if (cx < 0 || cy < 0 || cx >= grade.gw || cy >= grade.gh) return;
+  grade.g[cy * grade.gw + cx] += peso;
+}
+function nucleoGauss(sigma) {
+  const r = Math.max(1, Math.ceil(sigma * 3)), k = new Float32Array(2 * r + 1);
+  let s = 0;
+  for (let i = -r; i <= r; i++) { k[i + r] = Math.exp(-i * i / (2 * sigma * sigma)); s += k[i + r]; }
+  for (let i = 0; i < k.length; i++) k[i] /= s;
+  return { k, r };
+}
+function blurGauss(grade, sigmaCells) {
+  const { g, gw, gh } = grade, { k, r } = nucleoGauss(sigmaCells);
+  const tmp = new Float32Array(g.length);
+  for (let y = 0; y < gh; y++) for (let x = 0; x < gw; x++) {
+    let s = 0;
+    for (let i = -r; i <= r; i++) {
+      const xx = Math.min(gw - 1, Math.max(0, x + i));
+      s += g[y * gw + xx] * k[i + r];
+    }
+    tmp[y * gw + x] = s;
+  }
+  for (let y = 0; y < gh; y++) for (let x = 0; x < gw; x++) {
+    let s = 0;
+    for (let i = -r; i <= r; i++) {
+      const yy = Math.min(gh - 1, Math.max(0, y + i));
+      s += tmp[yy * gw + x] * k[i + r];
+    }
+    g[y * gw + x] = s;
+  }
+  return grade;
+}
+
+/* ---------- Estatística ---------- */
+function media(a) { return a.reduce((s, x) => s + x, 0) / a.length; }
+function desvio(a) {
+  const m = media(a);
+  return Math.sqrt(a.reduce((s, x) => s + (x - m) ** 2, 0) / (a.length - 1));
+}
+function pearson(x, y) {
+  const n = x.length, mx = media(x), my = media(y);
+  let sxy = 0, sxx = 0, syy = 0;
+  for (let i = 0; i < n; i++) { sxy += (x[i] - mx) * (y[i] - my); sxx += (x[i] - mx) ** 2; syy += (y[i] - my) ** 2; }
+  return sxx > 0 && syy > 0 ? sxy / Math.sqrt(sxx * syy) : 0;
+}
+function postos(a) {
+  const idx = a.map((v, i) => [v, i]).sort((p, q) => p[0] - q[0]);
+  const rk = new Array(a.length);
+  let i = 0;
+  while (i < idx.length) {
+    let j = i;
+    while (j + 1 < idx.length && idx[j + 1][0] === idx[i][0]) j++;
+    const r = (i + j) / 2 + 1;
+    for (let k2 = i; k2 <= j; k2++) rk[idx[k2][1]] = r;
+    i = j + 1;
+  }
+  return rk;
+}
+function spearman(x, y) { return pearson(postos(x), postos(y)); }
+// p-valor bicaudal da correlação via estatística t com aproximação da CDF t
+function lnGamma(z) {
+  const c = [76.18009172947146, -86.50532032941677, 24.01409824083091,
+             -1.231739572450155, 0.1208650973866179e-2, -0.5395239384953e-5];
+  let x = z, y = z, tmp = x + 5.5;
+  tmp -= (x + 0.5) * Math.log(tmp);
+  let ser = 1.000000000190015;
+  for (let j = 0; j < 6; j++) ser += c[j] / ++y;
+  return -tmp + Math.log(2.5066282746310005 * ser / x);
+}
+function betaInc(a, b, x) {
+  if (x <= 0) return 0; if (x >= 1) return 1;
+  const lbeta = lnGamma(a) + lnGamma(b) - lnGamma(a + b);
+  const front = Math.exp(Math.log(x) * a + Math.log(1 - x) * b - lbeta) / a;
+  // fração continuada (Lentz)
+  let f = 1, c = 1, d = 0;
+  for (let i = 0; i <= 200; i++) {
+    const m = Math.floor(i / 2);
+    let num;
+    if (i === 0) num = 1;
+    else if (i % 2 === 0) num = (m * (b - m) * x) / ((a + 2 * m - 1) * (a + 2 * m));
+    else num = -((a + m) * (a + b + m) * x) / ((a + 2 * m) * (a + 2 * m + 1));
+    d = 1 + num * d; if (Math.abs(d) < 1e-30) d = 1e-30; d = 1 / d;
+    c = 1 + num / c; if (Math.abs(c) < 1e-30) c = 1e-30;
+    const cd = c * d; f *= cd;
+    if (Math.abs(1 - cd) < 1e-8) break;
+  }
+  return front * (f - 1);
+}
+function pValorT(t, df) {
+  const x = df / (df + t * t);
+  let p = betaInc(df / 2, 0.5, x);
+  return Math.min(1, Math.max(0, p));
+}
+function corrTest(x, y, metodo) {
+  const n = x.length;
+  if (n < 4) return { r: NaN, p: NaN, n };
+  const r = metodo === 'spearman' ? spearman(x, y) : pearson(x, y);
+  if (Math.abs(r) >= 1) return { r, p: 0, n };
+  const t = r * Math.sqrt((n - 2) / (1 - r * r));
+  return { r, p: pValorT(Math.abs(t), n - 2), n };
+}
+function welch(x, y) {
+  const nx = x.length, ny = y.length;
+  if (nx < 2 || ny < 2) return { t: NaN, df: NaN, p: NaN };
+  const mx = media(x), my = media(y), vx = desvio(x) ** 2, vy = desvio(y) ** 2;
+  const se2 = vx / nx + vy / ny;
+  const t = (mx - my) / Math.sqrt(se2);
+  const df = se2 ** 2 / ((vx / nx) ** 2 / (nx - 1) + (vy / ny) ** 2 / (ny - 1));
+  const d = (mx - my) / Math.sqrt(((nx - 1) * vx + (ny - 1) * vy) / (nx + ny - 2) || 1);
+  return { t, df, p: pValorT(Math.abs(t), df), mx, my, d };
+}
+
+/* ---------- Regressão linear simples (para scatter) ---------- */
+function regressao(x, y) {
+  const n = x.length, mx = media(x), my = media(y);
+  let sxy = 0, sxx = 0;
+  for (let i = 0; i < n; i++) { sxy += (x[i] - mx) * (y[i] - my); sxx += (x[i] - mx) ** 2; }
+  const b = sxx > 0 ? sxy / sxx : 0;
+  return { b, a: my - b * mx };
+}
+
+/* ---------- Nome de exibição ("96 PIERRE" → PIERRE) ---------- */
+function nomeExibicao(a) {
+  const fn = String(a.first_name || '').replace(/^\d+\s*/, '').trim();
+  const ln = String(a.last_name || '').trim();
+  return (fn || ln) ? (fn && ln && fn !== ln ? `${fn} ${ln}` : fn || ln) : `#${a.id}`;
+}
+
+/* ---------- Colormap (azul→verde→amarelo→vermelho) ---------- */
+function corCalor(t) {
+  t = Math.min(1, Math.max(0, t));
+  const stops = [
+    [0.00, 7, 26, 62], [0.25, 0, 48, 135], [0.50, 56, 178, 110],
+    [0.75, 196, 149, 42], [1.00, 232, 54, 10],
+  ];
+  for (let i = 1; i < stops.length; i++) {
+    if (t <= stops[i][0]) {
+      const [t0, r0, g0, b0] = stops[i - 1], [t1, r1, g1, b1] = stops[i];
+      const f = (t - t0) / (t1 - t0);
+      return [Math.round(r0 + f * (r1 - r0)), Math.round(g0 + f * (g1 - g0)), Math.round(b0 + f * (b1 - b0))];
+    }
+  }
+  return [232, 54, 10];
+}
+
+if (typeof module !== 'undefined') module.exports = {
+  BANDAS, bandaDe, POS_GRUPOS, grupoPos, corGrupo, geoParaMetros, homografia,
+  aplicarH, criarCalibracao, autoCalibrar, calcularMetricas, METRICAS_DEF,
+  criarGrade, acumular, blurGauss, pearson, spearman, corrTest, welch,
+  regressao, nomeExibicao, corCalor, media, desvio,
+};
+
+/* ==================== APP GPS2D ==================== */
+(function () {
+'use strict';
+const $ = id => document.getElementById(id);
+
+/* ---------- Backend (token fica no servidor — nada de token aqui) ---------- */
+let BACKEND = localStorage.getItem('gps2d_backend') || '';
+$('btnConfig').onclick = () => {
+  const v = prompt('URL do backend (vazio = mesmo domínio desta página):',
+    BACKEND || 'https://fec-backend-sigma.vercel.app');
+  if (v === null) return;
+  BACKEND = v.trim().replace(/\/$/, '');
+  localStorage.setItem('gps2d_backend', BACKEND);
+  initAtividades();
+};
+async function api(path) {
+  const r = await fetch(`${BACKEND}${path}`);
+  if (!r.ok) throw new Error(`HTTP ${r.status} em ${path}`);
+  return r.json();
+}
+
+/* ---------- Estado ---------- */
+const S = {
+  atividades: [], atletas: [], periodos: [],
+  selAtletas: new Set(),
+  dados: new Map(),        // athleteId → {slim, met, pts, nome, grupo, cor}
+  cache: new Map(),        // chave completa → slim
+  cal: null, calAtiva: localStorage.getItem('gps2d_cal_ativa') || '',
+  t0: 0, t1: 0,            // faixa de ts da sessão
+};
+
+/* ---------- Utilidades ---------- */
+const fmtData = ts => new Date(ts * 1000).toLocaleDateString('pt-BR',
+  { day: '2-digit', month: '2-digit', year: '2-digit' });
+const fmtMin = s => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+function corAtletaIdx(i, grupo) {
+  const base = corGrupo(grupo);
+  // variação tonal simples dentro do grupo
+  const f = (i % 4) * 0.13;
+  const n = parseInt(base.slice(1), 16);
+  const mix = (c) => Math.min(255, Math.round(c + (255 - c) * f));
+  return `rgb(${mix(n >> 16)},${mix((n >> 8) & 255)},${mix(n & 255)})`;
+}
+
+/* ---------- Atividades ---------- */
+async function initAtividades() {
+  const sel = $('selAtividade');
+  sel.innerHTML = '<option>Carregando…</option>';
+  try {
+    S.atividades = await api('/api/gps/activities?limit=200');
+    sel.innerHTML = '<option value="">— escolha —</option>' + S.atividades.map(a =>
+      `<option value="${a.id}">${fmtData(a.start_time)} · ${a.name}</option>`).join('');
+  } catch (e) {
+    sel.innerHTML = `<option>Erro: ${e.message}</option>`;
+  }
+}
+$('selAtividade').onchange = async () => {
+  const id = $('selAtividade').value;
+  S.atletas = []; S.periodos = []; S.selAtletas.clear(); S.dados.clear();
+  $('chipsAtletas').innerHTML = ''; $('btnCarregar').disabled = true;
+  if (!id) return;
+  $('chipsAtletas').innerHTML = '<span style="font-size:12px;color:var(--txt2)">Buscando…</span>';
+  try {
+    const [ath, per] = await Promise.all([
+      api(`/api/gps/athletes?activity=${id}`),
+      api(`/api/gps/periods?activity=${id}`),
+    ]);
+    S.atletas = ath.map(a => ({ ...a, nome: nomeExibicao(a), grupo: grupoPos(a.position) }))
+      .sort((x, y) => x.nome.localeCompare(y.nome));
+    S.periodos = per;
+    $('selPeriodo').innerHTML = '<option value="">Sessão completa</option>' +
+      per.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+    renderChips();
+    $('btnCarregar').disabled = false;
+  } catch (e) {
+    $('chipsAtletas').innerHTML = `<span style="color:var(--vermelho);font-size:12px">${e.message}</span>`;
+  }
+};
+function renderChips() {
+  $('chipsAtletas').innerHTML = S.atletas.map(a =>
+    `<span class="chip ${S.selAtletas.has(a.id) ? 'sel' : ''}" data-id="${a.id}">${a.nome}<span class="pos">${a.grupo}</span></span>`).join('');
+  [...$('chipsAtletas').children].forEach(ch => ch.onclick = () => {
+    const id = ch.dataset.id;
+    S.selAtletas.has(id) ? S.selAtletas.delete(id) : S.selAtletas.add(id);
+    ch.classList.toggle('sel');
+  });
+}
+$('lnkTodos').onclick = e => { e.preventDefault(); S.atletas.forEach(a => S.selAtletas.add(a.id)); renderChips(); };
+$('lnkLimpar').onclick = e => { e.preventDefault(); S.selAtletas.clear(); renderChips(); };
+
+/* ---------- Carga (concorrência limitada — padrão FEC) ---------- */
+$('btnCarregar').onclick = async () => {
+  const act = $('selAtividade').value, per = $('selPeriodo').value, each = $('selEach').value;
+  const ids = [...S.selAtletas];
+  if (!ids.length) return alert('Selecione ao menos um atleta.');
+  $('btnCarregar').disabled = true;
+  S.dados.clear();
+  let feitos = 0, erros = 0;
+  const fila = [...ids];
+  const upd = () => {
+    $('barraProg').style.width = `${feitos / ids.length * 100}%`;
+    $('statusCarga').textContent = `${feitos}/${ids.length}${erros ? ` · ${erros} erro(s)` : ''}`;
+  };
+  async function trabalhador() {
+    while (fila.length) {
+      const id = fila.shift();
+      const chave = `${act}|${per}|${id}|${each}`;
+      try {
+        let slim = S.cache.get(chave);
+        if (!slim) {
+          const q = per ? `period=${per}` : `activity=${act}`;
+          slim = await api(`/api/gps/sensor?${q}&athlete=${id}&each=${each}`);
+          S.cache.set(chave, slim);
+        }
+        if (slim.n > 50) {
+          const a = S.atletas.find(x => x.id === id);
+          S.dados.set(id, { slim, nome: a.nome, grupo: a.grupo, pos: a.position });
+        }
+      } catch (e) { erros++; }
+      feitos++; upd();
+    }
+  }
+  upd();
+  await Promise.all([0, 1, 2, 3].map(trabalhador));
+  $('btnCarregar').disabled = false;
+  posProcessar();
+};
+
+/* ---------- Calibração ativa + pós-processamento ---------- */
+function calsSalvas() { return JSON.parse(localStorage.getItem('gps2d_cals') || '{}'); }
+function obterCal() {
+  if (!$('chkAutoPCA').checked && S.calAtiva) {
+    const c = calsSalvas()[S.calAtiva];
+    if (c) { $('avisoAutoCal').classList.add('oculto'); return criarCalibracao(c.cantos, c.L, c.W); }
+  }
+  // auto-PCA com todos os pontos carregados
+  const lats = [], lons = [];
+  for (const d of S.dados.values()) { lats.push(...d.slim.lat); lons.push(...d.slim.lon); }
+  $('avisoAutoCal').classList.remove('oculto');
+  return autoCalibrar(lats, lons, 105, 68);
+}
+function posProcessar() {
+  if (!S.dados.size) return;
+  S.cal = obterCal();
+  if (!S.cal) { alert('Dados insuficientes para calibração.'); return; }
+  let t0 = Infinity, t1 = -Infinity, gi = 0;
+  for (const [id, d] of S.dados) {
+    const { slim } = d;
+    d.met = calcularMetricas(slim);
+    d.cor = corAtletaIdx(gi++, d.grupo);
+    d.pts = new Float32Array(slim.n * 2);
+    for (let i = 0; i < slim.n; i++) {
+      const p = S.cal.map(slim.lat[i], slim.lon[i]);
+      d.pts[i * 2] = p.x; d.pts[i * 2 + 1] = p.y;
+    }
+    if (slim.n) { t0 = Math.min(t0, slim.ts[0]); t1 = Math.max(t1, slim.ts[slim.n - 1]); }
+  }
+  S.t0 = t0; S.t1 = t1;
+  atualizarSelects();
+  renderTudo();
+}
+function atualizarSelects() {
+  $('selHeatAtleta').innerHTML = '<option value="__all__">Todos selecionados</option>' +
+    [...S.dados.entries()].map(([id, d]) => `<option value="${id}">${d.nome}</option>`).join('');
+  const ops = METRICAS_DEF.map(m => `<option value="${m.k}">${m.label}</option>`).join('');
+  ['selMetricaPos', 'selStatX', 'selStatY', 'selWelchMet'].forEach(id => { $(id).innerHTML = ops; });
+  $('selStatY').value = 'hsr';
+  const grupos = [...new Set([...S.dados.values()].map(d => d.grupo))];
+  const gops = grupos.map(g => `<option>${g}</option>`).join('');
+  $('selWelchA').innerHTML = gops; $('selWelchB').innerHTML = gops;
+  if (grupos.length > 1) $('selWelchB').selectedIndex = 1;
+}
+
+/* ---------- Desenho do campo ---------- */
+function prepararCampo(cv) {
+  const ctx = cv.getContext('2d');
+  const L = S.cal ? S.cal.L : 105, W = S.cal ? S.cal.W : 68;
+  const pad = 30, sw = cv.width - 2 * pad, sh = cv.height - 2 * pad;
+  const esc = Math.min(sw / L, sh / W);
+  const ox = (cv.width - L * esc) / 2, oy = (cv.height - W * esc) / 2;
+  const X = x => ox + x * esc, Y = y => cv.height - (oy + y * esc); // y invertido
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  // gramado listrado
+  for (let i = 0; i < 10; i++) {
+    ctx.fillStyle = i % 2 ? '#0A5C2E' : '#0C6634';
+    ctx.fillRect(X(i * L / 10), Y(W), L / 10 * esc, W * esc);
+  }
+  ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 2;
+  const rect = (x, y, w, h) => ctx.strokeRect(X(x), Y(y + h), w * esc, h * esc);
+  rect(0, 0, L, W);
+  ctx.beginPath(); ctx.moveTo(X(L / 2), Y(0)); ctx.lineTo(X(L / 2), Y(W)); ctx.stroke();
+  ctx.beginPath(); ctx.arc(X(L / 2), Y(W / 2), 9.15 * esc, 0, 7); ctx.stroke();
+  rect(0, W / 2 - 20.16, 16.5, 40.32); rect(L - 16.5, W / 2 - 20.16, 16.5, 40.32);
+  rect(0, W / 2 - 9.16, 5.5, 18.32); rect(L - 5.5, W / 2 - 9.16, 5.5, 18.32);
+  [[11, W / 2], [L - 11, W / 2], [L / 2, W / 2]].forEach(([px, py]) => {
+    ctx.beginPath(); ctx.arc(X(px), Y(py), 2.5, 0, 7); ctx.fillStyle = '#fff'; ctx.fill();
+  });
+  ctx.beginPath(); ctx.arc(X(11), Y(W / 2), 9.15 * esc, -0.93, 0.93); ctx.stroke();
+  ctx.beginPath(); ctx.arc(X(L - 11), Y(W / 2), 9.15 * esc, Math.PI - 0.93, Math.PI + 0.93); ctx.stroke();
+  return { ctx, X, Y, esc, L, W };
+}
+
+/* ---------- Campo 2D: trajetórias ---------- */
+function faixaTempo() {
+  const dur = S.t1 - S.t0;
+  const i0 = S.t0 + dur * $('rngIni').value / 100;
+  const i1 = S.t0 + dur * $('rngFim').value / 100;
+  $('lblJanela').textContent = `${fmtMin(i0 - S.t0)} – ${fmtMin(i1 - S.t0)}`;
+  return [Math.min(i0, i1), Math.max(i0, i1)];
+}
+function renderCampo() {
+  const cv = $('cvCampo'); if (!S.dados.size) { prepararCampo(cv); return; }
+  const { ctx, X, Y } = prepararCampo(cv);
+  const modo = $('selCorModo').value, bMin = +$('selBandaMin').value;
+  const [ti, tf] = faixaTempo();
+  ctx.lineWidth = 1.6; ctx.globalAlpha = 0.75;
+  for (const d of S.dados.values()) {
+    const { slim, pts } = d;
+    let prev = null;
+    for (let i = 0; i < slim.n; i++) {
+      const ts = slim.ts[i];
+      if (ts < ti || ts > tf) { prev = null; continue; }
+      const vk = (slim.v[i] || 0) * 3.6, b = bandaDe(vk);
+      if (b < bMin) { prev = null; continue; }
+      const x = X(pts[i * 2]), y = Y(pts[i * 2 + 1]);
+      if (prev && slim.ts[i] - slim.ts[i - 1] < 2) {
+        ctx.strokeStyle = modo === 'banda' ? (b >= 0 ? BANDAS[b].cor : '#44506B') : d.cor;
+        ctx.beginPath(); ctx.moveTo(prev[0], prev[1]); ctx.lineTo(x, y); ctx.stroke();
+      }
+      prev = [x, y];
+    }
+  }
+  ctx.globalAlpha = 1;
+  $('legCampo').innerHTML = modo === 'banda'
+    ? BANDAS.map(b => `<span class="item"><span class="cx" style="background:${b.cor}"></span>${b.label} km/h</span>`).join('')
+    : [...S.dados.values()].map(d => `<span class="item"><span class="cx" style="background:${d.cor}"></span>${d.nome} (${d.grupo})</span>`).join('');
+}
+['selCorModo', 'selBandaMin'].forEach(id => $(id).onchange = renderCampo);
+['rngIni', 'rngFim'].forEach(id => $(id).oninput = renderCampo);
+
+/* ---------- Heatmap ---------- */
+function renderHeat() {
+  const cv = $('cvHeat'); if (!S.dados.size) { prepararCampo(cv); return; }
+  const { ctx, X, Y, esc, L, W } = prepararCampo(cv);
+  const tipo = $('selHeatTipo').value, alvo = $('selHeatAtleta').value;
+  const sigma = +$('rngSigma').value; $('lblSigma').textContent = sigma;
+  const cell = 0.5, grade = criarGrade(L, W, cell);
+  for (const [id, d] of S.dados) {
+    if (alvo !== '__all__' && id !== alvo) continue;
+    const { slim, pts } = d;
+    for (let i = 1; i < slim.n; i++) {
+      const dt = slim.ts[i] - slim.ts[i - 1];
+      if (!(dt > 0) || dt > 2) continue;
+      const vk = (slim.v[i] || 0) * 3.6;
+      let peso = 0;
+      if (tipo === 'presenca') peso = dt;
+      else if (vk >= 19.8) peso = slim.v[i] * dt;   // metros em HSR
+      if (peso > 0) acumular(grade, pts[i * 2], pts[i * 2 + 1], peso);
+    }
+  }
+  blurGauss(grade, sigma / cell);
+  let mx = 0; for (let i = 0; i < grade.g.length; i++) if (grade.g[i] > mx) mx = grade.g[i];
+  if (mx > 0) {
+    const img = ctx.createImageData(grade.gw, grade.gh);
+    for (let i = 0; i < grade.g.length; i++) {
+      const t = Math.pow(grade.g[i] / mx, 0.5);
+      const [r, g, b] = corCalor(t);
+      img.data[i * 4] = r; img.data[i * 4 + 1] = g; img.data[i * 4 + 2] = b;
+      img.data[i * 4 + 3] = t > 0.02 ? Math.min(235, 40 + t * 220) : 0;
+    }
+    const tmp = document.createElement('canvas');
+    tmp.width = grade.gw; tmp.height = grade.gh;
+    tmp.getContext('2d').putImageData(img, 0, 0);
+    ctx.save();
+    ctx.translate(X(0), Y(W));
+    ctx.scale(esc * cell, esc * cell);
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(tmp, 0, 0, grade.gw, grade.gh);
+    ctx.restore();
+  }
+}
+['selHeatTipo', 'selHeatAtleta'].forEach(id => $(id).onchange = renderHeat);
+$('rngSigma').oninput = renderHeat;
+
+/* ---------- Por posição ---------- */
+function renderPos() {
+  if (!S.dados.size) { $('grafPos').innerHTML = ''; $('tabMetricas').innerHTML = ''; return; }
+  const met = $('selMetricaPos').value || 'dist';
+  const def = METRICAS_DEF.find(m => m.k === met);
+  const linhas = [...S.dados.values()].filter(d => d.met[met] != null)
+    .sort((a, b) => a.grupo.localeCompare(b.grupo) || b.met[met] - a.met[met]);
+  const mx = Math.max(...linhas.map(d => d.met[met]), 1);
+  // médias por grupo
+  const porGrupo = {};
+  linhas.forEach(d => (porGrupo[d.grupo] = porGrupo[d.grupo] || []).push(d.met[met]));
+  const bw = 26, gap = 6, gGap = 26, altura = 340, pb = 90, pt = 20, pl = 56;
+  let x = pl, elems = '', eixoG = '';
+  for (const [g, vals] of Object.entries(porGrupo)) {
+    const x0 = x;
+    const atletas = linhas.filter(d => d.grupo === g);
+    for (const d of atletas) {
+      const h = d.met[met] / mx * (altura - pt - 40);
+      elems += `<rect x="${x}" y="${altura - pb - h}" width="${bw}" height="${h}" rx="3" fill="${d.cor}"><title>${d.nome}: ${d.met[met]}</title></rect>
+        <text x="${x + bw / 2}" y="${altura - pb - h - 5}" text-anchor="middle" font-size="10" fill="#EAF0FA">${d.met[met]}</text>
+        <text transform="rotate(-45 ${x + bw / 2} ${altura - pb + 12})" x="${x + bw / 2}" y="${altura - pb + 12}" text-anchor="end" font-size="10" fill="#9FB0CC">${d.nome}</text>`;
+      x += bw + gap;
+    }
+    const m = media(vals);
+    const ym = altura - pb - m / mx * (altura - pt - 40);
+    elems += `<line x1="${x0 - 3}" y1="${ym}" x2="${x - gap + 3}" y2="${ym}" stroke="#C4952A" stroke-dasharray="4 3" stroke-width="1.5"><title>Média ${g}: ${m.toFixed(1)}</title></line>`;
+    eixoG += `<text x="${(x0 + x - gap) / 2}" y="${altura - 6}" text-anchor="middle" font-size="12" font-weight="700" fill="${corGrupo(g)}">${g}</text>`;
+    x += gGap;
+  }
+  $('grafPos').innerHTML = `<svg width="${Math.max(x, 400)}" height="${altura}" style="overflow:visible;max-width:100%">
+    <text x="${pl}" y="14" font-size="12" fill="#C4952A" font-weight="700">${def.label} — linha tracejada = média do grupo</text>
+    ${elems}${eixoG}</svg>`;
+  // tabela
+  const cab = '<tr><th>Atleta</th><th>Grupo</th>' + METRICAS_DEF.map(m => `<th class="num">${m.label}</th>`).join('') + '</tr>';
+  const corpo = [...S.dados.values()].sort((a, b) => b.met.dist - a.met.dist).map(d =>
+    `<tr><td><span class="cx" style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${d.cor};margin-right:6px"></span>${d.nome}</td><td style="color:${corGrupo(d.grupo)};font-weight:700">${d.grupo}</td>` +
+    METRICAS_DEF.map(m => `<td class="num">${d.met[m.k] ?? '—'}</td>`).join('') + '</tr>').join('');
+  $('tabMetricas').innerHTML = cab + corpo;
+}
+$('selMetricaPos').onchange = renderPos;
+
+/* ---------- Replay ---------- */
+const R = { tocando: false, t: 0, ultimoFrame: 0 };
+function idxPorTs(slim, t) {
+  let lo = 0, hi = slim.n - 1;
+  while (lo < hi) { const m = (lo + hi + 1) >> 1; slim.ts[m] <= t ? lo = m : hi = m - 1; }
+  return lo;
+}
+function renderReplayFrame() {
+  const cv = $('cvReplay');
+  const { ctx, X, Y } = prepararCampo(cv);
+  if (!S.dados.size) return;
+  const t = S.t0 + R.t, rastro = +$('selRastro').value;
+  for (const d of S.dados.values()) {
+    const { slim, pts } = d;
+    const i = idxPorTs(slim, t);
+    if (slim.ts[i] > t + 3 || t - slim.ts[i] > 3) continue;  // atleta sem dado neste instante
+    if (rastro > 0) {
+      ctx.strokeStyle = d.cor; ctx.globalAlpha = 0.4; ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      let comecou = false;
+      for (let j = idxPorTs(slim, t - rastro); j <= i; j++) {
+        const px = X(pts[j * 2]), py = Y(pts[j * 2 + 1]);
+        comecou ? ctx.lineTo(px, py) : ctx.moveTo(px, py); comecou = true;
+      }
+      ctx.stroke(); ctx.globalAlpha = 1;
+    }
+    const x = X(pts[i * 2]), y = Y(pts[i * 2 + 1]);
+    const vk = (slim.v[i] || 0) * 3.6, b = bandaDe(vk);
+    ctx.beginPath(); ctx.arc(x, y, 7, 0, 7);
+    ctx.fillStyle = d.cor; ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = b >= 4 ? BANDAS[b].cor : '#071A3E'; ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 10px Segoe UI'; ctx.textAlign = 'center';
+    ctx.fillText(d.nome.split(' ')[0], x, y - 11);
+  }
+  $('relogio').textContent = fmtMin(R.t);
+  $('rngReplay').value = (S.t1 > S.t0) ? R.t / (S.t1 - S.t0) * 1000 : 0;
+}
+function loopReplay(agora) {
+  if (!R.tocando) return;
+  const dt = (agora - R.ultimoFrame) / 1000; R.ultimoFrame = agora;
+  R.t += dt * (+$('selVelRep').value);
+  if (R.t >= S.t1 - S.t0) { R.t = S.t1 - S.t0; pausar(); }
+  renderReplayFrame();
+  requestAnimationFrame(loopReplay);
+}
+function pausar() { R.tocando = false; $('btnPlay').textContent = '▶ Play'; }
+$('btnPlay').onclick = () => {
+  if (!S.dados.size) return;
+  if (R.tocando) return pausar();
+  R.tocando = true; $('btnPlay').textContent = '❚❚ Pausar';
+  R.ultimoFrame = performance.now();
+  requestAnimationFrame(loopReplay);
+};
+$('rngReplay').oninput = () => { R.t = $('rngReplay').value / 1000 * (S.t1 - S.t0); renderReplayFrame(); };
+$('selRastro').onchange = renderReplayFrame;
+
+/* ---------- Estatísticas ---------- */
+function vetores(k) {
+  return [...S.dados.values()].filter(d => d.met[k] != null && d.met.minutos > 5).map(d => ({ v: d.met[k], d }));
+}
+function renderStat() {
+  if (!S.dados.size) return;
+  const kx = $('selStatX').value, ky = $('selStatY').value, metodo = $('selStatMetodo').value;
+  const lx = METRICAS_DEF.find(m => m.k === kx).label, ly = METRICAS_DEF.find(m => m.k === ky).label;
+  const pares = [...S.dados.values()].filter(d => d.met[kx] != null && d.met[ky] != null && d.met.minutos > 5);
+  const x = pares.map(d => d.met[kx]), y = pares.map(d => d.met[ky]);
+  const ct = corrTest(x, y, metodo);
+  const cls = ct.p < 0.05 ? 'sig' : 'nsig';
+  $('resCorr').innerHTML = isNaN(ct.r)
+    ? 'Amostra insuficiente (mín. 4 atletas com >5 min).'
+    : `<b>${lx}</b> × <b>${ly}</b><br>${metodo === 'pearson' ? 'r de Pearson' : 'ρ de Spearman'} = <b>${ct.r.toFixed(3)}</b> · n = ${ct.n}<br>p-valor (bicaudal) = <span class="${cls}">${ct.p < 0.001 ? '<0,001' : ct.p.toFixed(3)}</span> ${ct.p < 0.05 ? '— significativo (α=0,05)' : '— não significativo'}`;
+  // scatter
+  if (pares.length >= 3) {
+    const wS = 460, hS = 320, plS = 52, pbS = 40, ptS = 14, prS = 14;
+    const x0 = Math.min(...x), x1 = Math.max(...x), y0 = Math.min(...y), y1 = Math.max(...y);
+    const SX = v => plS + (v - x0) / ((x1 - x0) || 1) * (wS - plS - prS);
+    const SY = v => hS - pbS - (v - y0) / ((y1 - y0) || 1) * (hS - pbS - ptS);
+    const reg = regressao(x, y);
+    let svg = `<svg width="${wS}" height="${hS}" style="overflow:visible;max-width:100%">
+      <line x1="${plS}" y1="${hS - pbS}" x2="${wS - prS}" y2="${hS - pbS}" stroke="#1E3D77"/>
+      <line x1="${plS}" y1="${ptS}" x2="${plS}" y2="${hS - pbS}" stroke="#1E3D77"/>
+      <line x1="${SX(x0)}" y1="${SY(reg.a + reg.b * x0)}" x2="${SX(x1)}" y2="${SY(reg.a + reg.b * x1)}" stroke="#C4952A" stroke-width="2" stroke-dasharray="6 4"/>`;
+    pares.forEach((d, i) => {
+      svg += `<circle cx="${SX(x[i])}" cy="${SY(y[i])}" r="5.5" fill="${d.cor}" stroke="#071A3E"><title>${d.nome}: ${x[i]} / ${y[i]}</title></circle>`;
+    });
+    svg += `<text x="${(plS + wS) / 2}" y="${hS - 8}" text-anchor="middle" font-size="11" fill="#9FB0CC">${lx}</text>
+      <text transform="rotate(-90 14 ${hS / 2})" x="14" y="${hS / 2}" text-anchor="middle" font-size="11" fill="#9FB0CC">${ly}</text>
+      <text x="${plS}" y="${hS - pbS + 14}" font-size="10" fill="#9FB0CC">${x0}</text>
+      <text x="${wS - prS}" y="${hS - pbS + 14}" text-anchor="end" font-size="10" fill="#9FB0CC">${x1}</text>
+      <text x="${plS - 6}" y="${SY(y0)}" text-anchor="end" font-size="10" fill="#9FB0CC">${y0}</text>
+      <text x="${plS - 6}" y="${SY(y1) + 4}" text-anchor="end" font-size="10" fill="#9FB0CC">${y1}</text></svg>`;
+    $('scatter').innerHTML = svg;
+  } else $('scatter').innerHTML = '<p style="font-size:12.5px;color:var(--txt2)">Amostra insuficiente.</p>';
+  // matriz
+  const ks = METRICAS_DEF.filter(m => m.k !== 'fcMedia' || vetores('fcMedia').length >= 4);
+  let html = '<table class="matriz"><tr><th></th>' + ks.map(m => `<th title="${m.label}">${m.k}</th>`).join('') + '</tr>';
+  for (const mi of ks) {
+    html += `<tr><th title="${mi.label}">${mi.k}</th>`;
+    for (const mj of ks) {
+      const pares2 = [...S.dados.values()].filter(d => d.met[mi.k] != null && d.met[mj.k] != null && d.met.minutos > 5);
+      const r = pares2.length >= 4 ? (metodo === 'pearson' ? pearson : spearman)(pares2.map(d => d.met[mi.k]), pares2.map(d => d.met[mj.k])) : NaN;
+      const t = isNaN(r) ? 0 : Math.abs(r);
+      const cor = isNaN(r) ? '#0E2A5C' : (r >= 0 ? `rgba(56,178,110,${t * 0.85})` : `rgba(232,54,10,${t * 0.85})`);
+      html += `<td style="background:${cor}">${isNaN(r) ? '—' : r.toFixed(2)}</td>`;
+    }
+    html += '</tr>';
+  }
+  $('matrizCorr').innerHTML = html + '</table>';
+  renderWelch();
+}
+function renderWelch() {
+  const k = $('selWelchMet').value, gA = $('selWelchA').value, gB = $('selWelchB').value;
+  const va = [...S.dados.values()].filter(d => d.grupo === gA && d.met[k] != null && d.met.minutos > 5).map(d => d.met[k]);
+  const vb = [...S.dados.values()].filter(d => d.grupo === gB && d.met[k] != null && d.met.minutos > 5).map(d => d.met[k]);
+  if (va.length < 2 || vb.length < 2) { $('resWelch').innerHTML = 'Mínimo de 2 atletas por grupo (>5 min).'; return; }
+  const w = welch(va, vb);
+  const cls = w.p < 0.05 ? 'sig' : 'nsig';
+  $('resWelch').innerHTML = `<b>${gA}</b> (n=${va.length}, x̄=${w.mx.toFixed(1)}) × <b>${gB}</b> (n=${vb.length}, x̄=${w.my.toFixed(1)})<br>
+    t = ${w.t.toFixed(2)} · gl ≈ ${w.df.toFixed(1)} · d de Cohen = ${w.d.toFixed(2)}<br>
+    p-valor = <span class="${cls}">${w.p < 0.001 ? '<0,001' : w.p.toFixed(3)}</span> ${w.p < 0.05 ? '— diferença significativa' : '— sem diferença significativa'}`;
+}
+['selStatX', 'selStatY', 'selStatMetodo'].forEach(id => $(id).onchange = renderStat);
+['selWelchMet', 'selWelchA', 'selWelchB'].forEach(id => $(id).onchange = renderWelch);
+
+/* ---------- Calibração (Leaflet + satélite Esri) ---------- */
+let mapa = null, marcadores = [], poligono = null;
+function initMapa() {
+  if (mapa) return;
+  mapa = L.map('mapa').setView([-3.7469, -38.5312], 16); // Fortaleza
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    maxZoom: 19, attribution: 'Esri World Imagery',
+  }).addTo(mapa);
+  mapa.on('click', e => {
+    if (marcadores.length >= 4) return;
+    const m = L.marker(e.latlng, { draggable: true,
+      icon: L.divIcon({ html: `<div style="background:#E8360A;color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-weight:700;border:2px solid #fff">${marcadores.length + 1}</div>`, iconSize: [22, 22] }) }).addTo(mapa);
+    m.on('drag', desenharPoligono);
+    marcadores.push(m);
+    desenharPoligono();
+  });
+  renderListaCal();
+}
+function desenharPoligono() {
+  if (poligono) { mapa.removeLayer(poligono); poligono = null; }
+  if (marcadores.length >= 3) {
+    poligono = L.polygon(marcadores.map(m => m.getLatLng()), { color: '#C4952A', weight: 2, fillOpacity: 0.08 }).addTo(mapa);
+  }
+  $('calStatus').textContent = `${marcadores.length} / 4 cantos marcados`;
+  $('btnCalSalvar').disabled = marcadores.length !== 4;
+}
+$('btnCalLimpar').onclick = () => { marcadores.forEach(m => mapa.removeLayer(m)); marcadores = []; desenharPoligono(); };
+$('btnCalCentrar').onclick = () => {
+  for (const d of S.dados.values()) {
+    if (d.slim.n) { mapa.setView([d.slim.lat[0], d.slim.lon[0]], 17); return; }
+  }
+  alert('Carregue dados GPS primeiro para centrar no local da sessão.');
+};
+$('btnCalSalvar').onclick = () => {
+  const nome = $('inpCalNome').value.trim();
+  if (!nome) return alert('Dê um nome ao local.');
+  const cals = calsSalvas();
+  cals[nome] = {
+    cantos: marcadores.map(m => ({ lat: m.getLatLng().lat, lon: m.getLatLng().lng })),
+    L: +$('inpCalL').value || 105, W: +$('inpCalW').value || 68,
+  };
+  localStorage.setItem('gps2d_cals', JSON.stringify(cals));
+  S.calAtiva = nome; localStorage.setItem('gps2d_cal_ativa', nome);
+  renderListaCal(); posProcessar();
+};
+function renderListaCal() {
+  const cals = calsSalvas(), nomes = Object.keys(cals);
+  $('listaCal').innerHTML = nomes.length ? nomes.map(n =>
+    `<div class="itemCal ${n === S.calAtiva ? 'ativa' : ''}"><span>${n} <small style="color:var(--txt2)">${cals[n].L}×${cals[n].W} m</small></span>
+     <span><button class="btn" data-usar="${n}">Usar</button> <button class="btn fantasma" data-del="${n}">✕</button></span></div>`).join('')
+    : '<p style="font-size:12.5px;color:var(--txt2)">Nenhuma calibração salva.</p>';
+  $('listaCal').querySelectorAll('[data-usar]').forEach(b => b.onclick = () => {
+    S.calAtiva = b.dataset.usar; localStorage.setItem('gps2d_cal_ativa', S.calAtiva);
+    renderListaCal(); posProcessar();
+  });
+  $('listaCal').querySelectorAll('[data-del]').forEach(b => b.onclick = () => {
+    const cals2 = calsSalvas(); delete cals2[b.dataset.del];
+    localStorage.setItem('gps2d_cals', JSON.stringify(cals2));
+    if (S.calAtiva === b.dataset.del) { S.calAtiva = ''; localStorage.removeItem('gps2d_cal_ativa'); }
+    renderListaCal();
+  });
+}
+$('chkAutoPCA').onchange = posProcessar;
+
+/* ---------- Abas / render geral ---------- */
+document.querySelectorAll('.aba').forEach(a => a.onclick = () => {
+  document.querySelectorAll('.aba').forEach(x => x.classList.remove('ativa'));
+  document.querySelectorAll('.painel').forEach(x => x.classList.remove('ativo'));
+  a.classList.add('ativa');
+  $(`painel-${a.dataset.aba}`).classList.add('ativo');
+  if (a.dataset.aba === 'cal') setTimeout(() => { initMapa(); mapa.invalidateSize(); }, 50);
+  renderTudo();
+});
+function renderTudo() {
+  const ativo = document.querySelector('.painel.ativo').id;
+  if (ativo === 'painel-campo') renderCampo();
+  else if (ativo === 'painel-heat') renderHeat();
+  else if (ativo === 'painel-pos') renderPos();
+  else if (ativo === 'painel-replay') renderReplayFrame();
+  else if (ativo === 'painel-stat') renderStat();
+}
+
+prepararCampo($('cvCampo'));
+initAtividades();
+})();
+</script>
+</body>
+</html>
