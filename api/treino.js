@@ -31,6 +31,33 @@ const soma = (...vals) => {
 
 const round1 = (v) => (v === null ? null : Math.round(v * 10) / 10);
 
+// Ordena os blocos de um atleta na ordem em que aconteceram (start_time).
+// Fallback alfabético só se a Catapult não mandar timestamp.
+// Acrescenta `ordem` (1..n) e `rotulo`: quando o mesmo nome de bloco se repete
+// na sessão (ex.: "Principal-JR_7x7+2_50x40" 2x), vira "Nome (1)" / "Nome (2)".
+function ordenarPeriodos(regs) {
+  const ordenados = [...regs].sort((a, b) => {
+    if (a.inicio_unix !== null && b.inicio_unix !== null) {
+      return a.inicio_unix - b.inicio_unix;
+    }
+    return String(a.periodo).localeCompare(String(b.periodo), "pt-BR");
+  });
+
+  const contagem = {};
+  for (const r of ordenados) contagem[r.periodo] = (contagem[r.periodo] || 0) + 1;
+
+  const vistos = {};
+  return ordenados.map((r, i) => {
+    const repete = contagem[r.periodo] > 1;
+    vistos[r.periodo] = (vistos[r.periodo] || 0) + 1;
+    return {
+      ...r,
+      ordem: i + 1,
+      rotulo: repete ? `${r.periodo} (${vistos[r.periodo]})` : r.periodo,
+    };
+  });
+}
+
 // =============================================================================
 // BLOCO A — SESSÕES (antigo api/sessions.js)
 // =============================================================================
@@ -139,6 +166,10 @@ function normalizar(r) {
     atleta_id: r.athlete_id || null,
     periodo: r.period_name || r.period || "?",
     periodo_id: r.period_id || null,
+    // Timestamps do bloco — usados para ordenar cronologicamente.
+    // Sem isso os blocos saem em ordem alfabética, o que inverte a leitura da sessão.
+    inicio_unix: num(r, "start_time"),
+    fim_unix: num(r, "end_time"),
     duracao_min: round1(duracaoMin),
     distancia_m: round1(dist),
     // Densidade da sessão/bloco (m/min)
@@ -236,7 +267,7 @@ async function statsDaSessao(req, res, TOKEN) {
   const atletas = Object.values(porAtleta)
     .map((regs) => ({
       ...agregarAtleta(regs),
-      periodos: regs.sort((a, b) => (a.periodo > b.periodo ? 1 : -1)),
+      periodos: ordenarPeriodos(regs),
     }))
     .sort((a, b) => a.atleta.localeCompare(b.atleta, "pt-BR"));
 
