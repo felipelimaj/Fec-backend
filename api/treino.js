@@ -322,6 +322,128 @@ async function statsDaSessao(req, res, TOKEN) {
 }
 
 // =============================================================================
+// BLOCO C — DIAGNÓSTICO: comparação das duas famílias de slug de banda
+// =============================================================================
+// Existem dois esquemas de numeração e eles divergem em 1:
+//   gen2_velocity_bandN  → numeração FEC (band1 = 0,50–7,20 km/h)
+//   velocity_bandN       → numeração da API (band1 = 0–0,50 km/h)
+// Confundi-los faz o HSR incluir ou excluir a faixa 14,40–19,80 km/h por engano.
+// Este endpoint soma as duas famílias na MESMA atividade e revela o deslocamento.
+
+const N_BANDAS = [1, 2, 3, 4, 5, 6, 7, 8];
+const SLUGS_GEN2 = N_BANDAS.map((n) => `gen2_velocity_band${n}_total_distance`);
+const SLUGS_API = N_BANDAS.map((n) => `velocity_band${n}_total_distance`);
+
+async function compararBandas(req, res, TOKEN) {
+  const activityId = req.query.activity_id;
+  if (!activityId) {
+    return res.status(400).json({ erro: "Parâmetro obrigatório: activity_id" });
+  }
+
+  const resposta = await fetch(`${BASE_URL}/stats`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${TOKEN}`,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      filters: [{ name: "activity_id", comparison: "=", values: [activityId] }],
+      parameters: ["total_distance", "max_vel", ...SLUGS_GEN2, ...SLUGS_API],
+      group_by: ["athlete", "period"],
+    }),
+  });
+
+  if (!resposta.ok) {
+    const texto = await resposta.text();
+    return res.status(resposta.status).json({
+      erro: "Falha na API da Catapult (/stats)",
+      status: resposta.status,
+      detalhe: texto.slice(0, 300),
+    });
+  }
+
+  const bruto = await resposta.json();
+  const regs = Array.isArray(bruto) ? bruto : [];
+  const cru = regs[0] || {};
+
+  // Soma cada slug sobre TODOS os registros (um registro isolado pode ser só zeros)
+  const somar = (slug) =>
+    round1(regs.reduce((acc, r) => acc + (num(r, slug) ?? 0), 0));
+
+  const gen2 = {}, api = {};
+  N_BANDAS.forEach((n, i) => {
+    gen2[`band${n}`] = somar(SLUGS_GEN2[i]);
+    api[`band${n}`] = somar(SLUGS_API[i]);
+  });
+
+  const ausentes = [...SLUGS_GEN2, ...SLUGS_API].filter((s) => !(s in cru));
+
+  // Para cada banda da API, procura a banda gen2 com a mesma distância somada
+  const correspondencia = [];
+  for (const n of N_BANDAS) {
+    const alvo = api[`band${n}`];
+    if (!alvo) continue; // banda vazia não distingue nada
+    let melhor = null;
+    for (const m of N_BANDAS) {
+      const d = Math.abs(gen2[`band${m}`] - alvo);
+      if (melhor === null || d < melhor.diferenca_m) {
+        melhor = { equivale_a: `gen2_velocity_band${m}`, diferenca_m: round1(d), _m: m };
+      }
+    }
+    correspondencia.push({
+      slug_api: `velocity_band${n}`,
+      distancia_m: alvo,
+      ...melhor,
+      identicas: melhor.diferenca_m <= 0.5,
+    });
+  }
+
+  // Deslocamento = (índice gen2) − (índice api), quando as somas batem
+  const pares = correspondencia.filter((c) => c.identicas);
+  const deslocs = [...new Set(pares.map((c) => c._m - Number(c.slug_api.match(/\d+/)[0])))];
+  pares.forEach((c) => delete c._m);
+  correspondencia.forEach((c) => delete c._m);
+
+  let veredito;
+  if (!pares.length) {
+    veredito =
+      "As duas famílias não coincidem em nenhuma banda. Ou a API não expõe os slugs " +
+      "`velocity_bandN` neste tenant (ver `ausentes`), ou os limiares são diferentes. " +
+      "Conferir manualmente antes de mexer no GPS 2D.";
+  } else if (deslocs.length === 1 && deslocs[0] === -1) {
+    veredito =
+      "CONFIRMADO: a numeração da API está deslocada em 1 (velocity_bandN = gen2_band(N-1)), " +
+      "porque a API conta a faixa 0–0,50 km/h como band1. Logo, com os slugs `velocity_bandN`: " +
+      "HSR (>19,8 km/h) = band6+band7+band8 e Sprint (>25,2 km/h) = band7+band8. " +
+      "Se o GPS 2D estiver somando band5+6+7+8 no HSR, ele está INCLUINDO a faixa " +
+      "14,40–19,80 km/h e SUPERESTIMANDO o HSR histórico.";
+  } else if (deslocs.length === 1 && deslocs[0] === 0) {
+    veredito =
+      "As duas famílias são idênticas banda a banda (deslocamento 0). A numeração é a mesma " +
+      "nos dois conjuntos de slug e o GPS 2D pode usar a mesma regra deste endpoint.";
+  } else {
+    veredito =
+      `Deslocamento inconsistente entre as bandas (valores observados: ${deslocs.join(", ")}). ` +
+      "Conferir a tabela `correspondencia` linha a linha antes de concluir.";
+  }
+
+  return res.status(200).json({
+    tipo: "bandas-comparacao",
+    activity_id: activityId,
+    total_registros: regs.length,
+    distancia_total_m: somar("total_distance"),
+    soma_gen2_band1a8_m: round1(N_BANDAS.reduce((a, n) => a + gen2[`band${n}`], 0)),
+    soma_api_band1a8_m: round1(N_BANDAS.reduce((a, n) => a + api[`band${n}`], 0)),
+    gen2_velocity_band: gen2,
+    velocity_band: api,
+    slugs_ausentes: ausentes,
+    correspondencia,
+    veredito,
+  });
+}
+
+// =============================================================================
 // ROTEADOR
 // =============================================================================
 
@@ -346,12 +468,16 @@ export default async function handler(req, res) {
     if (tipo === "stats" || tipo === "session-stats" || tipo === "estatisticas") {
       return await statsDaSessao(req, res, TOKEN);
     }
+    if (tipo === "bandas") {
+      return await compararBandas(req, res, TOKEN);
+    }
     return res.status(400).json({
       erro: `tipo desconhecido: "${tipo}"`,
-      tipos_validos: ["sessoes", "stats"],
+      tipos_validos: ["sessoes", "stats", "bandas"],
       exemplos: [
         "/api/treino?tipo=sessoes&days=7",
         "/api/treino?tipo=stats&activity_id=UUID&debug=1",
+        "/api/treino?tipo=bandas&activity_id=UUID",
       ],
     });
   } catch (erro) {
