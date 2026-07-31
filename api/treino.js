@@ -123,9 +123,12 @@ async function listarSessoes(req, res, TOKEN) {
 
 // Slugs Gen2 do tenant FEC.
 // ATENÇÃO às convenções já validadas no projeto:
-// - Acelerações (B2+B3) vêm pré-somadas em band7plus
-// - Desacelerações têm numeração INVERTIDA: band1 = Decel B3 (severa), band2 = Decel B2 (média)
+// - Acelerações (≥3 m/s²) vêm pré-somadas em band7plus
+// - Desacelerações têm numeração INVERTIDA: band1 = Decel severa, band2 = Decel média
 // - max_vel já chega em km/h (NUNCA multiplicar por 3.6)
+// - B7/B8 existem no tenant (até 43,99 km/h). Precisam entrar no HSR e no sprint,
+//   senão a corrida mais rápida é silenciosamente descartada. Se o tenant não
+//   devolver os slugs, `soma` ignora os nulos e o resultado é o de antes.
 const PARAMETROS = [
   "total_distance",
   "total_duration",
@@ -136,6 +139,8 @@ const PARAMETROS = [
   "gen2_velocity_band4_total_distance",
   "gen2_velocity_band5_total_distance",
   "gen2_velocity_band6_total_distance",
+  "gen2_velocity_band7_total_distance",
+  "gen2_velocity_band8_total_distance",
   "gen2_acceleration_band7plus_total_effort_count",
   "gen2_acceleration_band1_total_effort_count",
   "gen2_acceleration_band2_total_effort_count",
@@ -158,6 +163,8 @@ function normalizar(r) {
   const b4 = num(r, "gen2_velocity_band4_total_distance", "b4Dist", "dist_b4");
   const b5 = num(r, "gen2_velocity_band5_total_distance", "b5Dist", "dist_b5");
   const b6 = num(r, "gen2_velocity_band6_total_distance", "b6Dist", "dist_b6");
+  const b7 = num(r, "gen2_velocity_band7_total_distance", "b7Dist", "dist_b7");
+  const b8 = num(r, "gen2_velocity_band8_total_distance", "b8Dist", "dist_b8");
 
   const duracaoMin = duracaoS !== null ? duracaoS / 60 : null;
 
@@ -176,14 +183,14 @@ function normalizar(r) {
     densidade_m_min:
       dist !== null && duracaoMin ? round1(dist / duracaoMin) : null,
     bandas_m: {
-      b1: round1(b1), b2: round1(b2), b3: round1(b3),
-      b4: round1(b4), b5: round1(b5), b6: round1(b6),
+      b1: round1(b1), b2: round1(b2), b3: round1(b3), b4: round1(b4),
+      b5: round1(b5), b6: round1(b6), b7: round1(b7), b8: round1(b8),
     },
-    // HSR = B5+B6 (≥19,80 km/h) — definição do projeto, NÃO inclui B4
-    hsr_m: round1(soma(b5, b6)),
-    // Sprint = B6 (≥25,20 km/h, sem teto no tenant)
-    sprint_m: round1(b6),
-    // Acelerações B2+B3 (pré-somadas pela Catapult)
+    // HSR = TUDO acima de 19,80 km/h = B5+B6+B7+B8. NÃO inclui B4.
+    hsr_m: round1(soma(b5, b6, b7, b8)),
+    // Sprint = TUDO acima de 25,20 km/h = B6+B7+B8
+    sprint_m: round1(soma(b6, b7, b8)),
+    // Acelerações ≥3 m/s² (pré-somadas pela Catapult)
     aceleracoes: num(r, "gen2_acceleration_band7plus_total_effort_count"),
     // Desacelerações: band1 = Decel B3 (severa) + band2 = Decel B2 (média)
     desaceleracoes: soma(
@@ -215,6 +222,8 @@ function agregarAtleta(registros) {
       b4: round1(somaCampo((r) => r.bandas_m.b4)),
       b5: round1(somaCampo((r) => r.bandas_m.b5)),
       b6: round1(somaCampo((r) => r.bandas_m.b6)),
+      b7: round1(somaCampo((r) => r.bandas_m.b7)),
+      b8: round1(somaCampo((r) => r.bandas_m.b8)),
     },
     hsr_m: round1(somaCampo((r) => r.hsr_m)),
     sprint_m: round1(somaCampo((r) => r.sprint_m)),
@@ -286,6 +295,18 @@ async function statsDaSessao(req, res, TOKEN) {
       slugs_nulos: cru
         ? PARAMETROS.filter((p) => p in cru && (cru[p] === null || cru[p] === ""))
         : [],
+      // Mede o quanto B7+B8 acrescentam ao HSR da sessão inteira.
+      // Se vier 0, o tenant não usa essas bandas e a conta antiga já estava certa.
+      impacto_b7_b8: (() => {
+        const s = (fn) => round1(soma(...registros.map(fn)) ?? 0);
+        const b78 = s((r) => soma(r.bandas_m.b7, r.bandas_m.b8));
+        const hsr = s((r) => r.hsr_m);
+        return {
+          hsr_total_sessao_m: hsr,
+          vindo_de_b7_b8_m: b78,
+          percentual_do_hsr: hsr ? `${(b78 / hsr * 100).toFixed(1)}%` : "0%",
+        };
+      })(),
       chaves_primeiro_registro: cru ? Object.keys(cru) : [],
       primeiro_registro_cru: cru,
       primeiro_registro_normalizado: registros[0] || null,
