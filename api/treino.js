@@ -240,22 +240,33 @@ async function statsDaSessao(req, res, TOKEN) {
     }))
     .sort((a, b) => a.atleta.localeCompare(b.atleta, "pt-BR"));
 
-  const payload = {
+  // Modo debug: resposta ENXUTA para validar slugs sem despejar todos os atletas.
+  // Devolve as chaves cruas do 1º registro + o registro cru + como ele foi normalizado.
+  if (req.query.debug === "1") {
+    const cru = bruto?.[0] || null;
+    return res.status(200).json({
+      tipo: "stats-debug",
+      activity_id: activityId,
+      total_registros_crus: Array.isArray(bruto) ? bruto.length : 0,
+      total_atletas: atletas.length,
+      // Quais dos slugs que pedimos realmente voltaram preenchidos
+      slugs_pedidos: PARAMETROS,
+      slugs_ausentes: cru ? PARAMETROS.filter((p) => !(p in cru)) : PARAMETROS,
+      slugs_nulos: cru
+        ? PARAMETROS.filter((p) => p in cru && (cru[p] === null || cru[p] === ""))
+        : [],
+      chaves_primeiro_registro: cru ? Object.keys(cru) : [],
+      primeiro_registro_cru: cru,
+      primeiro_registro_normalizado: registros[0] || null,
+    });
+  }
+
+  return res.status(200).json({
     tipo: "stats",
     activity_id: activityId,
     total_atletas: atletas.length,
     atletas,
-  };
-
-  // Modo debug: expõe as chaves cruas do 1º registro para validar slugs
-  if (req.query.debug === "1") {
-    payload.debug = {
-      chaves_primeiro_registro: bruto?.[0] ? Object.keys(bruto[0]) : [],
-      primeiro_registro: bruto?.[0] || null,
-    };
-  }
-
-  return res.status(200).json(payload);
+  });
 }
 
 // =============================================================================
