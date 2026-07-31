@@ -9,6 +9,9 @@
 //
 // Sem ?tipo, o padrão é "sessoes".
 
+// O tipo=historico dispara várias chamadas à Catapult em paralelo.
+export const config = { maxDuration: 60 };
+
 const BASE_URL = "https://connect-us.catapultsports.com/api/v6";
 
 // =============================================================================
@@ -322,7 +325,79 @@ async function statsDaSessao(req, res, TOKEN) {
 }
 
 // =============================================================================
-// BLOCO C — DIAGNÓSTICO: comparação das duas famílias de slug de banda
+// BLOCO C — HISTÓRICO: totais por atleta em várias sessões
+// =============================================================================
+// GET /api/treino?tipo=historico&activity_ids=uuid1,uuid2,...
+// Faz uma chamada /stats por atividade EM PARALELO e devolve só os totais por
+// atleta (group_by athlete, sem período). Uma ida do navegador em vez de N.
+// Alimenta os gráficos de evolução das últimas sessões.
+
+const MAX_SESSOES_HISTORICO = 12;
+
+async function historico(req, res, TOKEN) {
+  const ids = String(req.query.activity_ids || "")
+    .split(",").map((s) => s.trim()).filter(Boolean)
+    .slice(0, MAX_SESSOES_HISTORICO);
+
+  if (!ids.length) {
+    return res.status(400).json({
+      erro: "Parâmetro obrigatório: activity_ids (UUIDs separados por vírgula)",
+      maximo: MAX_SESSOES_HISTORICO,
+    });
+  }
+
+  const umaSessao = async (id) => {
+    try {
+      const r = await fetch(`${BASE_URL}/stats`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${TOKEN}`,
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          filters: [{ name: "activity_id", comparison: "=", values: [id] }],
+          parameters: PARAMETROS,
+          group_by: ["athlete"], // total da sessão direto, sem somar períodos
+        }),
+      });
+      if (!r.ok) return { activity_id: id, erro: `HTTP ${r.status}`, atletas: {} };
+
+      const bruto = await r.json();
+      const atletas = {};
+      for (const reg of Array.isArray(bruto) ? bruto : []) {
+        const n = normalizar(reg);
+        atletas[n.atleta] = {
+          distancia_m: n.distancia_m,
+          duracao_min: n.duracao_min,
+          densidade_m_min: n.densidade_m_min,
+          hsr_m: n.hsr_m,
+          sprint_m: n.sprint_m,
+          aceleracoes: n.aceleracoes,
+          desaceleracoes: n.desaceleracoes,
+          // usado direto no gráfico de evolução
+          acel_decel: soma(n.aceleracoes, n.desaceleracoes),
+          vmax_kmh: n.vmax_kmh,
+        };
+      }
+      return { activity_id: id, atletas };
+    } catch (e) {
+      return { activity_id: id, erro: String(e.message), atletas: {} };
+    }
+  };
+
+  const sessoes = await Promise.all(ids.map(umaSessao));
+
+  return res.status(200).json({
+    tipo: "historico",
+    total_sessoes: sessoes.length,
+    com_erro: sessoes.filter((s) => s.erro).map((s) => ({ activity_id: s.activity_id, erro: s.erro })),
+    sessoes,
+  });
+}
+
+// =============================================================================
+// BLOCO D — DIAGNÓSTICO: comparação das duas famílias de slug de banda
 // =============================================================================
 // Existem dois esquemas de numeração e eles divergem em 1:
 //   gen2_velocity_bandN  → numeração FEC (band1 = 0,50–7,20 km/h)
@@ -468,15 +543,19 @@ export default async function handler(req, res) {
     if (tipo === "stats" || tipo === "session-stats" || tipo === "estatisticas") {
       return await statsDaSessao(req, res, TOKEN);
     }
+    if (tipo === "historico") {
+      return await historico(req, res, TOKEN);
+    }
     if (tipo === "bandas") {
       return await compararBandas(req, res, TOKEN);
     }
     return res.status(400).json({
       erro: `tipo desconhecido: "${tipo}"`,
-      tipos_validos: ["sessoes", "stats", "bandas"],
+      tipos_validos: ["sessoes", "stats", "historico", "bandas"],
       exemplos: [
         "/api/treino?tipo=sessoes&days=7",
         "/api/treino?tipo=stats&activity_id=UUID&debug=1",
+        "/api/treino?tipo=historico&activity_ids=UUID1,UUID2",
         "/api/treino?tipo=bandas&activity_id=UUID",
       ],
     });
