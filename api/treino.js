@@ -9,7 +9,9 @@
 //
 // Sem ?tipo, o padrão é "sessoes".
 
-// O tipo=historico dispara várias chamadas à Catapult em paralelo.
+import crypto from "node:crypto";
+
+// tipo=historico e tipo=meu disparam várias chamadas à Catapult em paralelo.
 export const config = { maxDuration: 60 };
 
 const BASE_URL = "https://connect-us.catapultsports.com/api/v6";
@@ -397,7 +399,248 @@ async function historico(req, res, TOKEN) {
 }
 
 // =============================================================================
-// BLOCO D — DIAGNÓSTICO: comparação das duas famílias de slug de banda
+// BLOCO D — RELATÓRIO DO ATLETA (link pessoal)
+// =============================================================================
+// GET /api/treino?tipo=meu&token=XXXX[&activity_id=UUID]
+//
+// PRINCÍPIO DE SIGILO: esconder o seletor no frontend não protege nada, porque a
+// página é pública e a API é aberta. A proteção real é esta: este endpoint NUNCA
+// devolve nome, id ou foto de outro atleta. Para o comparativo ele manda apenas
+// valores soltos, sem identificação, e cada painel é ordenado de forma
+// independente — não dá para cruzar "quem correu mais" com "quem sprintou mais".
+//
+// O token é um HMAC do ID do atleta com RELATORIO_SECRET. Não é possível
+// adivinhar o link de outro nem forjar um. Nada precisa ser armazenado: o
+// servidor recalcula o token de cada linha do cadastro e procura o que bate.
+// Trocar RELATORIO_SECRET invalida todos os links de uma vez.
+
+const N_SESSOES_ATLETA = 10;   // janela varrida para montar histórico e seletor
+
+function tokenDe(id, segredo){
+  return crypto.createHmac("sha256", segredo)
+    .update("atleta:" + String(id).trim())
+    .digest("base64url")
+    .slice(0, 20);
+}
+
+// Comparação em tempo constante: evita que diferenças de tempo de resposta
+// revelem quantos caracteres do token estão corretos.
+function tokensIguais(a, b){
+  const x = Buffer.from(String(a || ""), "utf8");
+  const y = Buffer.from(String(b || ""), "utf8");
+  if (x.length !== y.length) return false;
+  return crypto.timingSafeEqual(x, y);
+}
+
+const baseDe = (req) =>
+  `https://${req.headers["x-forwarded-host"] || req.headers.host}`;
+
+async function carregarCadastro(req){
+  const r = await fetch(`${baseDe(req)}/api/gps/sheets?fonte=cadastro`);
+  if(!r.ok) throw new Error(`cadastro HTTP ${r.status}`);
+  const j = await r.json();
+  return j.rows || [];
+}
+
+// "96 PIERRE" -> "96"
+const idNoNome = (n) => (String(n||"").trim().match(/^(\d+)\b/) || [])[1] || null;
+
+// Totais de todos os atletas de uma atividade (group_by athlete)
+async function totaisDaAtividade(id, TOKEN){
+  const r = await fetch(`${BASE_URL}/stats`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${TOKEN}`, Accept: "application/json",
+               "Content-Type": "application/json" },
+    body: JSON.stringify({
+      filters: [{ name: "activity_id", comparison: "=", values: [id] }],
+      parameters: PARAMETROS,
+      group_by: ["athlete"],
+    }),
+  });
+  if(!r.ok) return [];
+  const bruto = await r.json();
+  return (Array.isArray(bruto) ? bruto : []).map(normalizar);
+}
+
+async function meuRelatorio(req, res, TOKEN){
+  const segredo = process.env.RELATORIO_SECRET;
+  if(!segredo){
+    return res.status(500).json({ erro: "RELATORIO_SECRET não configurado no Vercel." });
+  }
+  const token = req.query.token;
+  if(!token) return res.status(400).json({ erro: "Link inválido." });
+
+  // 1. Identifica o atleta pelo token
+  const cadastro = await carregarCadastro(req);
+  const linha = cadastro.find((l) => tokensIguais(tokenDe(l["ID"], segredo), token));
+  if(!linha) return res.status(403).json({ erro: "Link inválido ou expirado." });
+
+  const meuId = String(linha["ID"]).trim();
+  const atleta = {
+    nome: (linha["ATLETA"] || "").trim(),
+    posicao: (linha["POSIÇÃO"] || "").trim(),
+    foto: (linha["FOTO"] || "").trim(),
+  };
+
+  // 2. Sessões recentes
+  const dias = Math.min(parseInt(req.query.days || "45", 10), 180);
+  const fim = Math.floor(Date.now() / 1000);
+  const ini = fim - dias * 86400;
+  const rAct = await fetch(`${BASE_URL}/activities?start_time=${ini}&end_time=${fim}`, {
+    headers: { Authorization: `Bearer ${TOKEN}`, Accept: "application/json" },
+  });
+  if(!rAct.ok){
+    return res.status(rAct.status).json({ erro: "Falha ao listar sessões." });
+  }
+  const activities = await rAct.json();
+  const sessoes = (Array.isArray(activities) ? activities : [])
+    .map((a) => ({
+      id: a.id,
+      nome: a.name || "Sessão sem nome",
+      data: new Date(a.start_time * 1000)
+        .toLocaleDateString("pt-BR", { timeZone: "America/Fortaleza" }),
+      inicio_unix: a.start_time,
+      provavel_jogo: /jogo|\bx\b|vs/i.test(a.name || ""),
+    }))
+    .sort((a, b) => b.inicio_unix - a.inicio_unix)
+    .slice(0, N_SESSOES_ATLETA);
+
+  // 3. Em quais delas o atleta participou (em paralelo)
+  const varredura = await Promise.all(
+    sessoes.map(async (s) => ({ s, regs: await totaisDaAtividade(s.id, TOKEN) }))
+  );
+  const minhas = varredura
+    .map(({ s, regs }) => {
+      const meu = regs.find((r) => idNoNome(r.atleta) === meuId);
+      return meu ? { ...s, meu } : null;
+    })
+    .filter(Boolean);
+
+  if(!minhas.length){
+    return res.status(200).json({
+      tipo: "meu", atleta, sessao: null, sessoes_disponiveis: [],
+      aviso: `Nenhuma sessão sua nos últimos ${dias} dias.`,
+    });
+  }
+
+  // 4. Sessão escolhida: a pedida (se for dele) ou a mais recente
+  const pedida = req.query.activity_id
+    ? minhas.find((m) => m.id === req.query.activity_id) : null;
+  const alvo = pedida || minhas[0];
+
+  // 5. Detalhe da sessão escolhida: blocos dele + totais de todos (sem nome)
+  const rStats = await fetch(`${BASE_URL}/stats`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${TOKEN}`, Accept: "application/json",
+               "Content-Type": "application/json" },
+    body: JSON.stringify({
+      filters: [{ name: "activity_id", comparison: "=", values: [alvo.id] }],
+      parameters: PARAMETROS,
+      group_by: ["athlete", "period"],
+    }),
+  });
+  if(!rStats.ok){
+    return res.status(rStats.status).json({ erro: "Falha ao carregar a sessão." });
+  }
+  const registros = ((await rStats.json()) || []).map(normalizar);
+
+  const porAtleta = {};
+  for(const r of registros) (porAtleta[r.atleta] = porAtleta[r.atleta] || []).push(r);
+
+  let meusDados = null;
+  const todos = [];
+  for(const [nome, regs] of Object.entries(porAtleta)){
+    const agregado = agregarAtleta(regs);
+    todos.push(agregado);
+    if(idNoNome(nome) === meuId){
+      meusDados = { ...agregado, periodos: ordenarPeriodos(regs) };
+      delete meusDados.atleta_id;
+    }
+  }
+  if(meusDados) delete meusDados.atleta;
+
+  // 6. Comparativo anônimo. Cada painel é ordenado por conta própria; assim as
+  //    métricas de um mesmo colega não podem ser reconectadas entre painéis.
+  const meuIndiceEmTodos = todos.findIndex((t) => idNoNome(t.atleta) === meuId);
+  function painel(pegar){
+    // guarda o índice original para achar a minha linha DEPOIS de ordenar —
+    // comparar os arrays por referência não funcionaria
+    const linhas = todos.map((t, i) => ({ v: pegar(t), i }));
+    linhas.sort((a, b) => b.v[0] - a.v[0]);
+    const idx = linhas.findIndex((x) => x.i === meuIndiceEmTodos);
+    return { valores: linhas.map((x) => x.v), meu_indice: idx, posicao: idx + 1 };
+  }
+  const comparativo = {
+    total_atletas: todos.length,
+    distancia:    painel((t) => [t.distancia_m ?? 0]),
+    intensidade:  painel((t) => [t.hsr_m ?? 0, t.sprint_m ?? 0]),
+    acel_decel:   painel((t) => [t.aceleracoes ?? 0, t.desaceleracoes ?? 0]),
+  };
+
+  // 7. Evolução: só as sessões dele, da mais antiga para a mais recente
+  const evolucao = minhas.slice(0, 7).reverse().map((m) => ({
+    data: m.data,
+    nome: m.nome,
+    provavel_jogo: m.provavel_jogo,
+    atual: m.id === alvo.id,
+    distancia_m: m.meu.distancia_m,
+    hsr_m: m.meu.hsr_m,
+    acel_decel: soma(m.meu.aceleracoes, m.meu.desaceleracoes),
+  }));
+
+  res.setHeader("Cache-Control", "s-maxage=300, stale-while-revalidate=1800");
+  return res.status(200).json({
+    tipo: "meu",
+    atleta,
+    sessao: { id: alvo.id, nome: alvo.nome, data: alvo.data, provavel_jogo: alvo.provavel_jogo },
+    sessoes_disponiveis: minhas.map((m) =>
+      ({ id: m.id, nome: m.nome, data: m.data, provavel_jogo: m.provavel_jogo })),
+    dados: meusDados,
+    comparativo,
+    evolucao,
+  });
+}
+
+// =============================================================================
+// BLOCO E — GERADOR DE LINKS (uso interno)
+// =============================================================================
+// GET /api/treino?tipo=links&chave=<RELATORIO_SECRET>[&todos=1]
+// Protegido: sem isso qualquer pessoa geraria os links de todo o elenco.
+
+async function gerarLinks(req, res){
+  const segredo = process.env.RELATORIO_SECRET;
+  if(!segredo){
+    return res.status(500).json({ erro: "RELATORIO_SECRET não configurado no Vercel." });
+  }
+  if(!tokensIguais(req.query.chave, segredo)){
+    return res.status(403).json({ erro: "Chave inválida." });
+  }
+  const cadastro = await carregarCadastro(req);
+  const base = baseDe(req);
+  const somenteAtivos = req.query.todos !== "1";
+
+  const lista = cadastro
+    .filter((l) => String(l["ID"] || "").trim())
+    .filter((l) => !somenteAtivos || (l["STATUS"] || "").toUpperCase() === "ATIVO")
+    .map((l) => ({
+      id: String(l["ID"]).trim(),
+      atleta: (l["ATLETA"] || "").trim(),
+      email: (l["EMAIL"] || "").trim() || null,
+      link: `${base}/meu_relatorio.html?t=${tokenDe(l["ID"], segredo)}`,
+    }));
+
+  return res.status(200).json({
+    tipo: "links",
+    filtro: somenteAtivos ? "somente ATIVOS" : "todos",
+    total: lista.length,
+    com_email: lista.filter((l) => l.email).length,
+    sem_email: lista.filter((l) => !l.email).map((l) => l.atleta),
+    links: lista,
+  });
+}
+
+// =============================================================================
+// BLOCO F — DIAGNÓSTICO: comparação das duas famílias de slug de banda
 // =============================================================================
 // Existem dois esquemas de numeração e eles divergem em 1:
 //   gen2_velocity_bandN  → numeração FEC (band1 = 0,50–7,20 km/h)
@@ -546,16 +789,23 @@ export default async function handler(req, res) {
     if (tipo === "historico") {
       return await historico(req, res, TOKEN);
     }
+    if (tipo === "meu") {
+      return await meuRelatorio(req, res, TOKEN);
+    }
+    if (tipo === "links") {
+      return await gerarLinks(req, res);
+    }
     if (tipo === "bandas") {
       return await compararBandas(req, res, TOKEN);
     }
     return res.status(400).json({
       erro: `tipo desconhecido: "${tipo}"`,
-      tipos_validos: ["sessoes", "stats", "historico", "bandas"],
+      tipos_validos: ["sessoes", "stats", "historico", "meu", "links", "bandas"],
       exemplos: [
         "/api/treino?tipo=sessoes&days=7",
         "/api/treino?tipo=stats&activity_id=UUID&debug=1",
         "/api/treino?tipo=historico&activity_ids=UUID1,UUID2",
+        "/api/treino?tipo=meu&token=TOKEN",
         "/api/treino?tipo=bandas&activity_id=UUID",
       ],
     });
