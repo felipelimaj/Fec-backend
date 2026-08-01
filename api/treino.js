@@ -629,6 +629,12 @@ async function gerarLinks(req, res){
       link: `${base}/meu_relatorio.html?t=${tokenDe(l["ID"], segredo)}`,
     }));
 
+  // Página clicável (padrão). JSON só com &formato=json, para uso programático.
+  if (req.query.formato !== "json") {
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    return res.status(200).send(paginaDeLinks(lista, somenteAtivos));
+  }
+
   return res.status(200).json({
     tipo: "links",
     filtro: somenteAtivos ? "somente ATIVOS" : "todos",
@@ -637,6 +643,87 @@ async function gerarLinks(req, res){
     sem_email: lista.filter((l) => !l.email).map((l) => l.atleta),
     links: lista,
   });
+}
+
+const escapaHtml = (s) => String(s ?? "").replace(/[&<>"]/g,
+  (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function paginaDeLinks(lista, somenteAtivos){
+  const semEmail = lista.filter((l) => !l.email).length;
+  const linhas = lista.map((l) => `
+    <tr>
+      <td class="n">${escapaHtml(l.id)}</td>
+      <td class="a">${escapaHtml(l.atleta)}</td>
+      <td class="e ${l.email ? "" : "falta"}">${escapaHtml(l.email || "sem email na planilha")}</td>
+      <td><a href="${escapaHtml(l.link)}" target="_blank" rel="noopener">abrir relatório</a></td>
+      <td><button data-link="${escapaHtml(l.link)}"
+            ${l.email ? `data-nome="${escapaHtml(l.atleta)}"` : ""}>copiar link</button></td>
+    </tr>`).join("");
+
+  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Links pessoais — Fortaleza EC</title>
+<style>
+  :root{--azul-escuro:#071A3E;--azul:#003087;--laranja:#E8360A;--dourado:#C4952A;--linha:#DDE2EA}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Helvetica Neue',Arial,sans-serif;background:#F2F4F8;color:var(--azul-escuro);padding:24px}
+  .caixa{max-width:1000px;margin:0 auto;background:#fff;border:1px solid var(--linha);border-radius:10px;overflow:hidden}
+  header{background:var(--azul-escuro);color:#fff;padding:18px 22px;border-bottom:4px solid var(--laranja)}
+  header h1{font-size:18px}
+  header p{color:#9FB0CC;font-size:12.5px;margin-top:5px}
+  .alerta{background:#FFF4F1;border-left:4px solid var(--laranja);color:#8A2205;
+    padding:12px 16px;font-size:13px;margin:16px 22px;border-radius:6px;line-height:1.5}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th{text-align:left;padding:10px 12px;font-size:10.5px;text-transform:uppercase;letter-spacing:.8px;
+    color:#5A6577;border-bottom:2px solid var(--azul-escuro)}
+  td{padding:9px 12px;border-bottom:1px solid var(--linha);vertical-align:middle}
+  tr:hover{background:#F7F9FC}
+  td.n{color:#8A94A6;font-variant-numeric:tabular-nums;width:44px}
+  td.a{font-weight:700}
+  td.e{color:#5A6577;font-size:12.5px}
+  td.e.falta{color:var(--laranja);font-style:italic}
+  a{color:var(--azul);font-weight:700;text-decoration:none}
+  a:hover{text-decoration:underline}
+  button{background:#fff;border:1.5px solid var(--azul);color:var(--azul);border-radius:6px;
+    padding:5px 11px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap}
+  button:hover{background:#EEF2FA}
+  button.ok{background:var(--azul);color:#fff;border-color:var(--azul)}
+  footer{padding:14px 22px;font-size:12px;color:#5A6577;background:#F7F9FC;border-top:1px solid var(--linha);line-height:1.6}
+</style></head><body>
+<div class="caixa">
+  <header>
+    <h1>Links pessoais dos atletas</h1>
+    <p>${lista.length} atletas (${somenteAtivos ? "somente ATIVOS" : "todos"}) ·
+       ${lista.length - semEmail} com email cadastrado</p>
+  </header>
+  <div class="alerta">
+    Cada link abre <b>apenas</b> o relatório daquele atleta e é permanente — envie uma vez só.
+    Não publique esta página nem compartilhe capturas de tela dela: quem tiver um link, abre aquele relatório.
+  </div>
+  <table>
+    <thead><tr><th>ID</th><th>Atleta</th><th>Email</th><th>Testar</th><th></th></tr></thead>
+    <tbody>${linhas}</tbody>
+  </table>
+  <footer>
+    Para incluir os inativos, acrescente <b>&amp;todos=1</b> ao endereço.
+    Para a versão em dados, <b>&amp;formato=json</b>.<br>
+    Fortaleza EC — Departamento de Fisiologia.
+  </footer>
+</div>
+<script>
+document.querySelectorAll("button[data-link]").forEach(function(b){
+  b.addEventListener("click", function(){
+    var texto = b.dataset.link;
+    navigator.clipboard.writeText(texto).then(function(){
+      var antes = b.textContent;
+      b.textContent = "copiado!"; b.classList.add("ok");
+      setTimeout(function(){ b.textContent = antes; b.classList.remove("ok"); }, 1600);
+    });
+  });
+});
+</script>
+</body></html>`;
 }
 
 // =============================================================================
