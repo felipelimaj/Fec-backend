@@ -281,17 +281,154 @@
   }
   #tabela-print{display:none}
 
-  @media(max-width:860px){
+  /* =====================================================================
+     TELAS ESTREITAS — a maioria dos atletas abre no celular.
+     `screen and` é obrigatório: sem isso estas regras valeriam também na
+     impressão (a folha A4 tem ~733px de largura em CSS) e quebrariam o PDF.
+     ===================================================================== */
+  @media screen and (max-width:860px){
     .controles{grid-template-columns:1fr}
     .placar{grid-template-columns:repeat(2,1fr)}
-    .grade-3{grid-template-columns:1fr}
+    .grade-3{grid-template-columns:1fr;gap:26px}
     .faixa-atleta{flex-wrap:wrap}
+  }
+
+  @media screen and (max-width:720px){
+    body{-webkit-text-size-adjust:100%}
+    .wrap{padding:0 12px 40px}
+
+    .header-in{padding:16px 12px;gap:12px}
+    .titulo h1{font-size:17px}
+    .titulo .depto{font-size:10px;letter-spacing:1px}
+    .titulo .assinatura{font-size:10px}
+    .header-dir{gap:10px}
+    .header-dir .emissao{font-size:10px}
+    .escudo{height:44px}
+
+    .controles{padding:12px;gap:10px}
+    /* 16px no select evita o zoom automático do Safari no iPhone ao focar */
+    select{padding:12px 11px;font-size:16px}
+    button{padding:12px 16px}
+
+    .faixa-atleta{padding:14px;gap:14px;align-items:center}
+    .foto-wrap{width:72px;height:72px;border-width:2px}
+    .foto-wrap .iniciais{font-size:22px}
+    .ident .nome{font-size:20px}
+    .ident .cargo{font-size:10.5px}
+    .ident .sessao{font-size:11.5px;margin-top:5px}
+    .selo{font-size:9.5px;padding:5px 9px}
+
+    .kpi{padding:12px 8px}
+    .kpi .rot{font-size:9px;letter-spacing:.5px}
+    .kpi .val{font-size:24px}
+    .kpi .un{font-size:9.5px}
+
+    .abas{gap:2px;padding:0 2px 2px}
+    .abas button{font-size:9.5px;letter-spacing:.3px;padding:10px 4px}
+
+    .painel{padding:16px 14px}
+    .painel h2{font-size:12px}
+    .linha{grid-template-columns:62px 1fr}
+    .colunas{height:110px}
+    .col .v{font-size:8.5px}
+    .eixo div{font-size:8.5px}
+
+    /* ---- tabela de blocos vira cartões ----
+       Com 10 colunas não há tela de celular que comporte a tabela; arrastar
+       para o lado esconde justamente as colunas de intensidade. Cada bloco
+       passa a ser um cartão com rótulo e valor, sem rolagem horizontal. */
+    .aba .tabela-scroll{overflow:visible}
+    .aba table,.aba tbody{display:block;width:100%}
+    .aba thead{display:none}
+    /* a linha de totais some: os mesmos números já estão nos KPIs acima */
+    .aba tfoot{display:none}
+    .aba tbody tr{display:block;background:var(--branco);border:1px solid var(--cinza-linha);
+      border-radius:8px;padding:12px 14px;margin-bottom:10px}
+    .aba tbody tr:hover{background:var(--branco)}
+    .aba tbody td{display:flex;justify-content:space-between;align-items:baseline;
+      gap:12px;padding:5px 0;border:none;text-align:right;white-space:normal}
+    .aba tbody td::before{content:attr(data-rot);font-size:10.5px;font-weight:700;
+      text-transform:uppercase;letter-spacing:.4px;color:var(--cinza-texto);
+      text-align:left;flex:none}
+    .aba tbody td.bloco{display:block;max-width:none;font-size:14.5px;font-weight:800;
+      text-align:left;padding:0 0 9px;margin-bottom:7px;
+      border-bottom:1px solid var(--cinza-linha)}
+    .aba tbody td.bloco::before{content:none}
   }
 </style>
 <style>
   /* A página do atleta tem menos controles que o painel */
   .controles{grid-template-columns:1fr auto auto !important}
   .avisinho{font-size:11.5px;color:var(--cinza-texto);margin-top:10px;line-height:1.5}
+
+  /* =====================================================================
+     ABA JOGO — recorte de 1º + 2º tempo.
+     Só existe quando a sessão tem períodos de jogo; quem controla é o
+     `body.modo-jogo`, ligado pelo JS a partir de `eh_jogo` (vindo do
+     servidor pela composição de períodos, não pelo nome da sessão).
+     ===================================================================== */
+  #btn-aba-jogo[hidden]{display:none}
+  .nota-jogo{font-size:11.5px;color:#8FA3C6;background:var(--azul-escuro);
+    padding:0 14px 12px;line-height:1.5;text-align:center}
+  .nota-jogo b{color:var(--dourado)}
+  body:not(.modo-jogo) .nota-jogo{display:none}
+
+  /* faixa de minutagem (dentro do painel branco, por isso tema claro) */
+  .min-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:22px}
+  .min-item{background:#F2F5FA;border:1px solid var(--cinza-linha);border-radius:8px;
+    padding:12px 10px;text-align:center}
+  .min-item .rot{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;
+    color:var(--cinza-texto);min-height:2.4em;line-height:1.2;margin-bottom:7px;
+    display:flex;align-items:center;justify-content:center}
+  .min-item .val{font-size:22px;font-weight:800;color:var(--azul-escuro);
+    font-variant-numeric:tabular-nums;line-height:1}
+  .min-item .un{font-size:10px;font-weight:600;color:var(--cinza-texto);margin-top:5px}
+  .min-item.destaque{background:#FFF4F1;border-color:#F7C9BB}
+  .min-item.destaque .val{color:var(--laranja)}
+
+  /* tabela do split 1º x 2º tempo — a coluna do tempo mais forte fica em laranja */
+  #tb-tempos td.melhor{color:var(--laranja);font-weight:800}
+  #tb-tempos td.metrica{font-weight:700}
+  .queda{font-size:11px;font-weight:800;font-variant-numeric:tabular-nums}
+  .queda.neg{color:var(--laranja)}
+  .queda.pos{color:#1B7F4B}
+
+  /* ---------- IMPRESSÃO ----------
+     Em jogo, a folha troca de recorte: entram a minutagem e o split 1º x 2º
+     tempo; saem a tabela de blocos da sessão (o split já a substitui) e a
+     evolução por sessão. O comparativo impresso passa a ser o do jogo.
+     Sem isso a página única estouraria. */
+  body.imprimindo #aba-jogo{display:block !important}
+  body.imprimindo:not(.modo-jogo) #aba-jogo{display:none !important}
+  body.imprimindo.modo-jogo #aba-evolucao{display:none !important}
+  body.imprimindo.modo-jogo #tabela-print{display:none !important}
+  body.imprimindo .nota-jogo{font-size:5pt;padding:0 2mm 1.2mm}
+  body.imprimindo .min-grid{gap:1.2mm;margin-bottom:2mm}
+  body.imprimindo .min-item{padding:1.2mm .8mm;border-radius:1mm;border-width:.15mm}
+  body.imprimindo .min-item .rot{font-size:4.8pt;min-height:2.2em;margin-bottom:.8mm;
+    letter-spacing:.2pt}
+  body.imprimindo .min-item .val{font-size:9.5pt}
+  body.imprimindo .min-item .un{font-size:4.4pt;margin-top:.5mm}
+  body.imprimindo #tabela-tempos{font-size:5.8pt}
+  body.imprimindo #tabela-tempos th{font-size:5pt;padding:1mm .8mm;border-bottom-width:.4mm}
+  body.imprimindo #tabela-tempos td{padding:1mm .8mm;border-bottom-width:.15mm}
+
+  @media print{
+    body:not(.modo-jogo) #aba-jogo{display:none !important}
+    body.modo-jogo #aba-evolucao,body.modo-jogo #tabela-print{display:none !important}
+  }
+
+  /* `screen and` obrigatório (§8.11): sem isso a folha A4, que tem ~733px de
+     largura em CSS, receberia o layout de celular e a página única quebraria. */
+  @media screen and (max-width:860px){
+    .min-grid{grid-template-columns:repeat(3,1fr)}
+  }
+  @media screen and (max-width:720px){
+    .min-grid{grid-template-columns:repeat(2,1fr);gap:8px}
+    .min-item{padding:10px 8px}
+    .min-item .val{font-size:19px}
+    .nota-jogo{font-size:10.5px;padding:0 10px 10px}
+  }
 </style>
 </head>
 <body>
@@ -348,10 +485,51 @@
       <div class="kpi"><div class="rot">Desacelerações</div><div class="val" id="k-decel">—</div><div class="un">esforços acima de −3 m/s²</div></div>
     </div>
 
+    <div class="nota-jogo" id="nota-jogo"></div>
+
     <div class="abas nao-imprimir">
+      <button id="btn-aba-jogo" data-aba="jogo" hidden>Seu jogo</button>
       <button class="ativa" data-aba="geral">Visão geral</button>
       <button data-aba="comparativo">Posição no grupo</button>
       <button data-aba="evolucao">Sua evolução</button>
+    </div>
+
+    <!-- Aba de jogo: só aparece quando a sessão tem 1º/2º tempo. O conteúdo
+         chega de /api/treino?tipo=meujogo, numa segunda chamada. -->
+    <div class="aba" id="aba-jogo">
+      <div class="painel">
+        <h2>Seu jogo</h2>
+        <p class="sub">Apenas 1º e 2º tempos. Aquecimento, aquecimento do intervalo e
+           trabalho de suplentes na lateral ficam de fora destes números.</p>
+
+        <div class="min-grid" id="min-grid"></div>
+
+        <div class="tabela-scroll"><table id="tabela-tempos">
+          <thead><tr>
+            <th>Métrica</th><th>1º tempo</th><th>2º tempo</th><th>Jogo</th><th>2º vs 1º</th>
+          </tr></thead>
+          <tbody id="tb-tempos"></tbody>
+        </table></div>
+
+        <!-- Painéis que só fazem sentido no jogo. Ficam fora do PDF: a folha
+             única já leva o comparativo de distância, intensidade e acel/decel. -->
+        <div class="nao-imprimir" id="grupo-jogo-wrap" style="margin-top:28px">
+          <h2>Você no grupo, dentro do jogo</h2>
+          <p class="sub">Quem entrou no fim do 2º tempo sempre teria menos volume total.
+             O painel por minuto põe todo mundo em pé de igualdade.</p>
+          <div class="grade-3" id="comparativo-jogo"></div>
+        </div>
+
+        <div class="nao-imprimir" id="jogos-wrap" style="margin-top:28px">
+          <h2>Seus últimos jogos</h2>
+          <p class="sub">Do mais antigo para o mais recente, contando só o tempo em campo.</p>
+          <div class="legenda">
+            <span><i style="background:var(--azul)"></i>Jogo</span>
+            <span><i class="amostra-atual"></i>Jogo deste relatório</span>
+          </div>
+          <div class="grade-3" id="evolucao-jogos"></div>
+        </div>
+      </div>
     </div>
 
     <div class="aba ativa" id="aba-geral">
@@ -372,9 +550,9 @@
 
     <div class="aba" id="aba-comparativo">
       <div class="painel">
-        <h2>Sua posição no grupo</h2>
-        <p class="sub">Cada barra é um atleta que treinou com você. Só a sua está identificada —
-           os demais aparecem sem nome e sem número.</p>
+        <h2 id="titulo-comparativo">Sua posição no grupo</h2>
+        <p class="sub" id="sub-comparativo">Cada barra é um atleta que treinou com você. Só a sua
+           está identificada — os demais aparecem sem nome e sem número.</p>
         <div class="grade-3" id="comparativo"></div>
       </div>
     </div>
@@ -450,6 +628,11 @@ async function carregar(activityId, forcar=false){
   if(!TOKEN){ aviso("Link inválido. Peça um novo link ao Departamento de Fisiologia."); return; }
   aviso(""); carregando(true);
   $("relatorio").classList.remove("on"); $("btn-imprimir").disabled=true;
+  // Zera o recorte de jogo: trocar de sessão não pode deixar o jogo anterior na tela
+  jogo = null;
+  document.body.classList.remove("modo-jogo");
+  $("btn-aba-jogo").hidden = true;
+  $("nota-jogo").textContent = "";
   const url = `${API}?tipo=meu&token=${encodeURIComponent(TOKEN)}`
             + (activityId ? `&activity_id=${encodeURIComponent(activityId)}` : "");
   const chave = "fec:meu:"+(activityId||"ultima");
@@ -491,9 +674,9 @@ const PAINEIS = [
            {cor:"#4A79C9", corAnon:"var(--anon-2)", rotulo:"Desacel. acima de −3 m/s²", fina:true}]},
 ];
 
-function renderComparativo(){
-  const c = dados.comparativo;
-  $("comparativo").innerHTML = PAINEIS.map(p=>{
+function renderComparativo(c = dados.comparativo, contexto = "na sessão",
+                           alvo = $("comparativo"), paineis = PAINEIS){
+  alvo.innerHTML = paineis.map(p=>{
     const bloco = c[p.chave];
     const escala = Math.max(...bloco.valores.flat(), 1);
     const linhas = bloco.valores.map((vals,i)=>{
@@ -513,7 +696,7 @@ function renderComparativo(){
       `<span><i style="background:${s.cor}"></i>${esc(s.rotulo)}</span>`).join("");
     return `<div class="col-rank quebra-evitar">
       <h3>${esc(p.titulo)}</h3>
-      <div class="posicao"><b>${bloco.posicao}º</b> de ${c.total_atletas} na sessão</div>
+      <div class="posicao"><b>${bloco.posicao}º</b> de ${c.total_atletas} ${esc(contexto)}</div>
       <div class="legenda">${legenda}</div>
       ${linhas}</div>`;
   }).join("");
@@ -526,30 +709,199 @@ const GRAFICOS = [
   {titulo:"Alta intensidade (m)", campo:"hsr_m", casas:0},
   {titulo:"Acel + desacel (n)", campo:"acel_decel", casas:0},
 ];
-function renderEvolucao(){
-  const pts = dados.evolucao || [];
-  const alvo = $("evolucao");
+// Um gráfico de barras por métrica. `graficos`, o destino e o substantivo do
+// rodapé são parâmetros para que a aba de jogo reaproveite a mesma função.
+function renderEvolucao(pts = dados.evolucao || [], alvo = $("evolucao"),
+                        graficos = GRAFICOS, unidade = ["sessão","sessões"],
+                        marcarJogo = true){
+  if(!alvo) return;
   if(!pts.length){ alvo.innerHTML = `<p class="sub" style="grid-column:1/-1;margin:0">Sem histórico ainda.</p>`; return; }
-  alvo.innerHTML = GRAFICOS.map(g=>{
+  alvo.innerHTML = graficos.map(g=>{
     const vals = pts.map(p=>p[g.campo]??0);
     const max = Math.max(...vals,1);
     const media = vals.reduce((a,b)=>a+b,0)/vals.length;
     const cols = pts.map((p,i)=>{
       const alt = Math.max(vals[i]/max*100, vals[i]>0?1.5:0);
-      const cls = [p.provavel_jogo?"jogo":"", p.atual?"atual":""].filter(Boolean).join(" ");
+      const cls = [marcarJogo&&p.provavel_jogo?"jogo":"", p.atual?"atual":""].filter(Boolean).join(" ");
       return `<div class="col ${cls}"><div class="v">${nf(vals[i],g.casas)}</div>
               <div class="b" style="height:${alt.toFixed(1)}%"></div></div>`;
     }).join("");
     const eixo = pts.map(p=>`<div class="${p.atual?'atual':''}">${esc((p.data||"").slice(0,5))}</div>`).join("");
     return `<div class="gr quebra-evitar">
       <h3>${esc(g.titulo)}</h3>
-      <div class="media">${pts.length} ${pts.length===1?"sessão":"sessões"} · média ${nf(media,g.casas)}</div>
+      <div class="media">${pts.length} ${pts.length===1?unidade[0]:unidade[1]} · média ${nf(media,g.casas)}</div>
       <div class="colunas">${cols}</div>
       <div class="eixo">${eixo}</div></div>`;
   }).join("");
 }
 
+// ---------------------------------------------------------------------------
+// ABA DE JOGO — recorte de 1º + 2º tempo (/api/treino?tipo=meujogo)
+//
+// Duas chamadas, de propósito: a primeira traz o jogo em si (uma consulta à
+// Catapult, rápida, e é o que o PDF precisa); a segunda soma a temporada e só
+// chega depois, sem segurar a tela. Cada uma tem sua chave de cache.
+// ---------------------------------------------------------------------------
+let jogo = null;
+
+// Linhas do split. `porMin` marca as métricas de volume: comparar o bruto do 2º
+// com o do 1º penalizaria quem jogou tempos de duração diferente (substituído,
+// ou que entrou no meio), então a variação é sempre do rendimento por minuto.
+const LINHAS_TEMPO = [
+  {rot:"Tempo em campo (min)", campo:"duracao_min", casas:1, variacao:false},
+  {rot:"Distância (m)",        campo:"distancia_m", casas:0, porMin:true},
+  {rot:"Densidade (m/min)",    campo:"densidade_m_min", casas:1},
+  {rot:"Acima de 19,8 km/h (m)", campo:"hsr_m", casas:1, porMin:true},
+  {rot:"Acima de 25,2 km/h (m)", campo:"sprint_m", casas:1, porMin:true},
+  {rot:"Acelerações (n)",      campo:"aceleracoes", casas:0, porMin:true},
+  {rot:"Desacelerações (n)",   campo:"desaceleracoes", casas:0, porMin:true},
+  {rot:"Vel. máxima (km/h)",   campo:"vmax_kmh", casas:1},
+];
+
+// Painéis exclusivos do jogo (só na tela — ver comentário no HTML)
+const PAINEIS_JOGO = [
+  {titulo:"Minutos em campo", chave:"minutagem", casas:1,
+   series:[{cor:"var(--azul)", corAnon:"var(--anon)", rotulo:"Minutos no jogo"}]},
+  {titulo:"Rendimento por minuto", chave:"por_minuto", casas:1,
+   series:[{cor:"var(--azul)", corAnon:"var(--anon)", rotulo:"Metros por minuto"},
+           {cor:"var(--laranja)", corAnon:"var(--anon-2)", fina:true,
+            rotulo:"Metros acima de 19,8 km/h por minuto"}]},
+];
+
+const GRAFICOS_JOGO = [
+  {titulo:"Minutos em campo", campo:"minutos", casas:0},
+  {titulo:"Distância no jogo (m)", campo:"distancia_m", casas:0},
+  {titulo:"Alta intensidade (m)", campo:"hsr_m", casas:0},
+];
+
+function itemMin(rot, val, un, destaque){
+  return `<div class="min-item${destaque?" destaque":""}">
+            <div class="rot">${esc(rot)}</div><div class="val">${val}</div>
+            <div class="un">${esc(un)}</div></div>`;
+}
+
+function renderJogo(){
+  const j = jogo && jogo.jogo_todo;
+  const t = (jogo && jogo.tempos) || {primeiro:null, segundo:null};
+
+  if(!j){
+    $("min-grid").innerHTML = "";
+    $("tb-tempos").innerHTML = `<tr><td colspan="5" style="text-align:left">
+      ${esc((jogo && jogo.aviso) || "Você não teve minutos neste jogo.")}</td></tr>`;
+    $("evolucao-jogos").innerHTML = "";
+    return;
+  }
+
+  // 1. Minutagem. Os três últimos itens só chegam com a varredura da temporada.
+  const tp = jogo.temporada;
+  const esperando = `<span style="opacity:.45">…</span>`;
+  $("min-grid").innerHTML =
+      itemMin("Tempo em campo", nf(j.duracao_min,1), "minutos neste jogo", true)
+    + itemMin("1º tempo", t.primeiro?nf(t.primeiro.duracao_min,1):"—", "minutos")
+    + itemMin("2º tempo", t.segundo?nf(t.segundo.duracao_min,1):"—", "minutos")
+    + itemMin("Minutos na temporada", tp?nf(tp.minutos_total,0):esperando,
+              tp?`desde ${tp.desde}${tp.parcial?" · parcial":""}`:"somando…", true)
+    + itemMin("Jogos com minutos", tp?nf(tp.jogos_com_minutos,0):esperando,
+              tp?`de ${tp.jogos_no_periodo} no período`:"somando…")
+    + itemMin("Média por jogo", tp&&tp.minutos_media!==null?nf(tp.minutos_media,1):esperando,
+              "minutos");
+
+  // 2. Split 1º x 2º tempo
+  const variacao = (l)=>{
+    if(l.variacao===false || !t.primeiro || !t.segundo) return "—";
+    const v1 = t.primeiro[l.campo], v2 = t.segundo[l.campo];
+    if(v1===null||v2===null) return "—";
+    const base1 = l.porMin ? v1/(t.primeiro.duracao_min||1) : v1;
+    const base2 = l.porMin ? v2/(t.segundo.duracao_min||1) : v2;
+    if(!base1) return "—";
+    const d = (base2/base1-1)*100;
+    const cls = d < -0.5 ? "neg" : (d > 0.5 ? "pos" : "");
+    return `<span class="queda ${cls}">${d>0?"+":""}${nf(d,1)}%</span>`;
+  };
+  const cel = (bloco,l)=> bloco ? nf(bloco[l.campo], l.casas) : "—";
+  $("tb-tempos").innerHTML = LINHAS_TEMPO.map(l=>`<tr>
+      <td class="bloco metrica">${esc(l.rot)}</td>
+      <td data-rot="1º tempo">${cel(t.primeiro,l)}</td>
+      <td data-rot="2º tempo">${cel(t.segundo,l)}</td>
+      <td data-rot="Jogo" class="melhor">${cel(j,l)}</td>
+      <td data-rot="2º vs 1º${l.porMin?" (por min)":""}">${variacao(l)}</td>
+    </tr>`).join("");
+
+  // 3. Evolução em jogos (só com a temporada carregada)
+  renderEvolucao(tp?tp.evolucao:[], $("evolucao-jogos"), GRAFICOS_JOGO,
+                 ["jogo","jogos"], false);
+  if(!tp) $("evolucao-jogos").innerHTML =
+    `<p class="sub" style="grid-column:1/-1;margin:0">Somando seus jogos da temporada…</p>`;
+
+  // 4. O relatório inteiro passa a falar do jogo: KPIs do topo, nota de
+  //    contexto e comparativo. A aba "Visão geral" continua com a sessão toda.
+  aplicarKpis(j);
+  const s = jogo.sessao_toda;
+  $("r-sessao").textContent =
+    `${dados.sessao.data} · ${dados.sessao.nome} · ${nf(j.duracao_min,1)} min em campo`;
+  $("nota-jogo").innerHTML = s
+    ? `Os números acima são <b>só do jogo</b> (1º + 2º tempo). No dia inteiro, com
+       aquecimento e trabalho de suplentes: ${nf(s.duracao_min,1)} min e ${nf(s.distancia_m)} m.`
+    : `Os números acima são <b>só do jogo</b> (1º + 2º tempo).`;
+
+  if(jogo.comparativo){
+    renderComparativo(jogo.comparativo, "no jogo");
+    renderComparativo(jogo.comparativo, "no jogo", $("comparativo-jogo"), PAINEIS_JOGO);
+    $("titulo-comparativo").textContent = "Sua posição no grupo, no jogo";
+    $("sub-comparativo").textContent =
+      "Cada barra é um atleta que entrou em campo, contando apenas o tempo de jogo. "
+      + "Só a sua está identificada — os demais aparecem sem nome e sem número.";
+  }
+
+  ajustarAlturaImpressao(
+    (jogo.comparativo||dados.comparativo).total_atletas, LINHAS_TEMPO.length + 5);
+}
+
+async function carregarJogo(activityId, forcar=false){
+  const base = `${API}?tipo=meujogo&token=${encodeURIComponent(TOKEN)}`
+             + `&activity_id=${encodeURIComponent(activityId)}`;
+  const buscar = async (url, chave)=>{
+    let j = forcar ? null : cacheLer(chave);
+    if(!j){
+      const r = await fetch(url);
+      j = await r.json();
+      if(!r.ok || j.erro) throw new Error(j.erro || ("HTTP "+r.status));
+      cacheGravar(chave, j);
+    }
+    return j;
+  };
+  try{
+    jogo = await buscar(base, "fec:jogo:"+activityId);
+    if(dados && dados.sessao && dados.sessao.id !== activityId) return; // trocou de sessão
+    renderJogo();
+  }catch(e){
+    $("tb-tempos").innerHTML = `<tr><td colspan="5" style="text-align:left">
+      Não foi possível carregar o recorte do jogo: ${esc(e.message)}</td></tr>`;
+    return;
+  }
+  // Segunda etapa: a temporada. Demora mais (uma consulta por jogo) e não pode
+  // segurar o que já está na tela.
+  try{
+    const completo = await buscar(base+"&temporada=1", "fec:jogo-temporada:"+activityId);
+    if(!dados || !dados.sessao || dados.sessao.id !== activityId) return;
+    jogo = completo;
+    renderJogo();
+  }catch(e){
+    const alvo = $("evolucao-jogos");
+    if(alvo) alvo.innerHTML =
+      `<p class="sub" style="grid-column:1/-1;margin:0">Não foi possível somar a temporada agora.</p>`;
+  }
+}
+
 // ---------- render ----------
+// A faixa de 8 KPIs serve tanto ao total da sessão quanto ao recorte do jogo.
+function aplicarKpis(a){
+  $("k-dist").textContent=nf(a.distancia_m);       $("k-dur").textContent=nf(a.duracao_min,1);
+  $("k-dens").textContent=nf(a.densidade_m_min,1); $("k-vmax").textContent=nf(a.vmax_kmh,1);
+  $("k-hsr").textContent=nf(a.hsr_m);              $("k-sprint").textContent=nf(a.sprint_m);
+  $("k-acel").textContent=nf(a.aceleracoes);       $("k-decel").textContent=nf(a.desaceleracoes);
+}
+
 function render(){
   const a = dados.dados, at = dados.atleta, s = dados.sessao;
   const wrap = $("foto-wrap");
@@ -561,19 +913,20 @@ function render(){
   $("r-atleta").textContent = at.nome;
   $("r-cargo").textContent  = at.posicao || "";
   $("r-sessao").textContent = `${s.data} · ${s.nome} · ${a.n_periodos} ${a.n_periodos===1?"bloco":"blocos"}`;
-  $("r-selo").textContent   = s.provavel_jogo ? "Jogo" : "Treino";
+  // `eh_jogo` vem da composição de períodos (tem 1tempo/2tempo?); `provavel_jogo`
+  // é só o nome da sessão e continua como reserva para respostas antigas em cache.
+  $("r-selo").textContent   = (s.eh_jogo ?? s.provavel_jogo) ? "Jogo" : "Treino";
 
-  $("k-dist").textContent=nf(a.distancia_m);       $("k-dur").textContent=nf(a.duracao_min,1);
-  $("k-dens").textContent=nf(a.densidade_m_min,1); $("k-vmax").textContent=nf(a.vmax_kmh,1);
-  $("k-hsr").textContent=nf(a.hsr_m);              $("k-sprint").textContent=nf(a.sprint_m);
-  $("k-acel").textContent=nf(a.aceleracoes);       $("k-decel").textContent=nf(a.desaceleracoes);
+  aplicarKpis(a);
 
-  const td=(v,c=0)=>`<td class="${!v?"zero":""}">${nf(v,c)}</td>`;
+  // data-rot alimenta o rótulo dos cartões no celular (via CSS content:attr)
+  const td=(rot,v,c=0)=>`<td data-rot="${rot}" class="${!v?"zero":""}">${nf(v,c)}</td>`;
   const linhas=(a.periodos||[]).map(p=>`<tr>
       <td class="bloco"><span class="ordem">${p.ordem??"·"}</span>${esc(p.rotulo??p.periodo)}</td>
-      <td>${horaDe(p.inicio_unix)}</td>
-      ${td(p.duracao_min,1)}${td(p.distancia_m)}${td(p.densidade_m_min,1)}
-      ${td(p.hsr_m,1)}${td(p.sprint_m,1)}${td(p.aceleracoes)}${td(p.desaceleracoes)}${td(p.vmax_kmh,1)}
+      <td data-rot="Início">${horaDe(p.inicio_unix)}</td>
+      ${td("Duração (min)",p.duracao_min,1)}${td("Distância (m)",p.distancia_m)}${td("Densidade (m/min)",p.densidade_m_min,1)}
+      ${td("Acima de 19,8 km/h (m)",p.hsr_m,1)}${td("Acima de 25,2 km/h (m)",p.sprint_m,1)}
+      ${td("Acelerações",p.aceleracoes)}${td("Desacelerações",p.desaceleracoes)}${td("Vel. máxima (km/h)",p.vmax_kmh,1)}
     </tr>`).join("");
   const rodape=`<tr><td>Total da sessão</td><td></td>
       <td>${nf(a.duracao_min,1)}</td><td>${nf(a.distancia_m)}</td><td>${nf(a.densidade_m_min,1)}</td>
@@ -585,8 +938,33 @@ function render(){
   ajustarAlturaImpressao(dados.comparativo.total_atletas, (a.periodos||[]).length);
   renderComparativo();
   renderEvolucao();
+
+  // Sessão de jogo: libera a aba, deixa ela na frente e busca o recorte.
+  // Enquanto ele não chega, tudo na tela continua sendo o total da sessão.
+  const ehJogo = !!(s.eh_jogo ?? s.provavel_jogo);
+  document.body.classList.toggle("modo-jogo", ehJogo);
+  $("btn-aba-jogo").hidden = !ehJogo;
+  if(ehJogo){
+    $("tb-tempos").innerHTML = `<tr><td colspan="5" style="text-align:left">Carregando o jogo…</td></tr>`;
+    trocarAba("jogo");
+    carregarJogo(s.id);
+  }else{
+    $("titulo-comparativo").textContent = "Sua posição no grupo";
+    $("sub-comparativo").textContent =
+      "Cada barra é um atleta que treinou com você. Só a sua está identificada — "
+      + "os demais aparecem sem nome e sem número.";
+    if(document.querySelector('.abas button[data-aba="jogo"].ativa')) trocarAba("geral");
+  }
+
   $("relatorio").classList.add("on");
   $("btn-imprimir").disabled=false;
+}
+
+function trocarAba(nome){
+  document.querySelectorAll(".abas button").forEach(x=>
+    x.classList.toggle("ativa", x.dataset.aba===nome));
+  document.querySelectorAll(".aba").forEach(x=>
+    x.classList.toggle("ativa", x.id==="aba-"+nome));
 }
 
 // ---------- impressão (mesma mecânica do painel) ----------
@@ -642,11 +1020,7 @@ $("btn-imprimir").addEventListener("click", ()=>{
   prepararImpressao(); setTimeout(()=>window.print(),0);
 });
 document.querySelectorAll(".abas button").forEach(b=>{
-  b.addEventListener("click", ()=>{
-    document.querySelectorAll(".abas button").forEach(x=>x.classList.remove("ativa"));
-    document.querySelectorAll(".aba").forEach(x=>x.classList.remove("ativa"));
-    b.classList.add("ativa"); $("aba-"+b.dataset.aba).classList.add("ativa");
-  });
+  b.addEventListener("click", ()=>trocarAba(b.dataset.aba));
 });
 
 $("emitido").textContent = new Date().toLocaleDateString("pt-BR",{timeZone:"America/Fortaleza"});
