@@ -7,6 +7,7 @@
 //   /api/treino?tipo=stats&activity_id=UUID       -> métricas por atleta e bloco
 //   /api/treino?tipo=stats&activity_id=UUID&debug=1  -> + chaves cruas do 1º registro
 //   /api/treino?tipo=meujogo&token=XXX&activity_id=UUID -> recorte 1º+2º tempo do atleta
+//   /api/treino?tipo=meu&token=XXX&days=180&limite=40  -> janela maior no seletor
 //
 // Sem ?tipo, o padrão é "sessoes".
 
@@ -417,7 +418,12 @@ async function historico(req, res, TOKEN) {
 // servidor recalcula o token de cada linha do cadastro e procura o que bate.
 // Trocar RELATORIO_SECRET invalida todos os links de uma vez.
 
-const N_SESSOES_ATLETA = 10;   // janela varrida para montar histórico e seletor
+// Quantas atividades recentes varrer para descobrir de quais o atleta participou.
+// Cada uma custa uma chamada /stats, por isso o padrão é modesto e o atleta pode
+// pedir mais ("Ver mais sessões" na página, que manda &days=180&limite=40).
+const N_SESSOES_ATLETA = 14;   // padrão
+const MAX_SESSOES_ATLETA = 40; // teto absoluto
+const LOTE_VARREDURA = 10;     // chamadas simultâneas à Catapult
 
 function tokenDe(id, segredo){
   return crypto.createHmac("sha256", segredo)
@@ -492,7 +498,9 @@ async function meuRelatorio(req, res, TOKEN){
   };
 
   // 2. Sessões recentes
-  const dias = Math.min(parseInt(req.query.days || "45", 10), 180);
+  const dias = Math.min(Math.max(parseInt(req.query.days || "60", 10), 1), 180);
+  const limite = Math.min(Math.max(parseInt(req.query.limite || String(N_SESSOES_ATLETA), 10), 1),
+                          MAX_SESSOES_ATLETA);
   const fim = Math.floor(Date.now() / 1000);
   const ini = fim - dias * 86400;
   const rAct = await fetch(`${BASE_URL}/activities?start_time=${ini}&end_time=${fim}`, {
@@ -502,7 +510,7 @@ async function meuRelatorio(req, res, TOKEN){
     return res.status(rAct.status).json({ erro: "Falha ao listar sessões." });
   }
   const activities = await rAct.json();
-  const sessoes = (Array.isArray(activities) ? activities : [])
+  const todasAsSessoes = (Array.isArray(activities) ? activities : [])
     .map((a) => ({
       id: a.id,
       nome: a.name || "Sessão sem nome",
@@ -514,13 +522,25 @@ async function meuRelatorio(req, res, TOKEN){
       // frontend libera a aba de jogo. `provavel_jogo` continua só para o rótulo.
       eh_jogo: ehSessaoDeJogo(a.periods),
     }))
-    .sort((a, b) => b.inicio_unix - a.inicio_unix)
-    .slice(0, N_SESSOES_ATLETA);
+    .sort((a, b) => b.inicio_unix - a.inicio_unix);
 
-  // 3. Em quais delas o atleta participou (em paralelo)
-  const varredura = await Promise.all(
-    sessoes.map(async (s) => ({ s, regs: await totaisDaAtividade(s.id, TOKEN) }))
-  );
+  // Se a sessão pedida existe mas está além do limite, ela entra assim mesmo:
+  // o atleta não pode pedir uma sessão pelo seletor e receber outra.
+  const sessoes = todasAsSessoes.slice(0, limite);
+  if (req.query.activity_id && !sessoes.some((s) => s.id === req.query.activity_id)) {
+    const extra = todasAsSessoes.find((s) => s.id === req.query.activity_id);
+    if (extra) sessoes.push(extra);
+  }
+
+  // 3. Em quais delas o atleta participou. Em lotes: 40 chamadas simultâneas à
+  //    Catapult é pedir para tomar limite de taxa.
+  const varredura = [];
+  for (let i = 0; i < sessoes.length; i += LOTE_VARREDURA) {
+    const lote = sessoes.slice(i, i + LOTE_VARREDURA);
+    varredura.push(...await Promise.all(
+      lote.map(async (s) => ({ s, regs: await totaisDaAtividade(s.id, TOKEN) }))
+    ));
+  }
   const minhas = varredura
     .map(({ s, regs }) => {
       const meu = regs.find((r) => idNoNome(r.atleta) === meuId);
@@ -531,6 +551,7 @@ async function meuRelatorio(req, res, TOKEN){
   if(!minhas.length){
     return res.status(200).json({
       tipo: "meu", atleta, sessao: null, sessoes_disponiveis: [],
+      janela: { dias, limite, sessoes_no_periodo: todasAsSessoes.length, tem_mais: dias < 180 },
       aviso: `Nenhuma sessão sua nos últimos ${dias} dias.`,
     });
   }
@@ -594,6 +615,9 @@ async function meuRelatorio(req, res, TOKEN){
     data: m.data,
     nome: m.nome,
     provavel_jogo: m.provavel_jogo,
+    // o rodapé do gráfico mostra o adversário quando é jogo; a marcação segue o
+    // mesmo critério objetivo do resto (tem 1tempo/2tempo?), não o nome
+    eh_jogo: m.eh_jogo,
     atual: m.id === alvo.id,
     distancia_m: m.meu.distancia_m,
     hsr_m: m.meu.hsr_m,
@@ -609,6 +633,14 @@ async function meuRelatorio(req, res, TOKEN){
     sessoes_disponiveis: minhas.map((m) =>
       ({ id: m.id, nome: m.nome, data: m.data,
          provavel_jogo: m.provavel_jogo, eh_jogo: m.eh_jogo })),
+    // Alimenta o botão "Ver mais sessões": diz o que foi varrido e se ainda há
+    // o que buscar (a janela máxima da Catapult aqui é 180 dias).
+    janela: {
+      dias, limite,
+      sessoes_no_periodo: todasAsSessoes.length,
+      sessoes_varridas: sessoes.length,
+      tem_mais: dias < 180 || todasAsSessoes.length > sessoes.length,
+    },
     dados: meusDados,
     comparativo,
     evolucao,
