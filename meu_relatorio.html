@@ -358,7 +358,8 @@
 </style>
 <style>
   /* A página do atleta tem menos controles que o painel */
-  .controles{grid-template-columns:1fr auto auto !important}
+  .controles{grid-template-columns:1fr auto auto auto !important}
+  #btn-mais[hidden]{display:none}
   .avisinho{font-size:11.5px;color:var(--cinza-texto);margin-top:10px;line-height:1.5}
 
   /* =====================================================================
@@ -385,6 +386,31 @@
   .min-item .un{font-size:10px;font-weight:600;color:var(--cinza-texto);margin-top:5px}
   .min-item.destaque{background:#FFF4F1;border-color:#F7C9BB}
   .min-item.destaque .val{color:var(--laranja)}
+
+  /* ---------- ADVERSÁRIO NO RODAPÉ DAS BARRAS ----------
+     Nome do adversário acima da data, laranja como a barra do jogo. Nome longo
+     é cortado com reticências e fica inteiro no `title` — melhor do que empurrar
+     as colunas e desalinhar o eixo. */
+  .eixo div b{display:block;font-weight:800;font-size:8.5px;line-height:1.25;
+    color:var(--laranja);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    letter-spacing:-.1px;margin-bottom:1px}
+  .eixo.so-jogos div b{color:var(--azul)}
+  .eixo div.atual b{color:var(--laranja)}
+  .eixo.so-jogos div.atual b{color:var(--azul-escuro)}
+  body.imprimindo .eixo div b{font-size:4.4pt;line-height:1.15;margin-bottom:.2mm}
+  @media screen and (max-width:720px){
+    .eixo div b{font-size:8px}
+  }
+
+  /* título de subseção dentro do painel de jogo */
+  .titulo-bloco{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:1.1px;
+    color:var(--azul);margin-bottom:4px}
+  body.imprimindo .titulo-bloco{font-size:6.5pt;margin-bottom:.4mm}
+
+  /* as colunas "por min" são apoio para a leitura da variação: ficam em segundo plano */
+  #tabela-tempos td.taxa{color:var(--cinza-texto)}
+  #tabela-tempos thead th:nth-child(5),
+  #tabela-tempos thead th:nth-child(6){color:#9AA4B4}
 
   /* tabela do split 1º x 2º tempo — a coluna do tempo mais forte fica em laranja */
   #tb-tempos td.melhor{color:var(--laranja);font-weight:800}
@@ -455,10 +481,12 @@
       <label for="sel-sessao">Sua sessão</label>
       <select id="sel-sessao" disabled><option>Carregando…</option></select>
     </div>
+    <button id="btn-mais" class="secundario" hidden>Ver mais sessões</button>
     <button id="btn-atualizar" class="secundario">Atualizar</button>
     <button id="btn-imprimir" disabled>Salvar em PDF</button>
   </div>
 
+  <div class="avisinho nao-imprimir" id="aviso-janela"></div>
   <div class="aviso" id="aviso"></div>
   <div class="carregando" id="carregando">Buscando seus dados…</div>
 
@@ -504,9 +532,15 @@
 
         <div class="min-grid" id="min-grid"></div>
 
+        <h3 class="titulo-bloco">1º tempo × 2º tempo</h3>
+        <p class="sub">As colunas <b>por min</b> dividem o valor pelos minutos que você jogou
+           naquele tempo. A última coluna compara essas duas: é ela que diz se o
+           <b>ritmo</b> caiu ou subiu — quem foi substituído ou entrou no meio não é
+           penalizado por ter jogado menos.</p>
         <div class="tabela-scroll"><table id="tabela-tempos">
           <thead><tr>
-            <th>Métrica</th><th>1º tempo</th><th>2º tempo</th><th>Jogo</th><th>2º vs 1º</th>
+            <th>Métrica</th><th>1º tempo</th><th>2º tempo</th><th>Jogo</th>
+            <th>1º<br>por min</th><th>2º<br>por min</th><th>Ritmo<br>2º vs 1º</th>
           </tr></thead>
           <tbody id="tb-tempos"></tbody>
         </table></div>
@@ -634,8 +668,9 @@ async function carregar(activityId, forcar=false){
   $("btn-aba-jogo").hidden = true;
   $("nota-jogo").textContent = "";
   const url = `${API}?tipo=meu&token=${encodeURIComponent(TOKEN)}`
+            + `&days=${JANELA.dias}&limite=${JANELA.limite}`
             + (activityId ? `&activity_id=${encodeURIComponent(activityId)}` : "");
-  const chave = "fec:meu:"+(activityId||"ultima");
+  const chave = `fec:meu:${JANELA.dias}:${JANELA.limite}:${activityId||"ultima"}`;
   try{
     let j = forcar ? null : cacheLer(chave);
     if(!j){
@@ -655,11 +690,28 @@ async function carregar(activityId, forcar=false){
   }finally{ carregando(false); }
 }
 
+// Quanto o seletor enxerga para trás. O padrão é curto de propósito — cada
+// sessão varrida custa uma consulta à Catapult —, e o botão "Ver mais sessões"
+// abre a janela inteira (180 dias, teto da varredura) quando o atleta quiser.
+let JANELA = {dias:60, limite:14};
+const JANELA_CHEIA = {dias:180, limite:40};
+
 function montarSeletor(){
   selSessao.innerHTML = dados.sessoes_disponiveis.map(s=>
     `<option value="${esc(s.id)}"${s.id===dados.sessao.id?" selected":""}>`
-    + `${esc(s.data)} · ${esc(s.nome)}${s.provavel_jogo?" ⚽":""}</option>`).join("");
+    + `${esc(s.data)} · ${esc(s.nome)}${(s.eh_jogo ?? s.provavel_jogo)?" ⚽":""}</option>`).join("");
   selSessao.disabled = dados.sessoes_disponiveis.length<2;
+
+  const b = $("btn-mais");
+  const podeMais = !dados.janela || dados.janela.tem_mais;
+  b.hidden = !podeMais || JANELA.dias >= JANELA_CHEIA.dias;
+  b.disabled = false;
+  b.textContent = "Ver mais sessões";
+  $("aviso-janela").textContent = dados.janela
+    ? `Mostrando ${dados.sessoes_disponiveis.length} `
+      + `${dados.sessoes_disponiveis.length===1?"sessão sua":"sessões suas"} `
+      + `nos últimos ${dados.janela.dias} dias.`
+    : "";
 }
 
 // ---------- comparativo: só números, sem nomes ----------
@@ -709,6 +761,17 @@ const GRAFICOS = [
   {titulo:"Alta intensidade (m)", campo:"hsr_m", casas:0},
   {titulo:"Acel + desacel (n)", campo:"acel_decel", casas:0},
 ];
+// "Jogo x Botafogo SP" -> "Botafogo SP". Se sobrar vazio (nome só "Jogo", ou um
+// padrão de nome que ninguém previu), devolve o nome inteiro em vez de nada.
+const adversarioDe = (nome)=>{
+  const s = String(nome||"")
+    .replace(/^\s*jogos?\s*/i,"")
+    // o `(\s+|$)` é o que impede "Jogo Xavantes" de virar "avantes"
+    .replace(/^[\s:–-]*(x|vs\.?|×)(\s+|$)/i,"")
+    .trim();
+  return s || String(nome||"").trim();
+};
+
 // Um gráfico de barras por métrica. `graficos`, o destino e o substantivo do
 // rodapé são parâmetros para que a aba de jogo reaproveite a mesma função.
 function renderEvolucao(pts = dados.evolucao || [], alvo = $("evolucao"),
@@ -722,16 +785,26 @@ function renderEvolucao(pts = dados.evolucao || [], alvo = $("evolucao"),
     const media = vals.reduce((a,b)=>a+b,0)/vals.length;
     const cols = pts.map((p,i)=>{
       const alt = Math.max(vals[i]/max*100, vals[i]>0?1.5:0);
-      const cls = [marcarJogo&&p.provavel_jogo?"jogo":"", p.atual?"atual":""].filter(Boolean).join(" ");
+      const cls = [marcarJogo&&(p.eh_jogo ?? p.provavel_jogo)?"jogo":"",
+                   p.atual?"atual":""].filter(Boolean).join(" ");
       return `<div class="col ${cls}"><div class="v">${nf(vals[i],g.casas)}</div>
               <div class="b" style="height:${alt.toFixed(1)}%"></div></div>`;
     }).join("");
-    const eixo = pts.map(p=>`<div class="${p.atual?'atual':''}">${esc((p.data||"").slice(0,5))}</div>`).join("");
+    // No rodapé, jogo é identificado pelo adversário — "05/06" não diz nada, e é
+    // justamente o jogo que o atleta procura no gráfico. Treino continua só com a
+    // data. No gráfico de jogos todas as barras são jogo, daí o `so-jogos`.
+    const eixo = pts.map(p=>{
+      const ehJogo = marcarJogo ? (p.eh_jogo ?? p.provavel_jogo) : true;
+      const adv = ehJogo ? adversarioDe(p.nome) : "";
+      return `<div class="${p.atual?'atual':''}" title="${esc(p.nome||"")}">`
+           + (adv?`<b>${esc(adv)}</b>`:"")
+           + `${esc((p.data||"").slice(0,5))}</div>`;
+    }).join("");
     return `<div class="gr quebra-evitar">
       <h3>${esc(g.titulo)}</h3>
       <div class="media">${pts.length} ${pts.length===1?unidade[0]:unidade[1]} · média ${nf(media,g.casas)}</div>
       <div class="colunas">${cols}</div>
-      <div class="eixo">${eixo}</div></div>`;
+      <div class="eixo${marcarJogo?"":" so-jogos"}">${eixo}</div></div>`;
   }).join("");
 }
 
@@ -744,18 +817,23 @@ function renderEvolucao(pts = dados.evolucao || [], alvo = $("evolucao"),
 // ---------------------------------------------------------------------------
 let jogo = null;
 
-// Linhas do split. `porMin` marca as métricas de volume: comparar o bruto do 2º
-// com o do 1º penalizaria quem jogou tempos de duração diferente (substituído,
-// ou que entrou no meio), então a variação é sempre do rendimento por minuto.
+// Linhas do split.
+//   tipo "volume" — o valor cresce com o tempo em campo (distância, esforços).
+//                   Ganha as duas colunas "por min", e é a variação DELAS que vai
+//                   para a última coluna. Comparar o bruto diria que um titular
+//                   substituído aos 36' "caiu 30%", quando só jogou menos.
+//   tipo "ritmo"  — já é uma taxa (m/min, km/h). Não tem "por min"; a variação
+//                   compara os valores direto.
+//   tipo "tempo"  — a minutagem em si, sem variação (é ela o denominador).
 const LINHAS_TEMPO = [
-  {rot:"Tempo em campo (min)", campo:"duracao_min", casas:1, variacao:false},
-  {rot:"Distância (m)",        campo:"distancia_m", casas:0, porMin:true},
-  {rot:"Densidade (m/min)",    campo:"densidade_m_min", casas:1},
-  {rot:"Acima de 19,8 km/h (m)", campo:"hsr_m", casas:1, porMin:true},
-  {rot:"Acima de 25,2 km/h (m)", campo:"sprint_m", casas:1, porMin:true},
-  {rot:"Acelerações (n)",      campo:"aceleracoes", casas:0, porMin:true},
-  {rot:"Desacelerações (n)",   campo:"desaceleracoes", casas:0, porMin:true},
-  {rot:"Vel. máxima (km/h)",   campo:"vmax_kmh", casas:1},
+  {rot:"Tempo em campo (min)",   campo:"duracao_min",     casas:0, tipo:"tempo"},
+  {rot:"Distância (m)",          campo:"distancia_m",     casas:0, tipo:"volume", casasMin:1},
+  {rot:"Densidade (m/min)",      campo:"densidade_m_min", casas:1, tipo:"ritmo"},
+  {rot:"Acima de 19,8 km/h (m)", campo:"hsr_m",           casas:1, tipo:"volume", casasMin:1},
+  {rot:"Acima de 25,2 km/h (m)", campo:"sprint_m",        casas:1, tipo:"volume", casasMin:1},
+  {rot:"Acelerações (n)",        campo:"aceleracoes",     casas:0, tipo:"volume", casasMin:2},
+  {rot:"Desacelerações (n)",     campo:"desaceleracoes",  casas:0, tipo:"volume", casasMin:2},
+  {rot:"Vel. máxima (km/h)",     campo:"vmax_kmh",        casas:1, tipo:"ritmo"},
 ];
 
 // Painéis exclusivos do jogo (só na tela — ver comentário no HTML)
@@ -795,25 +873,34 @@ function renderJogo(){
   // 1. Minutagem. Os três últimos itens só chegam com a varredura da temporada.
   const tp = jogo.temporada;
   const esperando = `<span style="opacity:.45">…</span>`;
+  // Minutagem é sempre inteira: décimo de minuto não decide nada e polui a leitura.
   $("min-grid").innerHTML =
-      itemMin("Tempo em campo", nf(j.duracao_min,1), "minutos neste jogo", true)
-    + itemMin("1º tempo", t.primeiro?nf(t.primeiro.duracao_min,1):"—", "minutos")
-    + itemMin("2º tempo", t.segundo?nf(t.segundo.duracao_min,1):"—", "minutos")
+      itemMin("Tempo em campo", nf(j.duracao_min,0), "minutos neste jogo", true)
+    + itemMin("1º tempo", t.primeiro?nf(t.primeiro.duracao_min,0):"—", "minutos")
+    + itemMin("2º tempo", t.segundo?nf(t.segundo.duracao_min,0):"—", "minutos")
     + itemMin("Minutos na temporada", tp?nf(tp.minutos_total,0):esperando,
               tp?`desde ${tp.desde}${tp.parcial?" · parcial":""}`:"somando…", true)
     + itemMin("Jogos com minutos", tp?nf(tp.jogos_com_minutos,0):esperando,
               tp?`de ${tp.jogos_no_periodo} no período`:"somando…")
-    + itemMin("Média por jogo", tp&&tp.minutos_media!==null?nf(tp.minutos_media,1):esperando,
+    + itemMin("Média por jogo", tp&&tp.minutos_media!==null?nf(tp.minutos_media,0):esperando,
               "minutos");
 
   // 2. Split 1º x 2º tempo
+  const taxa = (bloco,l)=>{                       // valor por minuto em campo
+    if(l.tipo!=="volume" || !bloco) return null;
+    const v = bloco[l.campo], m = bloco.duracao_min;
+    return (v===null||!m) ? null : v/m;
+  };
+  const celTaxa = (bloco,l)=>{
+    const v = taxa(bloco,l);
+    return v===null ? "—" : nf(v, l.casasMin ?? 1);
+  };
   const variacao = (l)=>{
-    if(l.variacao===false || !t.primeiro || !t.segundo) return "—";
-    const v1 = t.primeiro[l.campo], v2 = t.segundo[l.campo];
-    if(v1===null||v2===null) return "—";
-    const base1 = l.porMin ? v1/(t.primeiro.duracao_min||1) : v1;
-    const base2 = l.porMin ? v2/(t.segundo.duracao_min||1) : v2;
-    if(!base1) return "—";
+    if(l.tipo==="tempo" || !t.primeiro || !t.segundo) return "—";
+    // volume: compara as taxas. ritmo: já é taxa, compara direto.
+    const base1 = l.tipo==="volume" ? taxa(t.primeiro,l) : t.primeiro[l.campo];
+    const base2 = l.tipo==="volume" ? taxa(t.segundo,l)  : t.segundo[l.campo];
+    if(base1===null||base2===null||!base1) return "—";
     const d = (base2/base1-1)*100;
     const cls = d < -0.5 ? "neg" : (d > 0.5 ? "pos" : "");
     return `<span class="queda ${cls}">${d>0?"+":""}${nf(d,1)}%</span>`;
@@ -824,7 +911,9 @@ function renderJogo(){
       <td data-rot="1º tempo">${cel(t.primeiro,l)}</td>
       <td data-rot="2º tempo">${cel(t.segundo,l)}</td>
       <td data-rot="Jogo" class="melhor">${cel(j,l)}</td>
-      <td data-rot="2º vs 1º${l.porMin?" (por min)":""}">${variacao(l)}</td>
+      <td data-rot="1º tempo por minuto" class="taxa">${celTaxa(t.primeiro,l)}</td>
+      <td data-rot="2º tempo por minuto" class="taxa">${celTaxa(t.segundo,l)}</td>
+      <td data-rot="Ritmo: 2º vs 1º">${variacao(l)}</td>
     </tr>`).join("");
 
   // 3. Evolução em jogos (só com a temporada carregada)
@@ -835,13 +924,13 @@ function renderJogo(){
 
   // 4. O relatório inteiro passa a falar do jogo: KPIs do topo, nota de
   //    contexto e comparativo. A aba "Visão geral" continua com a sessão toda.
-  aplicarKpis(j);
+  aplicarKpis(j, 0);
   const s = jogo.sessao_toda;
   $("r-sessao").textContent =
-    `${dados.sessao.data} · ${dados.sessao.nome} · ${nf(j.duracao_min,1)} min em campo`;
+    `${dados.sessao.data} · ${dados.sessao.nome} · ${nf(j.duracao_min,0)} min em campo`;
   $("nota-jogo").innerHTML = s
     ? `Os números acima são <b>só do jogo</b> (1º + 2º tempo). No dia inteiro, com
-       aquecimento e trabalho de suplentes: ${nf(s.duracao_min,1)} min e ${nf(s.distancia_m)} m.`
+       aquecimento e trabalho de suplentes: ${nf(s.duracao_min,0)} min e ${nf(s.distancia_m)} m.`
     : `Os números acima são <b>só do jogo</b> (1º + 2º tempo).`;
 
   if(jogo.comparativo){
@@ -895,8 +984,9 @@ async function carregarJogo(activityId, forcar=false){
 
 // ---------- render ----------
 // A faixa de 8 KPIs serve tanto ao total da sessão quanto ao recorte do jogo.
-function aplicarKpis(a){
-  $("k-dist").textContent=nf(a.distancia_m);       $("k-dur").textContent=nf(a.duracao_min,1);
+// `casasMin` = 0 no jogo: minutagem não leva decimal.
+function aplicarKpis(a, casasMin = 1){
+  $("k-dist").textContent=nf(a.distancia_m);       $("k-dur").textContent=nf(a.duracao_min,casasMin);
   $("k-dens").textContent=nf(a.densidade_m_min,1); $("k-vmax").textContent=nf(a.vmax_kmh,1);
   $("k-hsr").textContent=nf(a.hsr_m);              $("k-sprint").textContent=nf(a.sprint_m);
   $("k-acel").textContent=nf(a.aceleracoes);       $("k-decel").textContent=nf(a.desaceleracoes);
@@ -1012,6 +1102,12 @@ if(window.matchMedia){
 
 // ---------- eventos ----------
 selSessao.addEventListener("change", e=>carregar(e.target.value));
+$("btn-mais").addEventListener("click", ()=>{
+  JANELA = {...JANELA_CHEIA};
+  const b = $("btn-mais");
+  b.disabled = true; b.textContent = "Buscando…";
+  carregar(dados && dados.sessao ? dados.sessao.id : null, true);
+});
 $("btn-atualizar").addEventListener("click", ()=>{
   try{ sessionStorage.clear(); }catch(e){}
   carregar(dados&&dados.sessao?dados.sessao.id:null, true);
