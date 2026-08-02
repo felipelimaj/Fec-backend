@@ -6,6 +6,7 @@
 //   /api/treino?tipo=sessoes&days=60              -> lista sessões dos últimos 60 dias (máx. 180)
 //   /api/treino?tipo=stats&activity_id=UUID       -> métricas por atleta e bloco
 //   /api/treino?tipo=stats&activity_id=UUID&debug=1  -> + chaves cruas do 1º registro
+//   /api/treino?tipo=meujogo&token=XXX&activity_id=UUID -> recorte 1º+2º tempo do atleta
 //
 // Sem ?tipo, o padrão é "sessoes".
 
@@ -110,6 +111,8 @@ async function listarSessoes(req, res, TOKEN) {
         periodos: (a.periods || []).map((p) => p.name),
         // Marcação simples: nomes com "JOGO" ou "x" tendem a ser partidas
         provavel_jogo: /jogo|\bx\b|vs/i.test(a.name || ""),
+        // Marcação objetiva: existe período 1tempo/2tempo/1goleiro? (§BLOCO F)
+        eh_jogo: ehSessaoDeJogo(a.periods),
       };
     })
     .sort((a, b) => b.inicio_unix - a.inicio_unix); // mais recentes primeiro
@@ -435,8 +438,14 @@ function tokensIguais(a, b){
 const baseDe = (req) =>
   `https://${req.headers["x-forwarded-host"] || req.headers.host}`;
 
-async function carregarCadastro(req){
-  const r = await fetch(`${baseDe(req)}/api/gps/sheets?fonte=cadastro`);
+// `/api/gps/sheets` guarda a resposta por 10 min no CDN. Isso é bom para o
+// tráfego dos atletas, mas atrapalha na hora de conferir uma edição da planilha.
+// Com semCache=true, um parâmetro descartável muda a chave de cache e força a
+// releitura. Usado só pelo gerador de links, que é de uso esporádico.
+async function carregarCadastro(req, semCache = false){
+  const url = `${baseDe(req)}/api/gps/sheets?fonte=cadastro`
+            + (semCache ? `&_=${Date.now()}` : "");
+  const r = await fetch(url, semCache ? { cache: "no-store" } : undefined);
   if(!r.ok) throw new Error(`cadastro HTTP ${r.status}`);
   const j = await r.json();
   return j.rows || [];
@@ -501,6 +510,9 @@ async function meuRelatorio(req, res, TOKEN){
         .toLocaleDateString("pt-BR", { timeZone: "America/Fortaleza" }),
       inicio_unix: a.start_time,
       provavel_jogo: /jogo|\bx\b|vs/i.test(a.name || ""),
+      // Critério objetivo (§BLOCO F): tem 1tempo/2tempo? Então é jogo, e o
+      // frontend libera a aba de jogo. `provavel_jogo` continua só para o rótulo.
+      eh_jogo: ehSessaoDeJogo(a.periods),
     }))
     .sort((a, b) => b.inicio_unix - a.inicio_unix)
     .slice(0, N_SESSOES_ATLETA);
@@ -592,9 +604,11 @@ async function meuRelatorio(req, res, TOKEN){
   return res.status(200).json({
     tipo: "meu",
     atleta,
-    sessao: { id: alvo.id, nome: alvo.nome, data: alvo.data, provavel_jogo: alvo.provavel_jogo },
+    sessao: { id: alvo.id, nome: alvo.nome, data: alvo.data,
+              provavel_jogo: alvo.provavel_jogo, eh_jogo: alvo.eh_jogo },
     sessoes_disponiveis: minhas.map((m) =>
-      ({ id: m.id, nome: m.nome, data: m.data, provavel_jogo: m.provavel_jogo })),
+      ({ id: m.id, nome: m.nome, data: m.data,
+         provavel_jogo: m.provavel_jogo, eh_jogo: m.eh_jogo })),
     dados: meusDados,
     comparativo,
     evolucao,
@@ -615,7 +629,8 @@ async function gerarLinks(req, res){
   if(!tokensIguais(req.query.chave, segredo)){
     return res.status(403).json({ erro: "Chave inválida." });
   }
-  const cadastro = await carregarCadastro(req);
+  // sempre fresco: esta lista existe justamente para conferir a planilha
+  const cadastro = await carregarCadastro(req, true);
   const base = baseDe(req);
   const somenteAtivos = req.query.todos !== "1";
 
@@ -849,6 +864,316 @@ async function compararBandas(req, res, TOKEN) {
 }
 
 // =============================================================================
+// BLOCO F — RECORTE DE JOGO (1º e 2º tempos)
+// =============================================================================
+// GET /api/treino?tipo=meujogo&token=XXXX[&activity_id=UUID][&temporada=1]
+//
+// POR QUE EXISTE: numa sessão de jogo o total inclui aquecimento, aquecimento do
+// intervalo e o trabalho dos suplentes na lateral. Para o atleta, o número que
+// importa é o do jogo em si. Este endpoint devolve o mesmo relatório recortado
+// nos períodos de jogo, mais o split 1º x 2º tempo.
+//
+// COMO SE RECONHECE UM PERÍODO DE JOGO — validado em 20 jogos reais (180 dias):
+//   "1tempo", "1tempo1", "2tempo", "2Tempo", "2tempo1".."2tempo4"  -> linha
+//   "1goleiro", "2goleiro"                                         -> goleiro
+//
+// Dois fatos medidos nos dados que mudam a leitura:
+//
+//  (a) Os NUMERADOS NÃO SÃO PARTES SEQUENCIAIS DO TEMPO. São janelas de entrada
+//      de reserva: quem entrou no meio do 2º tempo aparece só em "2tempo2" ou
+//      "2tempo3". Cada atleta costuma ter UM período por tempo. Somar todos os
+//      períodos de jogo do atleta dá o tempo em campo dele — não o do jogo.
+//
+//  (b) O GOLEIRO TITULAR NÃO TEM "1tempo"/"2tempo". Ele aparece exclusivamente em
+//      "1goleiro"/"2goleiro" (conferido no jogo x Botafogo SP: 11 JOÃO.R, 48 +
+//      53,2 min, nenhum registro em 1tempo). Sem incluir essa família, a aba de
+//      jogo do goleiro sairia zerada.
+//
+// FICAM DE FORA, por não casarem com a regex: Aquecimento*, Suplentes*,
+// "Goleiros" (aquecimento dos goleiros, no plural), Treino Físico, Posse,
+// Complemento Técnico, Intermitente.
+//
+// A caixa varia na digitação da comissão ("2Tempo", "2Tempo3"), por isso a regex
+// é case-insensitive. Espaços sobrando também são tolerados.
+const RE_PERIODO_JOGO = /^\s*([12])\s*(tempo|goleiro)\s*\d*\s*$/i;
+
+const ehPeriodoJogo = (nome) => RE_PERIODO_JOGO.test(String(nome ?? ""));
+
+// 1 = primeiro tempo, 2 = segundo tempo, null = não é período de jogo
+const tempoDoPeriodo = (nome) => {
+  const m = String(nome ?? "").match(RE_PERIODO_JOGO);
+  return m ? Number(m[1]) : null;
+};
+
+// Uma sessão é jogo quando tem período de jogo — critério do DADO, não do nome.
+// O regex de nome ("jogo", "x", "vs") continua existindo como `provavel_jogo`,
+// mas erra: "Jogo Específico" é bloco de treino e "Clássico" seria jogo sem
+// casar. Aqui a pergunta é objetiva: existe 1tempo/2tempo nessa atividade?
+const ehSessaoDeJogo = (periodos) =>
+  (periodos ?? []).some((p) => ehPeriodoJogo(typeof p === "string" ? p : p?.name));
+
+// Quantos jogos da temporada varrer, no máximo. Cada um custa uma chamada à
+// Catapult; o teto existe para não estourar o maxDuration de 60 s.
+const MAX_JOGOS_TEMPORADA = 40;
+const LOTE_TEMPORADA = 6;      // chamadas simultâneas
+const ORCAMENTO_MS = 42000;    // para de disparar lotes novos depois disso
+
+// Início da temporada: 1º de janeiro do ano corrente (horário de Fortaleza).
+// Sobrescrevível com &desde=AAAA-MM-DD.
+function inicioDaTemporada(req) {
+  const p = String(req.query.desde || "").trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(p)) return Math.floor(Date.parse(p + "T00:00:00-03:00") / 1000);
+  const ano = new Date().getUTCFullYear();
+  return Math.floor(Date.parse(ano + "-01-01T00:00:00-03:00") / 1000);
+}
+
+// Registros (já normalizados) -> agregado no formato de agregarAtleta, ou null.
+function recorte(regs) {
+  if (!regs.length) return null;
+  const a = agregarAtleta(regs);
+  delete a.atleta;
+  delete a.atleta_id;
+  return { ...a, periodos: ordenarPeriodos(regs).map((p) => ({ ...p, atleta: undefined, atleta_id: undefined })) };
+}
+
+// Todos os registros de uma atividade, normalizados e agrupados por atleta.
+async function registrosPorAtleta(activityId, TOKEN, timeoutMs = 15000) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const r = await fetch(`${BASE_URL}/stats`, {
+      method: "POST",
+      signal: ctrl.signal,
+      headers: { Authorization: `Bearer ${TOKEN}`, Accept: "application/json",
+                 "Content-Type": "application/json" },
+      body: JSON.stringify({
+        filters: [{ name: "activity_id", comparison: "=", values: [activityId] }],
+        parameters: PARAMETROS,
+        group_by: ["athlete", "period"],
+      }),
+    });
+    if (!r.ok) return null;
+    const bruto = await r.json();
+    const porAtleta = {};
+    for (const reg of Array.isArray(bruto) ? bruto : []) {
+      const n = normalizar(reg);
+      (porAtleta[n.atleta] = porAtleta[n.atleta] || []).push(n);
+    }
+    return porAtleta;
+  } catch (e) {
+    return null;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+async function meuJogo(req, res, TOKEN) {
+  const segredo = process.env.RELATORIO_SECRET;
+  if (!segredo) {
+    return res.status(500).json({ erro: "RELATORIO_SECRET não configurado no Vercel." });
+  }
+  if (!req.query.token) return res.status(400).json({ erro: "Link inválido." });
+
+  // 1. Identifica o atleta pelo token (mesmo mecanismo do tipo=meu)
+  const cadastro = await carregarCadastro(req);
+  const linha = cadastro.find((l) => tokensIguais(tokenDe(l["ID"], segredo), req.query.token));
+  if (!linha) return res.status(403).json({ erro: "Link inválido ou expirado." });
+  const meuId = String(linha["ID"]).trim();
+  const atleta = {
+    nome: (linha["ATLETA"] || "").trim(),
+    posicao: (linha["POSIÇÃO"] || "").trim(),
+    foto: (linha["FOTO"] || "").trim(),
+  };
+
+  // 2. Todos os jogos da temporada (pela composição de períodos, não pelo nome)
+  const ini = inicioDaTemporada(req);
+  const fim = Math.floor(Date.now() / 1000);
+  const rAct = await fetch(`${BASE_URL}/activities?start_time=${ini}&end_time=${fim}`, {
+    headers: { Authorization: `Bearer ${TOKEN}`, Accept: "application/json" },
+  });
+  if (!rAct.ok) return res.status(rAct.status).json({ erro: "Falha ao listar sessões." });
+
+  const jogos = (await rAct.json() || [])
+    .filter((a) => ehSessaoDeJogo(a.periods))
+    .map((a) => ({
+      id: a.id,
+      nome: a.name || "Jogo",
+      data: new Date(a.start_time * 1000)
+        .toLocaleDateString("pt-BR", { timeZone: "America/Fortaleza" }),
+      inicio_unix: a.start_time,
+    }))
+    .sort((a, b) => b.inicio_unix - a.inicio_unix);
+
+  if (!jogos.length) {
+    return res.status(200).json({ tipo: "meujogo", atleta, jogo: null,
+      aviso: "Nenhum jogo encontrado na temporada." });
+  }
+
+  // 3. Jogo alvo: o pedido (se for jogo) ou o mais recente.
+  //    Se o pedido não está na janela da temporada (um jogo de dezembro aberto em
+  //    janeiro, por exemplo), procura numa janela larga em vez de cair calado no
+  //    jogo mais recente — devolver os números de OUTRA partida sem avisar seria
+  //    o pior desfecho possível aqui.
+  let alvo = (req.query.activity_id && jogos.find((j) => j.id === req.query.activity_id)) || null;
+  let foraDaTemporada = false;
+
+  if (!alvo && req.query.activity_id) {
+    const r2 = await fetch(
+      `${BASE_URL}/activities?start_time=${fim - 400 * 86400}&end_time=${fim}`,
+      { headers: { Authorization: `Bearer ${TOKEN}`, Accept: "application/json" } });
+    if (r2.ok) {
+      const achada = (await r2.json() || []).find((a) => a.id === req.query.activity_id);
+      if (achada && ehSessaoDeJogo(achada.periods)) {
+        foraDaTemporada = true;
+        alvo = {
+          id: achada.id,
+          nome: achada.name || "Jogo",
+          data: new Date(achada.start_time * 1000)
+            .toLocaleDateString("pt-BR", { timeZone: "America/Fortaleza" }),
+          inicio_unix: achada.start_time,
+        };
+      }
+    }
+    if (!alvo) {
+      return res.status(200).json({ tipo: "meujogo", atleta, jogo: null, jogo_todo: null,
+        aviso: "Esta sessão não é um jogo." });
+    }
+  }
+  if (!alvo) alvo = jogos[0];
+
+  // 4. Detalhe do jogo alvo
+  const porAtleta = await registrosPorAtleta(alvo.id, TOKEN);
+  if (!porAtleta) return res.status(502).json({ erro: "Falha ao carregar o jogo." });
+
+  let meusRegs = null;
+  const todosJogo = [];   // agregados de jogo de quem entrou em campo (anônimos)
+  for (const [nome, regs] of Object.entries(porAtleta)) {
+    const deJogo = regs.filter((r) => ehPeriodoJogo(r.periodo));
+    if (idNoNome(nome) === meuId) meusRegs = regs;
+    if (deJogo.length) todosJogo.push(agregarAtleta(deJogo));
+  }
+
+  if (!meusRegs) {
+    return res.status(200).json({
+      tipo: "meujogo", atleta,
+      jogo: { id: alvo.id, nome: alvo.nome, data: alvo.data },
+      jogo_todo: null,
+      aviso: "Você não foi relacionado neste jogo.",
+    });
+  }
+
+  const meusDeJogo = meusRegs.filter((r) => ehPeriodoJogo(r.periodo));
+  const jogoTodo = recorte(meusDeJogo);
+  const primeiro = recorte(meusDeJogo.filter((r) => tempoDoPeriodo(r.periodo) === 1));
+  const segundo  = recorte(meusDeJogo.filter((r) => tempoDoPeriodo(r.periodo) === 2));
+
+  // Contraste com o total da sessão: quanto do dia foi jogo de fato.
+  const sessaoToda = recorte(meusRegs);
+  if (sessaoToda) delete sessaoToda.periodos;
+
+  // 5. Comparativo anônimo — SÓ com os períodos de jogo, e só entre quem jogou.
+  //    Mesmo princípio do tipo=meu (§7.1): nenhum nome sai daqui e cada painel é
+  //    ordenado por conta própria, para que as métricas de um mesmo colega não
+  //    possam ser reconectadas entre painéis.
+  //    Os painéis "por minuto" existem porque quem entrou aos 30' do 2º tempo
+  //    sempre teria menos volume absoluto: normalizados, os dois são comparáveis.
+  let comparativo = null;
+  if (jogoTodo && todosJogo.length > 1) {
+    const meuIdx = todosJogo.findIndex((t) => idNoNome(t.atleta) === meuId);
+    const painel = (pegar) => {
+      const linhas = todosJogo.map((t, i) => ({ v: pegar(t), i }));
+      linhas.sort((a, b) => b.v[0] - a.v[0]);
+      const idx = linhas.findIndex((x) => x.i === meuIdx);
+      return { valores: linhas.map((x) => x.v), meu_indice: idx, posicao: idx + 1 };
+    };
+    const porMin = (v, t) => (v === null || !t ? 0 : round1(v / t));
+    comparativo = {
+      total_atletas: todosJogo.length,
+      minutagem:   painel((t) => [t.duracao_min ?? 0]),
+      distancia:   painel((t) => [t.distancia_m ?? 0]),
+      intensidade: painel((t) => [t.hsr_m ?? 0, t.sprint_m ?? 0]),
+      acel_decel:  painel((t) => [t.aceleracoes ?? 0, t.desaceleracoes ?? 0]),
+      por_minuto:  painel((t) => [t.densidade_m_min ?? 0, porMin(t.hsr_m, t.duracao_min)]),
+    };
+  }
+
+  const resposta = {
+    tipo: "meujogo",
+    atleta,
+    jogo: { id: alvo.id, nome: alvo.nome, data: alvo.data, fora_da_temporada: foraDaTemporada },
+    jogos_disponiveis: jogos.slice(0, 20).map((j) => ({ id: j.id, nome: j.nome, data: j.data })),
+    jogo_todo: jogoTodo,
+    sessao_toda: sessaoToda,
+    tempos: { primeiro, segundo },
+    comparativo,
+  };
+
+  // 6. Temporada (opcional, mais cara): minutagem somada e evolução em jogos.
+  //    Uma chamada /stats por jogo, em lotes, com orçamento de tempo. Se o tempo
+  //    acabar ou alguma chamada falhar, devolve o que deu e marca `parcial`.
+  //    Otimização possível no futuro: mandar vários activity_id no mesmo filtro
+  //    (o campo `values` é array) — não testado contra o tenant, por isso aqui vai
+  //    o formato já validado em produção, uma atividade por chamada.
+  if (req.query.temporada === "1") {
+    const t0 = Date.now();
+    const alvos = jogos.slice(0, MAX_JOGOS_TEMPORADA);
+    const resultados = [];
+    let parcial = false;
+
+    for (let i = 0; i < alvos.length; i += LOTE_TEMPORADA) {
+      if (Date.now() - t0 > ORCAMENTO_MS) { parcial = true; break; }
+      const lote = alvos.slice(i, i + LOTE_TEMPORADA);
+      const r = await Promise.all(lote.map(async (j) => {
+        const pa = await registrosPorAtleta(j.id, TOKEN, 12000);
+        if (!pa) return { jogo: j, erro: true };
+        const entrada = Object.entries(pa).find(([nome]) => idNoNome(nome) === meuId);
+        if (!entrada) return { jogo: j, meu: null };
+        const deJogo = entrada[1].filter((x) => ehPeriodoJogo(x.periodo));
+        if (!deJogo.length) return { jogo: j, meu: null };
+        const ag = agregarAtleta(deJogo);
+        return { jogo: j, meu: ag,
+                 t1: deJogo.filter((x) => tempoDoPeriodo(x.periodo) === 1).length > 0 };
+      }));
+      resultados.push(...r);
+    }
+
+    if (resultados.some((r) => r.erro)) parcial = true;
+
+    const jogados = resultados.filter((r) => r.meu);
+    const minutos = round1(soma(...jogados.map((r) => r.meu.duracao_min)) ?? 0);
+
+    resposta.temporada = {
+      desde: new Date(ini * 1000).toLocaleDateString("pt-BR", { timeZone: "America/Fortaleza" }),
+      jogos_no_periodo: jogos.length,
+      jogos_varridos: resultados.length,
+      jogos_com_minutos: jogados.length,
+      minutos_total: minutos,
+      minutos_media: jogados.length ? round1(minutos / jogados.length) : null,
+      titular: jogados.filter((r) => r.t1).length,
+      distancia_total_m: round1(soma(...jogados.map((r) => r.meu.distancia_m)) ?? 0),
+      hsr_total_m: round1(soma(...jogados.map((r) => r.meu.hsr_m)) ?? 0),
+      sprint_total_m: round1(soma(...jogados.map((r) => r.meu.sprint_m)) ?? 0),
+      parcial,
+      // Só os jogos em que ele teve minutos, do mais antigo para o mais recente
+      evolucao: jogados.slice(0, 8).reverse().map((r) => ({
+        data: r.jogo.data,
+        nome: r.jogo.nome,
+        atual: r.jogo.id === alvo.id,
+        minutos: r.meu.duracao_min,
+        distancia_m: r.meu.distancia_m,
+        hsr_m: r.meu.hsr_m,
+        sprint_m: r.meu.sprint_m,
+        densidade_m_min: r.meu.densidade_m_min,
+      })),
+    };
+  }
+
+  // Jogo encerrado não muda mais: cache mais longo que o do tipo=meu.
+  res.setHeader("Cache-Control", "s-maxage=1800, stale-while-revalidate=86400");
+  return res.status(200).json(resposta);
+}
+
+// =============================================================================
 // ROTEADOR
 // =============================================================================
 
@@ -879,6 +1204,9 @@ export default async function handler(req, res) {
     if (tipo === "meu") {
       return await meuRelatorio(req, res, TOKEN);
     }
+    if (tipo === "meujogo" || tipo === "jogo") {
+      return await meuJogo(req, res, TOKEN);
+    }
     if (tipo === "links") {
       return await gerarLinks(req, res);
     }
@@ -887,12 +1215,13 @@ export default async function handler(req, res) {
     }
     return res.status(400).json({
       erro: `tipo desconhecido: "${tipo}"`,
-      tipos_validos: ["sessoes", "stats", "historico", "meu", "links", "bandas"],
+      tipos_validos: ["sessoes", "stats", "historico", "meu", "meujogo", "links", "bandas"],
       exemplos: [
         "/api/treino?tipo=sessoes&days=7",
         "/api/treino?tipo=stats&activity_id=UUID&debug=1",
         "/api/treino?tipo=historico&activity_ids=UUID1,UUID2",
         "/api/treino?tipo=meu&token=TOKEN",
+        "/api/treino?tipo=meujogo&token=TOKEN&activity_id=UUID&temporada=1",
         "/api/treino?tipo=bandas&activity_id=UUID",
       ],
     });
