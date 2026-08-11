@@ -444,6 +444,36 @@
     body.modo-jogo #aba-evolucao,body.modo-jogo #tabela-print{display:none !important}
   }
 
+  /* =====================================================================
+     ABA GOLEIRO — métricas inerciais da posição.
+     Quem controla é `body.modo-goleiro`, ligado pelo JS a partir de
+     `dados.goleiro.disponivel` (o servidor só devolve o bloco para quem é
+     goleiro no cadastro). Sem o bloco, a aba nem aparece.
+     ===================================================================== */
+  #btn-aba-goleiro[hidden]{display:none}
+  .gk-grid{grid-template-columns:repeat(4,1fr)}
+  #gk-aviso:empty{display:none}
+  #tf-saltos td{font-weight:800}
+
+  /* ---------- IMPRESSÃO ----------
+     A folha A4 já está no limite. Entra só o essencial da posição — os 4 KPIs
+     e a tabela de saltos por altura; a tabela bloco a bloco fica `.nao-imprimir`.
+     Em dia de jogo a folha NÃO recebe o bloco de goleiro: o recorte de jogo
+     (minutagem + split) já ocupa o espaço, e somar os dois estouraria a página
+     única ou empurraria o zoom para baixo do piso de 0,5 (§8.9). */
+  body.imprimindo #aba-goleiro{display:none !important}
+  body.imprimindo.modo-goleiro:not(.modo-jogo) #aba-goleiro{display:block !important}
+  body.imprimindo .gk-grid{grid-template-columns:repeat(4,1fr)}
+
+  @media print{
+    body:not(.modo-goleiro) #aba-goleiro{display:none !important}
+    body.modo-jogo #aba-goleiro{display:none !important}
+  }
+
+  @media screen and (max-width:860px){
+    .gk-grid{grid-template-columns:repeat(2,1fr)}
+  }
+
   /* `screen and` obrigatório (§8.11): sem isso a folha A4, que tem ~733px de
      largura em CSS, receberia o layout de celular e a página única quebraria. */
   @media screen and (max-width:860px){
@@ -518,6 +548,7 @@
     <div class="abas nao-imprimir">
       <button id="btn-aba-jogo" data-aba="jogo" hidden>Seu jogo</button>
       <button class="ativa" data-aba="geral">Visão geral</button>
+      <button id="btn-aba-goleiro" data-aba="goleiro" hidden>Goleiro</button>
       <button data-aba="comparativo">Posição no grupo</button>
       <button data-aba="evolucao">Sua evolução</button>
     </div>
@@ -579,6 +610,44 @@
           <tbody id="tb-blocos"></tbody>
           <tfoot id="tf-blocos"></tfoot>
         </table></div>
+      </div>
+    </div>
+
+    <!-- Aba de goleiro: só aparece quando o cadastro diz que o atleta é goleiro
+         E o servidor devolveu métricas. Fala sempre da SESSÃO inteira, como a
+         "Visão geral" — em dia de jogo o trabalho de goleiro do aquecimento
+         conta tanto quanto o do jogo, e recortá-lo esconderia metade. -->
+    <div class="aba" id="aba-goleiro">
+      <div class="painel">
+        <h2>Seu trabalho de goleiro</h2>
+        <p class="sub">Métricas que só existem para a posição: carga total, mergulhos,
+           saltos e as ações explosivas de IMA. Vêm dos sensores inerciais, não do GPS —
+           por isso não aparecem nas outras abas.</p>
+
+        <div class="min-grid gk-grid" id="gk-grid"></div>
+
+        <h3 class="titulo-bloco">Saltos por altura</h3>
+        <p class="sub" id="gk-sub-saltos">Cada salto entra na banda correspondente à
+           altura alcançada.</p>
+        <div class="tabela-scroll"><table>
+          <thead><tr><th>Faixa</th><th>Saltos (n)</th><th>% dos saltos</th></tr></thead>
+          <tbody id="tb-saltos"></tbody>
+          <tfoot id="tf-saltos"></tfoot>
+        </table></div>
+
+        <div class="nao-imprimir" id="gk-blocos-wrap" style="margin-top:28px">
+          <h3 class="titulo-bloco">Bloco a bloco</h3>
+          <p class="sub">Na ordem em que aconteceram, como na visão geral.</p>
+          <div class="tabela-scroll"><table>
+            <thead><tr>
+              <th>Bloco</th><th>Dur.<br>(min)</th><th>Player<br>load</th>
+              <th>Mergulhos<br>(n)</th><th>Saltos<br>(n)</th><th>IMA &gt;2,5<br>(n)</th>
+            </tr></thead>
+            <tbody id="tb-gk-blocos"></tbody>
+          </table></div>
+        </div>
+
+        <p class="sub" id="gk-aviso" style="margin-top:18px"></p>
       </div>
     </div>
 
@@ -651,7 +720,10 @@ const esc = (s)=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">"
 function aviso(m){const e=$("aviso"); if(!m){e.classList.remove("on");e.textContent="";return;}
   e.textContent=m; e.classList.add("on");}
 const carregando=(on)=>$("carregando").classList.toggle("on",on);
-const iniciaisDe = n => {const p=String(n||"").trim().split(/[\s.]+/).filter(Boolean);
+// Iniciais do avatar. O `replace` tira um ID numérico à frente: sem ele
+// "11 X.NOME" daria "1X" em vez de "XN".
+const iniciaisDe = n => {const p=String(n||"").replace(/^\d+\s*/,"").trim()
+    .split(/[\s.]+/).filter(Boolean);
   return (p.slice(0,2).map(x=>x[0]).join("")||"?").toUpperCase();};
 
 function cacheLer(k){try{const c=sessionStorage.getItem(k); if(!c)return null;
@@ -753,7 +825,59 @@ function renderComparativo(c = dados.comparativo, contexto = "na sessão",
       ${linhas}</div>`;
   }).join("");
 }
-const primeiroNome = ()=> (dados.atleta.nome||"VOCÊ").split(/\s+/)[0];
+// Primeiro nome para o rótulo da barra do atleta no comparativo.
+//
+// Cortar no primeiro espaço parece óbvio e está errado para boa parte do
+// elenco: um nome que começa por inicial abreviada virava só a inicial, que não
+// identifica ninguém — o atleta abre o próprio relatório e não se reconhece na
+// única barra que é dele. E se o cadastro trouxer o número junto, o rótulo
+// vira o número.
+//
+// (Os exemplos abaixo são fictícios de propósito: este arquivo é público, e
+// nome de atleta em comentário é nome de atleta publicado.)
+//
+// A regra: descarta um ID numérico à frente e consome os tokens enquanto forem
+// INICIAIS (uma letra, com ou sem ponto), parando no primeiro nome de verdade.
+//   "NOME SOBRENOME" -> "NOME"        "X. NOME"    -> "X. NOME"
+//   "X.NOME"         -> "X.NOME"      "X. Y. NOME" -> "X. Y. NOME"
+//   "11 X.NOME"      -> "X.NOME"
+const ehInicial = (t)=> /^[\p{L}]\.?$/u.test(t);
+const primeiroNomeDe = (completo)=>{
+  const t = String(completo||"").trim().replace(/^\d+\s+/,"").split(/\s+/).filter(Boolean);
+  if(!t.length) return "VOCÊ";
+  let i = 0;
+  while(i < t.length-1 && ehInicial(t[i])) i++;
+  return t.slice(0, i+1).join(" ");
+};
+const primeiroNome = ()=> primeiroNomeDe(dados && dados.atleta ? dados.atleta.nome : "");
+
+// Título, legenda e sufixo da posição na aba "Posição no grupo".
+//
+// Têm de acompanhar o grupo que o servidor realmente usou. Se a comparação foi
+// recortada para goleiros e a página continuar dizendo "atletas que treinaram
+// com você", o goleiro lê "3º de 3" e entende que foi o terceiro pior do elenco
+// inteiro — a mesma informação passando a significar o contrário.
+const contextoDe = (c, jogo)=> (c && c.restrito_a_goleiros)
+  ? "entre os goleiros" : (jogo ? "no jogo" : "na sessão");
+
+function textoComparativo(c, jogo){
+  const gk = !!(c && c.restrito_a_goleiros);
+  return {
+    titulo: (gk ? "Sua posição entre os goleiros" : "Sua posição no grupo")
+          + (jogo ? ", no jogo" : ""),
+    sub: `Cada barra é um ${gk?"goleiro":"atleta"} `
+       + (jogo ? "que entrou em campo, contando apenas o tempo de jogo"
+               : "que treinou com você")
+       + ". Só a sua está identificada — os demais aparecem sem nome e sem número."
+       + ((c && c.aviso_grupo) ? " " + c.aviso_grupo : ""),
+  };
+}
+
+function aplicarTextoComparativo(c, jogo){
+  const t = textoComparativo(c, jogo);
+  $("titulo-comparativo").textContent = t.titulo;
+  $("sub-comparativo").textContent = t.sub;
+}
 
 // ---------- evolução ----------
 const GRAFICOS = [
@@ -934,12 +1058,10 @@ function renderJogo(){
     : `Os números acima são <b>só do jogo</b> (1º + 2º tempo).`;
 
   if(jogo.comparativo){
-    renderComparativo(jogo.comparativo, "no jogo");
-    renderComparativo(jogo.comparativo, "no jogo", $("comparativo-jogo"), PAINEIS_JOGO);
-    $("titulo-comparativo").textContent = "Sua posição no grupo, no jogo";
-    $("sub-comparativo").textContent =
-      "Cada barra é um atleta que entrou em campo, contando apenas o tempo de jogo. "
-      + "Só a sua está identificada — os demais aparecem sem nome e sem número.";
+    const ctx = contextoDe(jogo.comparativo, true);
+    renderComparativo(jogo.comparativo, ctx);
+    renderComparativo(jogo.comparativo, ctx, $("comparativo-jogo"), PAINEIS_JOGO);
+    aplicarTextoComparativo(jogo.comparativo, true);
   }
 
   ajustarAlturaImpressao(
@@ -992,6 +1114,61 @@ function aplicarKpis(a, casasMin = 1){
   $("k-acel").textContent=nf(a.aceleracoes);       $("k-decel").textContent=nf(a.desaceleracoes);
 }
 
+// ---------- aba de goleiro ----------
+// O servidor só manda `dados.goleiro` para quem é goleiro no cadastro, e marca
+// `disponivel:false` com um motivo quando os slugs não existem ou a sessão não
+// tem trabalho de goleiro registrado. Aqui a decisão é binária: ou a aba tem
+// número, ou não existe. Aba vazia com quatro travessões é pior que aba nenhuma.
+function renderGoleiro(){
+  const g = dados && dados.goleiro;
+  const mostrar = !!(g && g.disponivel);
+  document.body.classList.toggle("modo-goleiro", mostrar);
+  $("btn-aba-goleiro").hidden = !mostrar;
+  if(!mostrar) return;
+
+  const t = g.total;
+  $("gk-grid").innerHTML =
+      itemMin("Player load", nf(t.player_load,1), "carga total da sessão", true)
+    + itemMin("Mergulhos", nf(t.dives), "ações detectadas")
+    + itemMin("Saltos", nf(t.saltos), "ações detectadas")
+    + itemMin("Ações de IMA", nf(t.ima_acima_25), "acima de 2,5 m/s", true);
+
+  // Saltos por altura. O total da tabela é a soma das bandas e pode ficar abaixo
+  // do KPI "Saltos": salto sem banda atribuída entra no total e em banda nenhuma.
+  const bandas = g.bandas || [];
+  const somaBandas = bandas.reduce((a,b)=> a + (b.valor ?? 0), 0);
+  $("tb-saltos").innerHTML = bandas.length
+    ? bandas.map(b=>{
+        const v = b.valor;
+        const pct = (v===null||v===undefined||!somaBandas) ? "—" : nf(v/somaBandas*100,1)+"%";
+        return `<tr>
+          <td class="bloco">${esc(b.rotulo)}${b.faixa?` <span style="font-weight:600;color:var(--cinza-texto)">(${esc(b.faixa)})</span>`:""}</td>
+          <td data-rot="Saltos" class="${!v?"zero":""}">${nf(v)}</td>
+          <td data-rot="% dos saltos" class="${!v?"zero":""}">${pct}</td>
+        </tr>`;
+      }).join("")
+    : `<tr><td colspan="3" style="text-align:left">Este tenant não separa os saltos por altura.</td></tr>`;
+  $("tf-saltos").innerHTML = somaBandas
+    ? `<tr><td>Total categorizado</td><td>${nf(somaBandas)}</td><td>100,0%</td></tr>` : "";
+
+  // Bloco a bloco. `data-rot` é obrigatório em toda coluna: é dele que sai o
+  // rótulo do cartão no celular, onde 90% do elenco abre isto (§6.4).
+  const td=(rot,v,c=0)=>`<td data-rot="${rot}" class="${!v?"zero":""}">${nf(v,c)}</td>`;
+  $("tb-gk-blocos").innerHTML = (g.blocos||[]).map(p=>`<tr>
+      <td class="bloco"><span class="ordem">${p.ordem??"·"}</span>${esc(p.rotulo??"")}</td>
+      ${td("Duração (min)",p.duracao_min,1)}${td("Player load",p.player_load,1)}
+      ${td("Mergulhos",p.dives)}${td("Saltos",p.saltos)}
+      ${td("IMA acima de 2,5 m/s",p.ima_acima_25)}
+    </tr>`).join("");
+
+  // Enquanto os slugs não estiverem conferidos no tenant, isto fica dito na
+  // própria página. É a §8.5 aplicada: número novo sem medição declarada é
+  // número sob suspeita, e quem lê tem direito de saber disso.
+  $("gk-aviso").textContent = g.confirmado ? ""
+    : "Estes números vieram de nomes de métrica ainda não confirmados neste tenant. "
+      + "Confira com a comissão antes de usá-los para decidir conduta.";
+}
+
 function render(){
   const a = dados.dados, at = dados.atleta, s = dados.sessao;
   const wrap = $("foto-wrap");
@@ -1025,8 +1202,16 @@ function render(){
   $("tb-blocos").innerHTML=linhas; $("tf-blocos").innerHTML=rodape;
   $("tb-print").innerHTML=linhas;  $("tf-print").innerHTML=rodape;
 
-  ajustarAlturaImpressao(dados.comparativo.total_atletas, (a.periodos||[]).length);
-  renderComparativo();
+  renderGoleiro();
+  // A aba de goleiro que entra na folha acrescenta ~8 linhas de conteúdo: os 4
+  // KPIs e a tabela de saltos. Sem contá-las, as barras do comparativo seriam
+  // dimensionadas para uma página que não existe mais e o zoom teria de salvar
+  // tudo sozinho.
+  const extraGoleiro = document.body.classList.contains("modo-goleiro") ? 8 : 0;
+  ajustarAlturaImpressao(dados.comparativo.total_atletas,
+                         (a.periodos||[]).length + extraGoleiro);
+  renderComparativo(dados.comparativo, contextoDe(dados.comparativo, false));
+  aplicarTextoComparativo(dados.comparativo, false);
   renderEvolucao();
 
   // Sessão de jogo: libera a aba, deixa ela na frente e busca o recorte.
@@ -1038,12 +1223,8 @@ function render(){
     $("tb-tempos").innerHTML = `<tr><td colspan="5" style="text-align:left">Carregando o jogo…</td></tr>`;
     trocarAba("jogo");
     carregarJogo(s.id);
-  }else{
-    $("titulo-comparativo").textContent = "Sua posição no grupo";
-    $("sub-comparativo").textContent =
-      "Cada barra é um atleta que treinou com você. Só a sua está identificada — "
-      + "os demais aparecem sem nome e sem número.";
-    if(document.querySelector('.abas button[data-aba="jogo"].ativa')) trocarAba("geral");
+  }else if(document.querySelector('.abas button[data-aba="jogo"].ativa')){
+    trocarAba("geral");
   }
 
   $("relatorio").classList.add("on");
