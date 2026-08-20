@@ -185,6 +185,7 @@ h3 .btnCsv{float:right;margin-top:-4px}
       <div class="grupo" style="flex:1;min-width:220px"><label class="mini">Janela de tempo (min): <span id="lblJanela">—</span></label>
         <div style="display:flex;gap:8px"><input type="range" id="rngIni" min="0" max="100" value="0" style="flex:1"><input type="range" id="rngFim" min="0" max="100" value="100" style="flex:1"></div></div>
     </div>
+    <p style="font-size:11px;color:var(--txt2);margin-bottom:6px">Com <b>Terços do campo</b> ligado, a % é do eixo <b>tático</b> (ajustada pela direção de ataque de cada período); <b>*</b> marca sessão com os dois tempos, em que as faixas coloridas não coincidem com as posições brutas desenhadas. O campo espelhado fica na aba <b>Esforços</b>.</p>
     <canvas class="campo" id="cvCampo" width="1050" height="720"></canvas>
     <div class="legenda" id="legCampo"></div>
   </div>
@@ -208,6 +209,7 @@ h3 .btnCsv{float:right;margin-top:-4px}
     <div class="grupo" style="margin-bottom:10px"><label class="mini">Filtrar por bandas</label>
       <div class="chips" id="chipsBandasEsf"></div></div>
     <div class="linha" style="margin-bottom:12px">
+      <label class="chk" title="Espelha em 180° os períodos que atacam Dir→Esq, para que os dois tempos apareçam atacando para o mesmo lado"><input type="checkbox" id="chkEsfTatico" checked> 🧭 Referencial tático (espelha o tempo invertido)</label>
       <label class="chk"><input type="checkbox" id="chkSetas" checked> 🏹 Setas de direção</label>
       <label class="chk"><input type="checkbox" id="chkTercosEsf" checked> Terços do campo</label>
       <label class="chk"><input type="checkbox" id="chkZonas5"> Grade de zonas 3×5</label>
@@ -219,6 +221,7 @@ h3 .btnCsv{float:right;margin-top:-4px}
       <div class="kpi"><div class="v" id="kEsfDist">—</div><div class="l">Distância total (m)</div></div>
       <div class="kpi"><div class="v" id="kEsfPct">—</div><div class="l">Média % máximo</div></div>
     </div>
+    <div id="avisoEsfFrame" class="aviso oculto"></div>
     <canvas class="campo" id="cvEsf" width="1050" height="720"></canvas>
     <div class="legenda" id="legEsf"></div>
   </div>
@@ -232,6 +235,48 @@ h3 .btnCsv{float:right;margin-top:-4px}
   <div class="card"><h3>Tabela de Esforços <button class="btn mini btnCsv" id="btnCsvEsf">⬇ CSV (completo)</button></h3>
     <p style="font-size:11.5px;color:var(--txt2);margin-bottom:8px">Clique numa linha para destacar o esforço no campo acima (clique de novo para desfazer). Exibindo até 400 linhas — o CSV leva tudo.</p>
     <div class="tblWrap"><table id="tabEsf"></table></div></div>
+  <div class="card">
+    <h3>Esforços repetidos (RSA) e recuperação
+      <button class="btn mini" id="btnCsvRsa">⬇ CSV</button></h3>
+    <div class="linha" style="margin-bottom:12px">
+      <div class="grupo"><label class="mini" title="Intervalo máximo entre dois esforços para eles contarem como do mesmo bloco">Recuperação máx. (s)</label>
+        <input type="number" id="inpRsaGap" value="21" min="5" max="120" step="1" style="width:82px"></div>
+      <div class="grupo"><label class="mini">Mín. de esforços no bloco</label>
+        <input type="number" id="inpRsaMin" value="3" min="2" max="10" step="1" style="width:82px"></div>
+      <div class="grupo"><label class="mini" title="RSA se define sobre esforços de alta intensidade. Independe do filtro de bandas do campo.">Intensidade mínima</label>
+        <select id="selRsaBanda">
+          <option value="19.8" selected>HSR — ≥19,8 km/h (B5+)</option>
+          <option value="25.2">Sprint — ≥25,2 km/h (B6+)</option>
+          <option value="14.4">Corrida — ≥14,4 km/h (B4+)</option>
+        </select></div>
+    </div>
+    <p style="font-size:11.5px;color:var(--txt2);margin:-4px 0 12px">
+      Um <b>bloco de esforços repetidos</b> é uma sequência de esforços das bandas selecionadas separados por menos
+      que a recuperação máxima. O padrão de 21 s vem da literatura clássica de RSA — é o intervalo abaixo do qual a
+      ressíntese de fosfocreatina não se completa e o esforço seguinte já parte de um déficit. O que cansa não é o
+      sprint isolado: é o terceiro sprint com 15 s de intervalo.</p>
+    <div class="kpis" id="kpisRsa"></div>
+    <div class="grade2" style="grid-template-columns:1fr 1fr;margin-top:14px">
+      <div><h4 style="font-size:11.5px;color:var(--dourado);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Distribuição da recuperação entre esforços</h4>
+        <div id="grafRec"></div></div>
+      <div><h4 style="font-size:11.5px;color:var(--dourado);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Blocos por atleta</h4>
+        <div class="tblWrap" style="max-height:320px"><table id="tabRsa"></table></div></div>
+    </div>
+  </div>
+
+  <div class="grade2 esf">
+    <div class="card"><h3>Zona × direção do esforço</h3>
+      <p style="font-size:11.5px;color:var(--txt2);margin-bottom:10px">
+        Onde o esforço acontece cruzado com para onde ele vai. Um time que acelera muito no terço defensivo em
+        direção ofensiva transita; um que acelera no terço ofensivo em direção defensiva está recompondo.</p>
+      <div class="tblWrap"><table id="tabZonaDir"></table></div></div>
+    <div class="card"><h3>Entrada do esforço</h3>
+      <p style="font-size:11.5px;color:var(--txt2);margin-bottom:10px">
+        Velocidade no instante em que o esforço começa. Arrancar parado custa muito mais que arrancar lançado,
+        e o mesmo número de sprints pode ter cargas neuromusculares bem diferentes conforme essa divisão.</p>
+      <div class="tblWrap"><table id="tabEntrada"></table></div></div>
+  </div>
+
 </section>
 
 <!-- ================= HEATMAP ================= -->
@@ -2328,6 +2373,42 @@ function atualizarSelects() {
   if (grupos.length > 1) $('selWelchB').selectedIndex = 1;
 }
 
+/* ================================================================
+   REFERENCIAL DO CAMPO NA ABA ESFORÇOS  (correção 20/08/2026)
+
+   Sintoma: com os dois tempos carregados, uma ação claramente ofensiva
+   aparecia rotulada como defensiva.
+
+   Causa: dois referenciais convivendo no mesmo desenho.
+   - `classificarEsforco` sempre usou o sinal DO PERÍODO do esforço
+     (atkSignAt), ou seja, o referencial TÁTICO — e estava certo.
+   - O campo, porém, era desenhado com `atkUnico()`, que só devolve um sinal
+     quando TODOS os períodos atacam para o mesmo lado. Como o time troca de
+     lado no intervalo, com 1T e 2T carregados atkUnico() = 0 e o desenho caía
+     no fallback `|| 1`: terços, zonas e seta desenhados como se todo o jogo
+     fosse Esq→Dir. A seta simplesmente sumia.
+
+   Resultado medido no jogo de teste: dos 8.417 esforços, os 3.768 do 2º tempo
+   tinham o rótulo da tabela contradizendo o terço desenhado no campo —
+   100% dos esforços do período invertido. `desenharCompactacao` já espelhava
+   (portanto já era tático), o que deixava o desenho incoerente consigo mesmo.
+
+   Correção: o campo passa a ser desenhado no referencial tático — os períodos
+   que atacam Dir→Esq são girados 180° (x→L−x, y→W−y, o mesmo que a aba
+   Heatmap já fazia). Assim trajetórias, setas, terços, zonas, compactação e
+   tabela falam a mesma língua, e os dois tempos ficam sobreponíveis.
+   Desligando a caixa, volta o referencial geográfico — e aí o app avisa que
+   os rótulos seguem cada período enquanto o desenho é bruto.
+   ================================================================ */
+function esfTatico() { const c = $('chkEsfTatico'); return !c || c.checked; }
+/* sinal com que o CAMPO deve ser desenhado */
+function esfSinalDesenho() { return esfTatico() ? 1 : (atkUnico() || 1); }
+/* espelha o ponto quando o período dele ataca para o outro lado */
+function esfPonto(px, py, ts, L, W) {
+  if (esfTatico() && atkSignAt(ts) < 0) return [L - px, W - py];
+  return [px, py];
+}
+
 /* ---------- Direção de ataque (por período carregado) ---------- */
 function renderAtk() {
   const html = S.ranges.map(r => {
@@ -2407,8 +2488,8 @@ function prepararCampo(cv) {
   ctx.beginPath(); ctx.arc(X(L - 11), Y(W / 2), 9.15 * esc, Math.PI - 0.93, Math.PI + 0.93); ctx.stroke();
   return { ctx, X, Y, esc, L, W };
 }
-function desenharSetaAtaque(cf) {
-  const s = atkUnico();
+function desenharSetaAtaque(cf, sForcado) {
+  const s = sForcado != null ? sForcado : atkUnico();
   if (!s) return;
   const { ctx, X, Y, L, W } = cf;
   const y = Y(W) - 14, x0 = X(L / 2 - 12), x1 = X(L / 2 + 12);
@@ -2418,22 +2499,32 @@ function desenharSetaAtaque(cf) {
   const dir = s > 0 ? 1 : -1;
   ctx.beginPath(); ctx.moveTo(b, y); ctx.lineTo(b - dir * 10, y - 5); ctx.lineTo(b - dir * 10, y + 5); ctx.fill();
   ctx.font = 'bold 12px Segoe UI'; ctx.textAlign = 'center';
-  ctx.fillText('ATAQUE', X(L / 2), y - 8);
+  ctx.fillText(sForcado != null && esfTatico() ? 'ATAQUE (referencial tático)' : 'ATAQUE', X(L / 2), y - 8);
 }
-function desenharTercos(cf, comPct) {
+function desenharTercos(cf, comPct, sForcado) {
   const { ctx, X, Y, esc, L, W } = cf;
-  const s = atkUnico() || 1;
+  const s = sForcado != null ? sForcado : (atkUnico() || 1);
   const cores = [['rgba(244,67,54,.14)', '#F44336'], ['rgba(255,235,59,.10)', '#FFEB3B'], ['rgba(76,175,80,.14)', '#4CAF50']];
   const nomes = s > 0 ? ['Defensivo', 'Meio', 'Ataque'] : ['Ataque', 'Meio', 'Defensivo'];
-  // % tempo por terço físico (dos atletas exibidos)
-  let cont = [0, 0, 0], tot = 0;
+  // % de tempo por terço no eixo TÁTICO. Antes contava em x bruto e rotulava
+  // com os nomes táticos: com os dois tempos carregados, o "% no terço de
+  // Ataque" era na verdade o % no terço direito do campo, misturando o ataque
+  // do 1º tempo com a defesa do 2º.
+  let cont = [0, 0, 0], tot = 0, misto = false;
   if (comPct) {
+    const sg = new Set();
     for (const d of S.dados.values()) {
-      for (let i = 0; i < d.slim.n; i++) {
-        const t = Math.min(2, Math.max(0, Math.floor(d.pts[i * 2] / (L / 3))));
+      const sl = d.slim, ok = sl._ok || null;
+      for (let i = 0; i < sl.ts.length; i++) {
+        if (ok && !ok[i]) continue;
+        const sa = atkSignAt(sl.ts[i]) < 0 ? -1 : 1;
+        sg.add(sa);
+        const xa = sa > 0 ? d.pts[i * 2] : L - d.pts[i * 2];
+        const t = Math.min(2, Math.max(0, Math.floor(xa / (L / 3))));
         cont[t]++; tot++;
       }
     }
+    misto = sg.size > 1;
   }
   for (let t = 0; t < 3; t++) {
     ctx.fillStyle = cores[t][0];
@@ -2442,7 +2533,8 @@ function desenharTercos(cf, comPct) {
     ctx.strokeRect(X(t * L / 3), Y(W), L / 3 * esc, W * esc);
     ctx.setLineDash([]);
     ctx.fillStyle = cores[t][1]; ctx.font = 'bold 13px Segoe UI'; ctx.textAlign = 'center';
-    const lbl = nomes[t] + (comPct && tot ? ` · ${(cont[t] / tot * 100).toFixed(1)}%` : '');
+    const nomeT = comPct ? TERCOS[t] : nomes[t];        // com %, o eixo é sempre o tático
+    const lbl = nomeT + (comPct && tot ? ` · ${(cont[t] / tot * 100).toFixed(1)}%${misto ? '*' : ''}` : '');
     ctx.fillText(lbl, X(t * L / 3 + L / 6), Y(W) + 20);
   }
 }
@@ -2538,8 +2630,10 @@ function renderEsforcos() {
   const defs = bandasDef();
   $('legEsf').innerHTML = defs.map(b => `<span class="item"><span class="cx" style="background:${b.cor}"></span>${b.label}</span>`).join('');
   if (!S.dados.size) { $('tabEsf').innerHTML = ''; $('tabZonas').innerHTML = ''; $('tabTercos').innerHTML = ''; return; }
-  if ($('chkTercosEsf').checked) desenharTercos(cf, false);
-  desenharSetaAtaque(cf);
+  const sDes = esfSinalDesenho();
+  if ($('chkTercosEsf').checked) desenharTercos(cf, false, sDes);
+  desenharSetaAtaque(cf, sDes);
+  esfAvisoFrame();
   const { ctx, X, Y, esc, L, W } = cf;
   // grade 3×5
   if ($('chkZonas5').checked) {
@@ -2561,20 +2655,26 @@ function renderEsforcos() {
     ctx.beginPath();
     let comecou = false;
     for (let i = e.i0; i <= e.i1; i++) {
-      const px = X(d.pts[i * 2]), py = Y(d.pts[i * 2 + 1]);
+      const [ax, ay] = esfPonto(d.pts[i * 2], d.pts[i * 2 + 1], d.slim.ts[i], L, W);
+      const px = X(ax), py = Y(ay);
       comecou ? ctx.lineTo(px, py) : ctx.moveTo(px, py); comecou = true;
     }
     ctx.stroke();
     if (setas || selecionado) {
       // direção: últimos ~20% dos pontos
       const nT = Math.min(e.i1, Math.max(2, Math.min(Math.floor((e.i1 - e.i0) / 5), 12)));
-      let dx = d.pts[e.i1 * 2] - d.pts[(e.i1 - nT) * 2];
-      let dy = d.pts[e.i1 * 2 + 1] - d.pts[(e.i1 - nT) * 2 + 1];
+      const [fx, fy] = esfPonto(d.pts[e.i1 * 2], d.pts[e.i1 * 2 + 1], e.ts0, L, W);
+      const [rx, ry] = esfPonto(d.pts[(e.i1 - nT) * 2], d.pts[(e.i1 - nT) * 2 + 1], e.ts0, L, W);
+      let dx = fx - rx, dy = fy - ry;
       let nrm = Math.hypot(dx, dy);
-      if (nrm < 0.3) { dx = e.x1 - e.x0; dy = e.y1 - e.y0; nrm = Math.hypot(dx, dy); }
+      if (nrm < 0.3) {
+        const [bx, by] = esfPonto(e.x1, e.y1, e.ts0, L, W);
+        const [cx0, cy0] = esfPonto(e.x0, e.y0, e.ts0, L, W);
+        dx = bx - cx0; dy = by - cy0; nrm = Math.hypot(dx, dy);
+      }
       if (nrm >= 0.3) {
         dx /= nrm; dy /= nrm;
-        const tx = X(e.x1 + dx * 1.2), ty = Y(e.y1 + dy * 1.2);
+        const tx = X(fx + dx * 1.2), ty = Y(fy + dy * 1.2);
         const ang = Math.atan2(-(dy), dx);
         ctx.fillStyle = selecionado ? '#FFFFFF' : defs[e.banda].cor;
         ctx.save(); ctx.translate(tx, ty); ctx.rotate(ang);
@@ -2593,7 +2693,203 @@ function renderEsforcos() {
   renderTabEsforcos(defs);
   renderZonas();
   renderTercosTab();
+  renderRSA();
+  renderZonaDir();
+  renderEntrada();
 }
+
+/* Aviso quando desenho e rótulos falam referenciais diferentes */
+function esfAvisoFrame() {
+  const el = $('avisoEsfFrame');
+  if (!el) return;
+  const sinais = S.ranges.map(r => atkSignAt(r.t0)).filter(x => x !== 0);
+  const mistos = new Set(sinais).size > 1;
+  const indefinidos = S.ranges.filter(r => !atkSignAt(r.t0));
+  const msgs = [];
+  if (indefinidos.length)
+    msgs.push(`Direção de ataque não definida em: <b>${indefinidos.map(r => r.nome).join(', ')}</b>. `
+      + 'Sem ela os esforços desses períodos são classificados como se o ataque fosse Esq→Dir, e o sentido pode sair trocado.');
+  if (mistos && !esfTatico())
+    msgs.push('Referencial <b>geográfico</b> com os dois tempos carregados: o campo é desenhado numa orientação só, '
+      + 'mas cada esforço é classificado pela direção do <b>seu</b> período. Um dos tempos vai parecer invertido no desenho — '
+      + 'é esperado. Ligue o <b>referencial tático</b> para os dois tempos atacarem para o mesmo lado.');
+  if (mistos && esfTatico())
+    msgs.push('Referencial <b>tático</b>: o 2º tempo está espelhado em 180°, então os dois tempos atacam para a direita no desenho. '
+      + 'As posições no campo não são as geográficas — são as táticas.');
+  el.classList.toggle('oculto', !msgs.length);
+  el.innerHTML = msgs.map(m => '⚠ ' + m).join('<br><br>');
+}
+
+/* ---------- Esforços repetidos (RSA) e recuperação ----------
+   Bloco = sequência de esforços separados por menos que a recuperação máxima.
+   A recuperação é medida do FIM de um esforço ao INÍCIO do seguinte, por
+   atleta — não faz sentido cruzar o fim do sprint de um com o começo do de
+   outro. */
+function esfBlocosRSA() {
+  const gap = Math.max(1, +$('inpRsaGap').value || 21);
+  const minN = Math.max(2, +$('inpRsaMin').value || 3);
+  const vMin = +$('selRsaBanda').value || 19.8;
+  // RSA se define sobre esforços de ALTA INTENSIDADE — repetir trote não é RSA.
+  // O corte aqui é independente do filtro de bandas do campo, que serve para
+  // visualização. Sem isso, um jogo inteiro vira "um bloco de 700 esforços".
+  const porAtleta = new Map();
+  for (const e of (S.esfLista || [])) {
+    if (e.vmax < vMin) continue;
+    if (!porAtleta.has(e.id)) porAtleta.set(e.id, []);
+    porAtleta.get(e.id).push(e);
+  }
+  const blocos = [], recs = [];
+  for (const [id, lista] of porAtleta) {
+    lista.sort((a, b) => a.ts0 - b.ts0);
+    // Trechos colados (< 1 s) são o MESMO deslocamento cruzando a fronteira de
+    // banda, não dois esforços — fundir antes de contar repetições.
+    const fund = [lista[0]];
+    for (let i = 1; i < lista.length; i++) {
+      const u = fund[fund.length - 1];
+      if (lista[i].ts0 - (u.ts0 + u.dur) < 1) {
+        u.dur = lista[i].ts0 + lista[i].dur - u.ts0;
+        u.dist += lista[i].dist;
+        u.vmax = Math.max(u.vmax, lista[i].vmax);
+      } else fund.push({ ...lista[i] });
+    }
+    lista.length = 0; lista.push(...fund);
+    let atual = [lista[0]];
+    for (let i = 1; i < lista.length; i++) {
+      const fimAnt = lista[i - 1].ts0 + lista[i - 1].dur;
+      const rec = lista[i].ts0 - fimAnt;
+      if (rec >= 0) recs.push(rec);
+      if (rec >= 0 && rec <= gap) atual.push(lista[i]);
+      else { if (atual.length >= minN) blocos.push({ id, nome: lista[i - 1].nome, esf: atual }); atual = [lista[i]]; }
+    }
+    if (atual.length >= minN) blocos.push({ id, nome: lista[lista.length - 1].nome, esf: atual });
+  }
+  for (const b of blocos) {
+    b.n = b.esf.length;
+    b.t0 = b.esf[0].ts0;
+    b.dur = b.esf[b.n - 1].ts0 + b.esf[b.n - 1].dur - b.t0;
+    b.dist = b.esf.reduce((s, e) => s + e.dist, 0);
+    b.recMed = b.n > 1 ? (b.dur - b.esf.reduce((s, e) => s + e.dur, 0)) / (b.n - 1) : null;
+  }
+  return { blocos, recs, gap, minN };
+}
+
+function renderRSA() {
+  const { blocos, recs, gap, minN } = esfBlocosRSA();
+  const k = (v, l) => `<div class="kpi"><div class="v">${v}</div><div class="l">${l}</div></div>`;
+  const nEsfBloco = blocos.reduce((s, b) => s + b.n, 0);
+  const totalEsf = (S.esfLista || []).length;
+  const maior = blocos.reduce((m, b) => b.n > (m ? m.n : 0) ? b : m, null);
+  const medRec = recs.length ? percentil(recs, 50) : null;
+  const vMin = +$('selRsaBanda').value || 19.8;
+  $('kpisRsa').innerHTML =
+    k(blocos.length, `Blocos (≥${minN} esforços ≥${String(vMin).replace('.', ',')} km/h, recup. ≤${gap}s)`) +
+    k(maior ? maior.n : '—', maior ? `Maior bloco — ${maior.nome}` : 'Maior bloco') +
+    k(totalEsf ? (nEsfBloco / totalEsf * 100).toFixed(0) + '%' : '—', 'Esforços dentro de bloco') +
+    k(medRec == null ? '—' : medRec.toFixed(0) + 's', 'Recuperação mediana') +
+    k(recs.filter(r => r <= gap).length, `Intervalos ≤ ${gap}s`);
+
+  // histograma de recuperação
+  const faixas = [[0, 10], [10, 21], [21, 45], [45, 90], [90, 180], [180, Infinity]];
+  const rots = ['0–10s', '10–21s', '21–45s', '45–90s', '1,5–3min', '>3min'];
+  const cont = faixas.map(([a, b2]) => recs.filter(r => r >= a && r < b2).length);
+  const mx = Math.max(1, ...cont);
+  const bw = 46, gp = 12, pl = 44, pt = 16, pb = 40, hU = 170;
+  const larg = pl + faixas.length * (bw + gp) + 16, alt = pt + hU + pb;
+  let barras = '', x = pl;
+  cont.forEach((c, i) => {
+    const h = Math.max(1, c / mx * hU);
+    const cor = i < 2 ? '#E8360A' : i < 3 ? '#FF8C42' : '#5B8DEF';
+    barras += `<g><title>${rots[i]}: ${c} intervalos</title><rect x="${x}" y="${pt + hU - h}" width="${bw}" height="${h}" rx="2" fill="${cor}"/></g>`
+      + `<text x="${x + bw / 2}" y="${pt + hU - h - 5}" text-anchor="middle" font-size="10.5" fill="#EAF0FA">${c}</text>`
+      + `<text x="${x + bw / 2}" y="${pt + hU + 15}" text-anchor="middle" font-size="9.5" fill="#9FB0CC">${rots[i]}</text>`;
+    x += bw + gp;
+  });
+  $('grafRec').innerHTML = `<svg width="${larg}" height="${alt}" style="display:block;max-width:100%">
+    <line x1="${pl - 6}" y1="${pt + hU}" x2="${larg - 10}" y2="${pt + hU}" stroke="#1E3D77"/>
+    <text x="${pl - 10}" y="${pt + 8}" text-anchor="end" font-size="10" fill="#9FB0CC">${mx}</text>
+    ${barras}
+    <text x="${pl}" y="${alt - 8}" font-size="10" fill="#9FB0CC">vermelho = recuperação incompleta de fosfocreatina</text>
+  </svg>`;
+
+  // por atleta
+  const porAtl = new Map();
+  for (const b of blocos) {
+    const a = porAtl.get(b.id) || { nome: b.nome, n: 0, maior: 0, esf: 0, dist: 0, recs: [] };
+    a.n++; a.esf += b.n; a.dist += b.dist;
+    if (b.n > a.maior) a.maior = b.n;
+    if (b.recMed != null) a.recs.push(b.recMed);
+    porAtl.set(b.id, a);
+  }
+  const linhas = [...porAtl.values()].sort((a, b) => b.esf - a.esf);
+  $('tabRsa').innerHTML =
+    `<tr><th>Atleta</th><th class="num">Blocos</th><th class="num">Maior</th><th class="num">Esforços</th>
+     <th class="num">Dist. (m)</th><th class="num">Recup. média</th></tr>`
+    + (linhas.length ? linhas.map(a => `<tr><td>${a.nome}</td><td class="num">${a.n}</td>
+        <td class="num"${a.maior >= 4 ? ' style="color:var(--vermelho);font-weight:700"' : ''}>${a.maior}</td>
+        <td class="num">${a.esf}</td><td class="num">${a.dist.toFixed(0)}</td>
+        <td class="num">${a.recs.length ? media(a.recs).toFixed(1) + 's' : '—'}</td></tr>`).join('')
+      : `<tr><td colspan="6" style="color:var(--txt2)">Nenhum bloco com ${minN}+ esforços acima de ${String(vMin).replace('.', ',')} km/h separados por ≤ ${gap}s. Num jogo equilibrado isso é comum no corte de sprint — baixe a intensidade mínima para HSR.</td></tr>`);
+  S._rsaCsv = { blocos, gap, minN };
+}
+
+/* ---------- Zona × direção ---------- */
+function renderZonaDir() {
+  const dirs = [['Ofensivo', '⬆ Ofensivo'], ['Lateral', '↔ Lateral'], ['Defensivo', '⬇ Defensivo']];
+  const lista = S.esfLista || [];
+  const tot = lista.length;
+  const cel = (z, dk) => lista.filter(e => e.zona5 === z && e.direcao.includes(dk)).length;
+  let html = `<tr><th>Zona (eixo tático)</th>${dirs.map(d => `<th class="num">${d[1]}</th>`).join('')}<th class="num">Total</th></tr>`;
+  for (const z of ZONAS5) {
+    const vs = dirs.map(d => cel(z, d[0]));
+    const soma = vs.reduce((a, b) => a + b, 0);
+    html += `<tr><td>${z}</td>` + vs.map(v => {
+      const pct = tot ? v / tot * 100 : 0;
+      const int = Math.min(1, pct / 12);
+      return `<td class="num" style="background:rgba(232,54,10,${(int * 0.55).toFixed(2)})">${v}<span style="color:var(--txt2);font-size:10px"> ${pct.toFixed(1)}%</span></td>`;
+    }).join('') + `<td class="num"><b>${soma}</b></td></tr>`;
+  }
+  const totDir = dirs.map(d => lista.filter(e => e.direcao.includes(d[0])).length);
+  html += `<tr><td style="color:var(--dourado)"><b>Total</b></td>`
+    + totDir.map(v => `<td class="num"><b>${v}</b><span style="color:var(--txt2);font-size:10px"> ${tot ? (v / tot * 100).toFixed(1) : 0}%</span></td>`).join('')
+    + `<td class="num"><b>${tot}</b></td></tr>`;
+  $('tabZonaDir').innerHTML = html;
+}
+
+/* ---------- Entrada do esforço (velocidade inicial) ---------- */
+function renderEntrada() {
+  const lista = S.esfLista || [];
+  const faixas = [
+    { rot: 'Parado / caminhando (<7,2 km/h)', min: 0, max: 7.2, cor: '#E8360A' },
+    { rot: 'Trote (7,2–14,4)', min: 7.2, max: 14.4, cor: '#FF8C42' },
+    { rot: 'Corrida (14,4–19,8)', min: 14.4, max: 19.8, cor: '#A9C93A' },
+    { rot: 'Lançado (≥19,8)', min: 19.8, max: Infinity, cor: '#38B26E' },
+  ];
+  const tot = lista.length;
+  let html = `<tr><th>Entrada</th><th class="num">n</th><th class="num">%</th>
+    <th class="num">Dist. média (m)</th><th class="num">Dur. média (s)</th><th class="num">Ofensivos</th></tr>`;
+  for (const f of faixas) {
+    const sub = lista.filter(e => e.vini >= f.min && e.vini < f.max);
+    const of = sub.filter(e => e.direcao.includes('Ofensivo')).length;
+    html += `<tr><td><span style="color:${f.cor}">■</span> ${f.rot}</td>
+      <td class="num">${sub.length}</td>
+      <td class="num">${tot ? (sub.length / tot * 100).toFixed(1) : 0}%</td>
+      <td class="num">${sub.length ? media(sub.map(e => e.dist)).toFixed(1) : '—'}</td>
+      <td class="num">${sub.length ? media(sub.map(e => e.dur)).toFixed(2) : '—'}</td>
+      <td class="num">${sub.length ? of + ' (' + (of / sub.length * 100).toFixed(0) + '%)' : '—'}</td></tr>`;
+  }
+  $('tabEntrada').innerHTML = html;
+}
+
+$('btnCsvRsa').onclick = () => {
+  if (!S._rsaCsv) return;
+  const { blocos, gap, minN } = S._rsaCsv;
+  baixarCSV(`rsa_${minN}esf_${gap}s.csv`, paraCSV(
+    ['Atleta', 'Início (jogo)', 'Esforços no bloco', 'Duração (s)', 'Distância (m)', 'Recuperação média (s)'],
+    blocos.sort((a, b) => a.t0 - b.t0).map(b => [b.nome, fmtMin(tempoJogoDe(b.t0)), b.n,
+      +b.dur.toFixed(1), +b.dist.toFixed(1), b.recMed == null ? null : +b.recMed.toFixed(1)])));
+};
+['chkEsfTatico', 'inpRsaGap', 'inpRsaMin', 'selRsaBanda'].forEach(id => { const e = $(id); if (e) e.onchange = renderEsforcos; });
+
 function renderTabEsforcos(defs) {
   const ehAcc = esfTipo() === 'acc';
   const cab = `<tr><th>#</th><th>Atleta</th><th class="num">Início</th><th class="num">Dur (s)</th>
@@ -2685,8 +2981,9 @@ function desenharCompactacao(cf) {
   const atl = [...S.dados.values()].filter(d => d.grupo !== 'GOL');
   if (atl.length < 5) return;   // precisa da maior parte da linha em campo
   let sProf = 0, sLarg = 0, sCx = 0, sCy = 0, nA = 0;
+  const tat = esfTatico();
   for (let t = S.t0; t <= S.t1; t += 2) {
-    const s = atkSignAt(t) < 0 ? -1 : 1;
+    const s = tat && atkSignAt(t) < 0 ? -1 : 1;
     let minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9, c = 0, cx = 0, cy = 0;
     for (const d of atl) {
       const i = idxPorTs(d.slim, t);
