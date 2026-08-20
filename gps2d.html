@@ -141,6 +141,14 @@ h3 .btnCsv{float:right;margin-top:-4px}
     <div class="chips" id="chipsAtletas"><span style="font-size:12px;color:var(--txt2)">Selecione uma atividade…</span></div>
   </div>
   <div class="grupo">
+    <label class="mini">Qualidade de sinal</label>
+    <label class="chk" title="Pede à Catapult os campos hdop/pq/ref. Custa ~30% de payload e libera o filtro de HDOP em todas as abas."><input type="checkbox" id="chkQualidade"> HDOP <span style="color:var(--txt2)">(+30%)</span></label>
+    <div id="grpHdop" class="oculto" style="margin-top:5px">
+      <label class="mini" title="Amostras com HDOP acima deste teto viram “sem sinal” em todas as abas. 0 desliga.">HDOP máx. (0 = off)</label>
+      <input type="number" id="inpHdopMax" value="0" min="0" max="20" step="0.5" style="width:86px">
+    </div>
+  </div>
+  <div class="grupo">
     <button class="btn vm" id="btnCarregar" disabled>Carregar dados GPS</button>
     <div style="margin-top:6px" class="progresso"><div id="barraProg"></div></div>
     <span id="statusCarga"></span>
@@ -153,6 +161,7 @@ h3 .btnCsv{float:right;margin-top:-4px}
   <div class="aba" data-aba="heat">Heatmap</div>
   <div class="aba" data-aba="pos">Por Posição</div>
   <div class="aba" data-aba="mdp">Intensidade · MDP</div>
+  <div class="aba" data-aba="blocos">Blocos de Tempo</div>
   <div class="aba" data-aba="replay">Replay</div>
   <div class="aba" data-aba="stat">Estatísticas</div>
   <div class="aba" data-aba="cmp">Comparar Jogos</div>
@@ -301,6 +310,83 @@ h3 .btnCsv{float:right;margin-top:-4px}
 </section>
 
 <!-- ================= COMPARAR JOGOS ================= -->
+<section class="painel" id="painel-blocos">
+  <div class="card">
+    <h3>Intensidade por Bloco de Tempo</h3>
+    <div class="linha" style="margin-bottom:12px">
+      <div class="grupo"><label class="mini">Bloco</label>
+        <select id="selBlkBloco">
+          <option value="60">1 min</option><option value="180">3 min</option>
+          <option value="300" selected>5 min</option><option value="600">10 min</option>
+          <option value="900">15 min</option><option value="1350">22,5 min</option>
+          <option value="custom">Personalizado…</option>
+        </select></div>
+      <div class="grupo oculto" id="grpBlkCustom"><label class="mini">Bloco (min)</label>
+        <input type="number" id="inpBlkCustom" value="7" min="0.5" step="0.5" style="width:78px"></div>
+      <div class="grupo"><label class="mini">Métrica</label><select id="selBlkMetrica"></select></div>
+      <div class="grupo"><label class="mini">Escopo</label><select id="selBlkEscopo"><option value="__team__">Equipe (média)</option></select></div>
+      <div class="grupo"><label class="mini" title="Fração do bloco com GPS válido para o bloco entrar na conta">Cobertura mín. (%)</label>
+        <input type="number" id="inpBlkCobMin" value="50" min="0" max="100" step="5" style="width:74px"></div>
+      <div class="grupo"><label class="mini">Cor da barra</label>
+        <select id="selBlkCor">
+          <option value="media" selected>Desvio da média</option>
+          <option value="max">% do máximo</option>
+          <option value="unica">Cor única</option>
+        </select></div>
+      <div class="grupo"><label class="chk"><input type="checkbox" id="chkBlkRotulos" checked> Valor sobre a barra</label></div>
+      <div class="grupo"><label class="chk"><input type="checkbox" id="chkBlkMedia" checked> Linha da média</label></div>
+      <div class="grupo"><button class="btn mini" id="btnBlkCsv">⬇ CSV</button></div>
+    </div>
+    <p style="font-size:11.5px;color:var(--txt2);margin:-4px 0 10px">
+      Blocos <b>contíguos e não sobrepostos</b>, recomeçando a cada período — o intervalo nunca cai dentro de um bloco
+      e os acréscimos viram um bloco curto, marcado, em vez de contaminarem o primeiro bloco do tempo seguinte.
+      O valor é o incremento dividido pelo tempo <b>efetivamente amostrado</b>: falha de GPS não vira queda de rendimento.
+      O topo hachurado é a fração do bloco sem sinal — a parte do número que veio de projeção, não de medida.</p>
+    <div id="avisoBlkCob" class="aviso oculto"></div>
+    <div id="grafBlocos" style="width:100%;overflow-x:auto"></div>
+    <div class="legenda" id="legendaBlocos"></div>
+    <div class="kpis" id="kpisBlocos"></div>
+  </div>
+
+  <div class="card">
+    <h3>Tabela por bloco</h3>
+    <div class="tblWrap"><table id="tabBlocos"></table></div>
+  </div>
+
+  <div class="card">
+    <h3>Diagnóstico de sinal e esforços</h3>
+    <details id="detBlkSinal">
+      <summary style="cursor:pointer;font-size:12.5px;color:var(--dourado);margin-bottom:10px">
+        Parâmetros de detecção de acel/desacel — <b>afetam todas as abas</b></summary>
+      <div class="linha" style="margin:10px 0 4px">
+        <div class="grupo"><label class="mini">Fonte da aceleração</label>
+          <select id="selBlkFonteA">
+            <option value="deriv" selected>Derivar da velocidade (janela fixa)</option>
+            <option value="cat">Campo “a” da Catapult (bruto)</option>
+          </select></div>
+        <div class="grupo"><label class="mini" title="Diferença central: a(t) = [v(t+J/2) − v(t−J/2)] / J">Janela J (s)</label>
+          <input type="number" id="inpBlkJanela" value="0.6" min="0.2" max="2" step="0.1" style="width:78px"></div>
+        <div class="grupo"><label class="mini">Limiar (m/s²)</label>
+          <input type="number" id="inpBlkLimiar" value="3" min="1" max="8" step="0.5" style="width:78px"></div>
+        <div class="grupo"><label class="mini">Duração mín. (s)</label>
+          <input type="number" id="inpBlkMinDur" value="0.6" min="0.1" max="3" step="0.1" style="width:78px"></div>
+        <div class="grupo"><label class="mini" title="O esforço continua enquanto |a| ficar acima desta fração do limiar">Histerese (%)</label>
+          <input type="number" id="inpBlkHist" value="70" min="30" max="100" step="5" style="width:78px"></div>
+        <div class="grupo"><label class="mini" title="Esforços do mesmo sinal separados por menos que isto contam como um só">Mesclar até (s)</label>
+          <input type="number" id="inpBlkGap" value="0.4" min="0" max="3" step="0.1" style="width:78px"></div>
+        <div class="grupo"><button class="btn mini fantasma" id="btnBlkPadroes">restaurar padrões</button></div>
+      </div>
+    </details>
+    <div id="avisoBlkSinal" class="aviso oculto" style="margin:12px 0"></div>
+    <div class="tblWrap" style="max-height:320px"><table id="tabBlkDiag"></table></div>
+    <p style="font-size:11.5px;color:var(--txt2);margin-top:8px">
+      <b>HDOP</b> mede a geometria dos satélites no instante do fix: abaixo de 1 é excelente, até 2 é bom, acima de ~2,5
+      a posição começa a derivar — e posição ruim vira velocidade falsa, que vira aceleração falsa. Regra de leitura da
+      tabela: se o <b>p95 de |a| já está acima do limiar</b>, 5% de todas as amostras passariam do corte — isso é ruído
+      de sinal, não esforço. Para ver as colunas de HDOP é preciso marcar <i>Qualidade de sinal</i> antes de carregar.</p>
+  </div>
+</section>
+
 <section class="painel" id="painel-cmp">
   <div class="card">
     <h3>Comparação entre jogos — ações por terço × posição</h3>
@@ -629,13 +715,15 @@ function autoCalibrar(lats, lons, comprimento, largura) {
 function calcularMetricas(d) {
   const n = d.ts.length;
   let dist = 0, hsr = 0, sprint = 0, vmax = 0, tempo = 0, hrSum = 0, hrN = 0;
-  let acc = 0, dec = 0, accRun = 0, decRun = 0;
-  const MIN_DUR = 0.6;
+  const ok = d._ok || null;                 // máscara de HDOP, quando ligada
+  const e = esforcosAcc(d);                 // detector com histerese e mesclagem
+  const acc = e.acc, dec = e.dec;
   for (let i = 1; i < n; i++) {
     let dt = d.ts[i] - d.ts[i - 1];
-    if (!(dt > 0) || dt > 2) { accRun = 0; decRun = 0; continue; }
+    if (!(dt > 0) || dt > 2) continue;
+    if (ok && (!ok[i] || !ok[i - 1])) continue;
     const v = d.v[i];
-    if (v == null) { accRun = 0; decRun = 0; continue; }
+    if (v == null) continue;
     const vk = v * 3.6;
     tempo += dt;
     dist += v * dt;
@@ -643,10 +731,6 @@ function calcularMetricas(d) {
     if (vk >= SPRINT_MIN) sprint += v * dt;
     if (vk > vmax && vk < 45) vmax = vk;
     if (d.hr[i] != null && d.hr[i] > 30) { hrSum += d.hr[i]; hrN++; }
-    const a = d.a[i];
-    if (a != null && a >= 3)       { accRun += dt; decRun = 0; if (accRun >= MIN_DUR && accRun - dt < MIN_DUR) acc++; }
-    else if (a != null && a <= -3) { decRun += dt; accRun = 0; if (decRun >= MIN_DUR && decRun - dt < MIN_DUR) dec++; }
-    else { accRun = 0; decRun = 0; }
   }
   const min = tempo / 60;
   return {
@@ -811,24 +895,142 @@ function topJanelas(t, val, winS, nTop) {
   }
   return escolhidas.map(i => ({ inicio: t[i] - winS / 2, valor: Math.round(val[i] * 10) / 10 }));
 }
-/* Marca o índice em que um esforço de acel/desacel é CONFIRMADO — mesma regra
-   de calcularMetricas (limiar sustentado por minDur), para que a série
-   rolante "n/min" some exatamente os mesmos esforços da tabela por posição.
-   Antes contava todo cruzamento do limiar: um pico de 0,2 s valia 1 esforço e
-   a contagem mudava conforme a decimação (each=2 vs each=5). */
-function marcarEsforcosAcc(s, limiar, minDur) {
-  const n = s.ts.length, on = new Uint8Array(n);
-  let accRun = 0, decRun = 0;
-  for (let i = 1; i < n; i++) {
-    const dt = s.ts[i] - s.ts[i - 1];
-    if (!(dt > 0) || dt > 2 || s.v[i] == null) { accRun = 0; decRun = 0; continue; }
-    const a = s.a[i];
-    if (a != null && a >= limiar)        { accRun += dt; decRun = 0; if (accRun >= minDur && accRun - dt < minDur) on[i] = 1; }
-    else if (a != null && a <= -limiar)  { decRun += dt; accRun = 0; if (decRun >= minDur && decRun - dt < minDur) on[i] = 1; }
-    else { accRun = 0; decRun = 0; }
+/* ================================================================
+   QUALIDADE DE SINAL E ESFORÇOS DE ACELERAÇÃO  (revisão 20/08/2026)
+
+   O método anterior contava um esforço quando |a| ≥ limiar se mantinha por
+   minDur em amostras CONSECUTIVAS, usando o campo "a" bruto da Catapult.
+   Quatro defeitos, todos corrigidos aqui:
+
+   1) Dependia da resolução. A 10 Hz exigia 6 amostras seguidas acima do
+      limiar, a 2 Hz exigia 2. Como o sinal é ruidoso, a probabilidade de N
+      amostras seguidas despenca com N — trocar o seletor de resolução mudava
+      a contagem (medido: 638 / 601 / 271 esforços para a mesma corrida).
+      Pior: a decimação do backend SUBAMOSTRA, não faz média, então a 2 Hz
+      sobravam os picos de ruído que por acaso caíram nos índices mantidos.
+   2) Sem histerese: uma única amostra abaixo do limiar zerava o contador e
+      partia um esforço real em pedaços curtos, nenhum deles contado.
+   3) Sem mesclagem: duas detecções a 0,2 s de distância viravam dois esforços.
+   4) Duração medida com um intervalo a menos. Um trecho de k amostras
+      espaçadas de Δ dura k·Δ, não (k−1)·Δ; a 2 Hz um esforço real de 1,2 s
+      media 0,5 s e era descartado. Era a maior causa isolada do colapso.
+
+   Agora: aceleração derivada da velocidade numa janela de TEMPO fixa (mesma
+   resposta em qualquer taxa de amostragem, e já filtra ruído), histerese,
+   mesclagem, e duração com meia amostra de folga em cada ponta.
+
+   O filtro de HDOP entra pelo mesmo caminho: amostra com HDOP acima do teto
+   vira "sem sinal" (s._ok = 0). Não é interpolada nem zerada — some, e o
+   tempo dela conta como cobertura perdida, igual a uma perda de fix.
+   ================================================================ */
+const SINAL_DEF = { hdopMax: 0, fonte: 'deriv', jan: 0.6, limiar: 3, minDur: 0.6, hist: 0.7, gap: 0.4 };
+let SINAL = { ...SINAL_DEF };
+function definirSinal(cfg) { SINAL = { ...SINAL_DEF, ...(cfg || {}) }; return SINAL; }
+function obterSinal() { return { ...SINAL }; }
+
+/* máscara de amostras válidas segundo o HDOP */
+function mascaraSinal(s, hdopMax) {
+  const n = s.ts.length, ok = new Uint8Array(n);
+  let cortadas = 0, comHdop = 0;
+  for (let i = 0; i < n; i++) {
+    const h = s.hdop ? s.hdop[i] : null;
+    if (h != null) comHdop++;
+    if (hdopMax > 0 && h != null && h > hdopMax) { ok[i] = 0; cortadas++; } else ok[i] = 1;
   }
-  return on;
+  return { ok, cortadas, comHdop };
 }
+
+/* a(t) = [v(t + J/2) − v(t − J/2)] / J — janela em segundos, não em amostras */
+function aceleracaoDerivada(s, jan, ok) {
+  const n = s.ts.length, D = jan / 2, out = new Array(n).fill(null);
+  let j = 0, k = 0;
+  for (let i = 0; i < n; i++) {
+    if (ok && !ok[i]) continue;
+    while (j < n && s.ts[j] < s.ts[i] - D) j++;
+    if (k < i) k = i;
+    while (k < n - 1 && s.ts[k] < s.ts[i] + D) k++;
+    const dt = s.ts[k] - s.ts[j];
+    if (dt > 0.05 && dt <= jan * 1.8 && (!ok || (ok[j] && ok[k])) && s.v[j] != null && s.v[k] != null)
+      out[i] = (s.v[k] - s.v[j]) / dt;
+  }
+  return out;
+}
+
+/* Máquina de estados com histerese + mesclagem.
+   Devolve marcador 1 no índice em que cada esforço confirmado COMEÇA. */
+function esforcosAcc(s, cfg) {
+  const c = { ...SINAL, ...(cfg || {}) };
+  const n = s.ts.length, on = new Uint8Array(n), lista = [];
+  const ok = s._ok || null;
+  const a = s._a || (c.fonte === 'cat' ? s.a : aceleracaoDerivada(s, c.jan, ok));
+  const L = c.limiar, Ls = L * c.hist;
+  let sig = 0, t0 = 0, tUlt = 0, iIni = 0, pico = 0, acc = 0, dec = 0;
+  let fimSig = 0, fimT = -1e9;
+  const meio = i => {                      // meia amostra de folga em cada ponta
+    const d = i > 0 ? s.ts[i] - s.ts[i - 1] : (n > 1 ? s.ts[1] - s.ts[0] : 0.1);
+    return (d > 0 && d <= 2 ? d : 0.1) / 2;
+  };
+  const abrir = (i, v) => { sig = v > 0 ? 1 : -1; t0 = s.ts[i] - meio(i); tUlt = s.ts[i] + meio(i); iIni = i; pico = Math.abs(v); };
+  const fechar = () => {
+    if (!sig) return;
+    if (tUlt - t0 >= c.minDur) {
+      if (!(sig === fimSig && (t0 - fimT) < c.gap)) {
+        on[iIni] = 1; lista.push({ t0, t1: tUlt, dur: tUlt - t0, sig, pico });
+        if (sig > 0) acc++; else dec++;
+      } else if (lista.length) {
+        const u = lista[lista.length - 1]; u.t1 = tUlt; u.dur = u.t1 - u.t0;
+      }
+      fimSig = sig; fimT = tUlt;
+    }
+    sig = 0;
+  };
+  for (let i = 0; i < n; i++) {
+    const cont = i > 0 && (!ok || ok[i - 1]) && (s.ts[i] - s.ts[i - 1]) > 0 && (s.ts[i] - s.ts[i - 1]) <= 2;
+    if ((ok && !ok[i]) || a[i] == null || !cont) { fechar(); continue; }
+    const v = a[i];
+    if (sig === 0) { if (Math.abs(v) >= L) abrir(i, v); }
+    else if (sig * v >= Ls) { tUlt = s.ts[i] + meio(i); pico = Math.max(pico, Math.abs(v)); }
+    else { fechar(); if (Math.abs(v) >= L) abrir(i, v); }
+  }
+  fechar();
+  return { on, lista, acc, dec };
+}
+
+function percentil(arr, p) {
+  if (!arr.length) return null;
+  const a = [...arr].sort((x, y) => x - y);
+  return a[Math.min(a.length - 1, Math.floor(p / 100 * a.length))];
+}
+
+/* Prepara s._ok, s._a e s._acc conforme a configuração vigente.
+   Idempotente: só recalcula quando a configuração muda. */
+function prepararSinal(s, cfg) {
+  const c = cfg ? definirSinal(cfg) : SINAL;
+  const assin = JSON.stringify(c);
+  if (s._assin === assin) return s._diag;
+  const m = mascaraSinal(s, c.hdopMax);
+  s._ok = m.ok;
+  s._a = c.fonte === 'cat' ? s.a : aceleracaoDerivada(s, c.jan, m.ok);
+  const e = esforcosAcc(s, c);
+  s._acc = e.on; s._assin = assin;
+  const hs = [], as = [];
+  for (let i = 0; i < s.ts.length; i++) {
+    if (s.hdop && s.hdop[i] != null) hs.push(s.hdop[i]);
+    if (s._ok[i] && s._a[i] != null) as.push(Math.abs(s._a[i]));
+  }
+  s._diag = { cortadas: m.cortadas, comHdop: m.comHdop, n: s.ts.length,
+              hdopMed: percentil(hs, 50), hdopP95: percentil(hs, 95),
+              aP95: percentil(as, 95), aMax: as.length ? Math.max(...as) : null,
+              acc: e.acc, dec: e.dec, esforcos: e.lista };
+  return s._diag;
+}
+
+/* Assinatura preservada: usada pela série rolante de intensidade (aba MDP) */
+function marcarEsforcosAcc(s, limiar, minDur) {
+  return esforcosAcc(s, { limiar: limiar != null ? limiar : SINAL.limiar,
+                          minDur: minDur != null ? minDur : SINAL.minDur }).on;
+}
+
 /* Incrementos padrão por métrica de intensidade */
 const ACC_MIN_DUR = 0.6;
 const INTENSIDADE_DEF = [
@@ -1146,7 +1348,8 @@ if (typeof module !== 'undefined') module.exports = {
   grupoPos, corGrupo, geoParaMetros, homografia, aplicarH, criarCalibracao,
   autoCalibrar, calcularMetricas, METRICAS_DEF, valorMetrica, detectarEsforcos,
   classificarEsforco, ZONAS5, LANES3, TERCOS, janelasRolantes, topJanelas,
-  marcarEsforcosAcc, ACC_MIN_DUR, INTENSIDADE_DEF, paraCSV, criarGrade, acumular, blurGauss, pearson, spearman,
+  marcarEsforcosAcc, esforcosAcc, prepararSinal, definirSinal, obterSinal,
+  mascaraSinal, aceleracaoDerivada, percentil, SINAL_DEF, ACC_MIN_DUR, INTENSIDADE_DEF, paraCSV, criarGrade, acumular, blurGauss, pearson, spearman,
   corrTest, welch, regressao, nomeExibicao, corCalor, media, desvio,
   shapiroWilk, anovaOneWay, kruskalWallis, postHocHolm, magD, magR,
   pValorF, pValorQui2, normCdf, normInv,
@@ -1387,12 +1590,13 @@ $('btnCarregar').onclick = async () => {
   async function trabalhador() {
     while (fila.length) {
       const { id, pid } = fila.shift();
-      const chave = `${act}|${pid}|${id}|${each}`;
+      const comQ = $('chkQualidade').checked;
+      const chave = `${act}|${pid}|${id}|${each}|${comQ ? 'q' : ''}`;
       try {
         let slim = S.cache.get(chave);
         if (!slim) {
           const q = pid ? `period=${pid}` : `activity=${act}`;
-          slim = await api(`/api/gps/sensor?${q}&athlete=${id}&each=${each}`);
+          slim = await api(`/api/gps/sensor?${q}&athlete=${id}&each=${each}${comQ ? '&q=1' : ''}`);
           S.cache.set(chave, slim);
         }
         if (slim.n > 50) {
@@ -1409,9 +1613,11 @@ $('btnCarregar').onclick = async () => {
   const rangeMap = new Map();
   for (const [id, blocos] of porAtleta) {
     blocos.sort((a, b) => a.slim.ts[0] - b.slim.ts[0]);
-    const m = { n: 0, ts: [], lat: [], lon: [], v: [], a: [], hr: [] };
+    const m = { n: 0, ts: [], lat: [], lon: [], v: [], a: [], hr: [], hdop: [] };
     for (const b of blocos) {
       for (const k of ['ts', 'lat', 'lon', 'v', 'a', 'hr']) m[k].push(...b.slim[k]);
+      const hd = b.slim.hdop;
+      for (let i = 0; i < b.slim.n; i++) m.hdop.push(hd ? hd[i] : null);
       const r = rangeMap.get(b.pid) || { pid: b.pid, t0: Infinity, t1: -Infinity };
       r.t0 = Math.min(r.t0, b.slim.ts[0]);
       r.t1 = Math.max(r.t1, b.slim.ts[b.slim.n - 1]);
@@ -1445,9 +1651,12 @@ function posProcessar() {
   if (!S.dados.size) return;
   S.cal = obterCal();
   if (!S.cal) { alert('Dados insuficientes para calibração.'); return; }
+  definirSinal(blkCfg());
   let t0 = Infinity, t1 = -Infinity, gi = 0;
   for (const [id, d] of S.dados) {
     const { slim } = d;
+    slim._assin = null;
+    d.diag = prepararSinal(slim);      // máscara de HDOP + aceleração derivada + esforços
     d.met = calcularMetricas(slim);
     d.cor = corAtletaIdx(gi++, d.grupo);
     d.pts = new Float32Array(slim.n * 2);
@@ -1774,6 +1983,11 @@ function atualizarSelects() {
   $('selHeatAtleta').innerHTML = '<option value="__all__">Todos selecionados</option>' + opsGrp + opsAtlG;
   $('selEsfAtleta').innerHTML = '<option value="__all__">Todos selecionados</option>' + opsGrp + opsAtlG;
   $('selMdpEscopo').innerHTML = '<option value="__team__">Equipe (média)</option>' + opsGrp + opsAtlG;
+  const blkAtual = $('selBlkEscopo').value;
+  $('selBlkEscopo').innerHTML = '<option value="__team__">Equipe (média)</option>' + opsGrp + opsAtlG;
+  if ([...$('selBlkEscopo').options].some(o => o.value === blkAtual)) $('selBlkEscopo').value = blkAtual;
+  if (!$('selBlkMetrica').options.length)
+    $('selBlkMetrica').innerHTML = BLK_METRICAS.map(m => `<option value="${m.k}">${m.rot}</option>`).join('');
   const ops = METRICAS_DEF.map(m => `<option value="${m.k}">${m.label}</option>`).join('');
   ['selMetricaPos', 'selStatX', 'selStatY', 'selWelchMet'].forEach(id => { $(id).innerHTML = ops; });
   $('selStatY').value = 'hsr';
@@ -3093,11 +3307,355 @@ function renderTudo() {
   else if (ativo === 'painel-heat') renderHeat();
   else if (ativo === 'painel-pos') renderPos();
   else if (ativo === 'painel-mdp') renderMdp();
+  else if (ativo === 'painel-blocos') renderBlocos();
   else if (ativo === 'painel-replay') renderReplayFrame();
   else if (ativo === 'painel-stat') renderStat();
   else if (ativo === 'painel-cmp') renderCmp();
   else if (ativo === 'painel-ref') renderRef();
 }
+
+
+/* ==================== ABA BLOCOS DE TEMPO ====================
+   Blocos contíguos e não sobrepostos, recomeçando a cada período. Compartilha
+   com a aba MDP a regra de cobertura: o valor é o incremento dividido pelo
+   tempo efetivamente amostrado, e a fração sem sinal aparece como hachura no
+   topo da barra em vez de virar queda de rendimento. */
+const BLK_METRICAS = [
+  { k: 'dist',   rot: 'Distância (m/min)',     un: 'm/min', porMin: true,  dec: 0, absRot: 'Distância (m)',
+    inc: (s, i, dt) => (s.v[i] || 0) * dt },
+  { k: 'hsr',    rot: 'HSR B5–B7 (m/min)',     un: 'm/min', porMin: true,  dec: 1, absRot: 'HSR (m)',
+    inc: (s, i, dt) => ((s.v[i] || 0) * 3.6 >= HSR_MIN ? s.v[i] * dt : 0) },
+  { k: 'sprint', rot: 'Sprint B6+B7 (m/min)',  un: 'm/min', porMin: true,  dec: 1, absRot: 'Sprint (m)',
+    inc: (s, i, dt) => ((s.v[i] || 0) * 3.6 >= SPRINT_MIN ? s.v[i] * dt : 0) },
+  { k: 'acc',    rot: 'Acel+Desacel (n/min)',  un: 'n/min', porMin: true,  dec: 2, absRot: 'Esforços (n)',
+    amostra: (s, i) => s._acc[i] },
+  { k: 'vmax',   rot: 'Vel. máxima do bloco (km/h)', un: 'km/h', porMin: false, dec: 1, agg: 'max' },
+  { k: 'fc',     rot: 'FC média do bloco (bpm)',     un: 'bpm',  porMin: false, dec: 0, agg: 'fc' },
+];
+const blkFmtMin = s => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+const blkFmtAbs = (v, def) => def.k !== 'acc' ? v.toFixed(0) : (Number.isInteger(v) ? String(v) : v.toFixed(1));
+
+function blkCfg() {
+  return {
+    hdopMax: +$('inpHdopMax').value || 0,
+    fonte: $('selBlkFonteA').value,
+    jan: +$('inpBlkJanela').value || 0.6,
+    limiar: +$('inpBlkLimiar').value || 3,
+    minDur: +$('inpBlkMinDur').value || 0.6,
+    hist: (+$('inpBlkHist').value || 70) / 100,
+    gap: +$('inpBlkGap').value || 0.4,
+  };
+}
+/* Reaplica a configuração de sinal a TODAS as abas: refaz máscara, aceleração
+   derivada, esforços e métricas por atleta. */
+function blkAplicarSinal() {
+  if (!S.dados.size) return;
+  definirSinal(blkCfg());
+  for (const d of S.dados.values()) {
+    d.slim._assin = null;
+    d.diag = prepararSinal(d.slim);
+    d.met = calcularMetricas(d.slim);
+  }
+  S.esfCache.clear(); S.esfSel = -1;
+  renderTudo();
+}
+
+function blkTamanho() {
+  const v = $('selBlkBloco').value;
+  return v === 'custom' ? Math.max(30, (+$('inpBlkCustom').value || 5) * 60) : +v;
+}
+function blkMontar(bS) {
+  const out = [];
+  for (const r of S.ranges) {
+    const dur = r.t1 - r.t0;
+    const nb = Math.max(1, Math.ceil(dur / bS - 1e-9));
+    const c = classifyPeriod(r.nome);
+    const cls = c === 't1' ? '1T' : c === 't2' ? '2T'
+      : (String(r.nome || 'Sessão').length > 10 ? 'Sessão' : String(r.nome || 'Sessão'));
+    for (let k = 0; k < nb; k++) {
+      const t0 = r.t0 + k * bS, t1 = Math.min(r.t1, t0 + bS);
+      out.push({ pid: r.pid, per: cls, k, t0, t1, span: t1 - t0,
+        curto: (t1 - t0) < bS - 1e-6,
+        jogo0: tempoJogoDe(t0), jogo1: tempoJogoDe(t0) + (t1 - t0),
+        rot: `${cls} ${Math.round(k * bS / 60)}–${Math.round((k * bS + (t1 - t0)) / 60)}` });
+    }
+  }
+  return out;
+}
+function blkSerieAtleta(d, blocos, def) {
+  const s = d.slim, n = s.ts.length;
+  const inc = new Float64Array(blocos.length), tOk = new Float64Array(blocos.length);
+  const pico = new Float64Array(blocos.length);
+  const hrS = new Float64Array(blocos.length), hrN = new Float64Array(blocos.length);
+  let b = 0;
+  for (let i = 0; i < n; i++) {
+    const t = s.ts[i];
+    while (b < blocos.length && t > blocos[b].t1) b++;
+    if (b >= blocos.length) break;
+    if (t < blocos[b].t0) continue;
+    if (s._ok && !s._ok[i]) continue;
+    const vk = (s.v[i] || 0) * 3.6;
+    if (vk > pico[b] && vk < 45) pico[b] = vk;
+    if (s.hr[i] != null && s.hr[i] > 30) { hrS[b] += s.hr[i]; hrN[b]++; }
+    if (def.amostra) inc[b] += def.amostra(s, i);
+    if (i === 0) continue;
+    const dt = t - s.ts[i - 1];
+    if (!(dt > 0) || dt > 2) continue;
+    if ((s._ok && !s._ok[i - 1]) || s.ts[i - 1] < blocos[b].t0) continue;
+    tOk[b] += dt;
+    if (def.inc) inc[b] += def.inc(s, i, dt);
+  }
+  return blocos.map((bl, j) => {
+    const cob = bl.span > 0 ? tOk[j] / bl.span : 0;
+    let val = null;
+    if (def.porMin) val = tOk[j] > 0 ? inc[j] / (tOk[j] / 60) : null;
+    else if (def.agg === 'max') val = pico[j] > 0 ? pico[j] : null;
+    else if (def.agg === 'fc') val = hrN[j] > 0 ? hrS[j] / hrN[j] : null;
+    return { val, cob, abs: def.porMin ? inc[j] : null, tOk: tOk[j] };
+  });
+}
+
+function blkCor(v, esc) {
+  const modo = $('selBlkCor').value;
+  if (modo === 'unica') return '#5B8DEF';
+  if (modo === 'max') return v >= esc.altaThr ? '#E8360A' : v >= esc.medThr ? '#FF8C42' : '#38B26E';
+  const r = esc.media > 0 ? v / esc.media : 1;
+  if (r >= 1.10) return '#E8360A';
+  if (r >= 1.03) return '#FF8C42';
+  if (r > 0.97)  return '#5B8DEF';
+  if (r > 0.90)  return '#38B26E';
+  return '#1F7A4C';
+}
+function blkLegendaCor() {
+  const modo = $('selBlkCor').value;
+  const it = (c, t) => `<span class="item"><span class="cx" style="background:${c}"></span>${t}</span>`;
+  if (modo === 'unica') return it('#5B8DEF', 'valor do bloco');
+  if (modo === 'max') return it('#38B26E', 'Baixa') + it('#FF8C42', 'Média-Alta (≥75% do máx)') + it('#E8360A', 'Alta (≥90% do máx)');
+  return it('#1F7A4C', '≤ −10% da média') + it('#38B26E', '−10% a −3%') + it('#5B8DEF', 'na média (±3%)')
+    + it('#FF8C42', '+3% a +10%') + it('#E8360A', '≥ +10% da média');
+}
+
+function renderBlocos() {
+  $('grpBlkCustom').classList.toggle('oculto', $('selBlkBloco').value !== 'custom');
+  blkDiagnostico();
+  if (!S.dados.size || !S.ranges.length) {
+    $('grafBlocos').innerHTML = '<p style="font-size:11.5px;color:var(--txt2)">Carregue um jogo para ver os blocos.</p>';
+    $('tabBlocos').innerHTML = ''; $('kpisBlocos').innerHTML = ''; $('legendaBlocos').innerHTML = ''; return;
+  }
+  const bS = blkTamanho();
+  const def = BLK_METRICAS.find(m => m.k === $('selBlkMetrica').value) || BLK_METRICAS[0];
+  const cobMin = Math.min(100, Math.max(0, +$('inpBlkCobMin').value || 0)) / 100;
+  const blocos = blkMontar(bS);
+  const escopo = $('selBlkEscopo').value;
+
+  const porAtleta = new Map();
+  for (const [id, d] of S.dados) porAtleta.set(id, blkSerieAtleta(d, blocos, def));
+  const alvos = escopo === '__team__' ? [...S.dados.keys()]
+    : escopo.startsWith('__g_') ? [...S.dados].filter(([, d]) => d.grupo === escopo.slice(4)).map(([id]) => id)
+    : [escopo];
+  const serie = blocos.map((bl, j) => {
+    let soma = 0, somaAbs = 0, cnt = 0, cobS = 0, tOk = 0;
+    for (const id of alvos) {
+      const c = (porAtleta.get(id) || [])[j];
+      if (!c || c.val == null || c.cob < cobMin) continue;
+      soma += c.val; if (c.abs != null) somaAbs += c.abs; cobS += c.cob; tOk += c.tOk; cnt++;
+    }
+    return cnt ? { val: soma / cnt, abs: def.porMin ? somaAbs / cnt : null, cob: cobS / cnt, n: cnt, tOk: tOk / cnt }
+               : { val: null, abs: null, n: 0, cob: 0, tOk: 0 };
+  });
+
+  const vals = serie.filter(x => x.val != null).map(x => x.val);
+  if (!vals.length) {
+    $('grafBlocos').innerHTML = '<p style="font-size:11.5px;color:var(--txt2)">Nenhum bloco atingiu a cobertura mínima. Baixe o valor de <b>Cobertura mín.</b></p>';
+    $('tabBlocos').innerHTML = ''; $('kpisBlocos').innerHTML = ''; $('legendaBlocos').innerHTML = ''; return;
+  }
+  const mx = Math.max(...vals), media = vals.reduce((a, b) => a + b, 0) / vals.length;
+  const esc = { mx, media, altaThr: 0.9 * mx, medThr: 0.75 * mx };
+
+  const semDado = serie.filter(x => x.val == null).length;
+  $('avisoBlkCob').classList.toggle('oculto', !semDado);
+  if (semDado) $('avisoBlkCob').innerHTML =
+    `⚠ ${semDado} bloco(s) sem nenhum atleta acima de ${Math.round(cobMin * 100)}% de cobertura — aparecem vazios no gráfico.`;
+
+  blkDesenhar(blocos, serie, def, esc);
+  blkTabela(blocos, serie, def);
+  blkKpis(blocos, serie, def);
+  S._blkCsv = { blocos, serie, def, bS };
+}
+
+function blkDesenhar(blocos, serie, def, esc) {
+  const n = blocos.length;
+  const bw = Math.max(18, Math.min(64, Math.floor(980 / Math.max(n, 1)) - 6));
+  const gap = 6, pl = 62, pr = 18, pt = 26, pb = 92;
+  const wC = n * (bw + gap), alt = 400, hUtil = alt - pt - pb, larg = pl + wC + pr;
+  const topo = esc.mx * 1.12 || 1;
+  const Y = v => pt + hUtil - v / topo * hUtil;
+
+  let barras = '', eixoX = '', sepPer = '', perAnt = null, x = pl;
+  for (let i = 0; i < n; i++) {
+    const bl = blocos[i], s = serie[i];
+    if (perAnt !== null && bl.per !== perAnt)
+      sepPer += `<line x1="${x - gap / 2}" y1="${pt - 6}" x2="${x - gap / 2}" y2="${pt + hUtil + 6}" stroke="#1E3D77" stroke-width="1.5" stroke-dasharray="4 3"/>`
+        + `<text x="${x - gap / 2 + 5}" y="${pt - 12}" font-size="10.5" fill="#9FB0CC">${bl.per}</text>`;
+    if (perAnt === null) sepPer += `<text x="${pl}" y="${pt - 12}" font-size="10.5" fill="#9FB0CC">${bl.per}</text>`;
+    perAnt = bl.per;
+
+    if (s.val != null) {
+      const h = Math.max(1, s.val / topo * hUtil);
+      const cor = blkCor(s.val, esc);
+      const hSol = h * Math.min(1, s.cob), hEx = h - hSol;
+      const tip = `${bl.per} · ${Math.round(bl.jogo0 / 60)}–${Math.round(bl.jogo1 / 60)} min de jogo`
+        + `\n${def.rot}: ${s.val.toFixed(def.dec)}`
+        + (s.abs != null ? `\n${def.absRot}: ${blkFmtAbs(s.abs, def)}` : '')
+        + `\nCobertura: ${(s.cob * 100).toFixed(0)}%  (${blkFmtMin(s.tOk || 0)} de ${blkFmtMin(bl.span)})`
+        + `\nAtletas na média: ${s.n}`
+        + (bl.curto ? '\n⚠ bloco curto (fim do período)' : '')
+        + (s.cob < 0.995 ? '\n⚠ topo hachurado = parte extrapolada do tempo sem sinal' : '');
+      barras += `<g class="barraBlk"><title>${tip}</title>`
+        + (hEx > 0.5
+            ? `<rect x="${x}" y="${Y(s.val)}" width="${bw}" height="${hEx}" rx="3" fill="${cor}" fill-opacity="0.40"/>`
+              + `<rect x="${x}" y="${Y(s.val)}" width="${bw}" height="${hEx}" rx="3" fill="url(#blkHach)"/>` : '')
+        + `<rect x="${x}" y="${pt + hUtil - hSol}" width="${bw}" height="${hSol}"${hEx > 0.5 ? '' : ' rx="3"'} fill="${cor}"/>`
+        + (bl.curto ? `<rect x="${x}" y="${pt + hUtil + 1}" width="${bw}" height="3" fill="#C4952A"/>` : '')
+        + `</g>`;
+      if ($('chkBlkRotulos').checked)
+        barras += `<text x="${x + bw / 2}" y="${Y(s.val) - 6}" text-anchor="middle" font-size="10.5" fill="#EAF0FA" font-weight="600">${s.val.toFixed(def.dec)}</text>`;
+    } else {
+      barras += `<g class="barraBlk"><title>${bl.per} · sem cobertura suficiente</title>`
+        + `<rect x="${x}" y="${pt + hUtil - 4}" width="${bw}" height="4" fill="#1E3D77"/></g>`;
+    }
+    eixoX += `<text transform="rotate(-45 ${x + bw / 2} ${pt + hUtil + 16})" x="${x + bw / 2}" y="${pt + hUtil + 16}" text-anchor="end" font-size="10" fill="#9FB0CC">${bl.rot}</text>`;
+    x += bw + gap;
+  }
+  let eixoY = '';
+  for (let f = 0; f <= 1.0001; f += 0.25) {
+    const v = esc.mx * f;
+    eixoY += `<line x1="${pl - 4}" y1="${Y(v)}" x2="${pl + wC}" y2="${Y(v)}" stroke="#1E3D77" stroke-opacity="${f === 0 ? 1 : .45}"/>`
+      + `<text x="${pl - 9}" y="${Y(v) + 4}" text-anchor="end" font-size="10.5" fill="#9FB0CC">${v.toFixed(def.dec)}</text>`;
+  }
+  const lm = $('chkBlkMedia').checked
+    ? `<line x1="${pl}" y1="${Y(esc.media)}" x2="${pl + wC}" y2="${Y(esc.media)}" stroke="#C4952A" stroke-width="1.5" stroke-dasharray="6 4"/>`
+      + `<text x="${pl + wC - 4}" y="${Y(esc.media) - 5}" text-anchor="end" font-size="10.5" fill="#C4952A">média ${esc.media.toFixed(def.dec)}</text>` : '';
+
+  $('grafBlocos').innerHTML = `<svg width="${larg}" height="${alt}" style="display:block">
+    <defs><pattern id="blkHach" width="6" height="6" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="#EAF0FA" stroke-opacity=".35" stroke-width="2.5"/></pattern></defs>
+    ${eixoY}${sepPer}${barras}${eixoX}${lm}
+    <text transform="rotate(-90 14 ${pt + hUtil / 2})" x="14" y="${pt + hUtil / 2}" text-anchor="middle" font-size="11" fill="#9FB0CC">${def.rot}</text>
+  </svg>`;
+  $('legendaBlocos').innerHTML = blkLegendaCor()
+    + `<span class="item"><span class="cx" style="background:repeating-linear-gradient(45deg,#5B8DEF 0 3px,#0E2A5C 3px 6px)"></span>topo hachurado = fração sem sinal (extrapolada)</span>`
+    + `<span class="item"><span class="cx" style="background:#C4952A;height:4px;border-radius:0"></span>bloco curto (acréscimos)</span>`
+    + ($('chkBlkMedia').checked ? `<span class="item" style="color:#C4952A">— · — média dos blocos exibidos</span>` : '');
+}
+
+function blkTabela(blocos, serie, def) {
+  $('tabBlocos').innerHTML =
+    `<tr><th>Bloco</th><th>Período</th><th class="num">Início (jogo)</th><th class="num">Fim (jogo)</th>
+     <th class="num">Duração</th><th class="num">${def.rot}</th>`
+    + (def.porMin ? `<th class="num">${def.absRot}</th>` : '')
+    + `<th class="num">Cobertura</th><th class="num">Atletas</th><th>Obs.</th></tr>`
+    + blocos.map((bl, i) => {
+      const s = serie[i];
+      const obs = [bl.curto ? 'bloco curto' : '',
+        s.val != null && s.cob < 0.98 ? `${((1 - s.cob) * 100).toFixed(0)}% extrapolado` : '',
+        s.val == null ? 'sem cobertura' : ''].filter(Boolean).join(' · ');
+      return `<tr><td>${bl.rot}</td><td style="color:var(--dourado)">${bl.per}</td>
+        <td class="num">${blkFmtMin(bl.jogo0)}</td><td class="num">${blkFmtMin(bl.jogo1)}</td>
+        <td class="num">${blkFmtMin(bl.span)}</td>
+        <td class="num"><b>${s.val == null ? '—' : s.val.toFixed(def.dec)}</b></td>
+        ${def.porMin ? `<td class="num">${s.abs == null ? '—' : blkFmtAbs(s.abs, def)}</td>` : ''}
+        <td class="num">${s.val == null ? '—' : (s.cob * 100).toFixed(0) + '%'}</td>
+        <td class="num">${s.n || '—'}</td><td style="color:var(--txt2)">${obs}</td></tr>`;
+    }).join('');
+}
+function blkKpis(blocos, serie, def) {
+  const val = serie.map((s, i) => ({ ...s, i })).filter(s => s.val != null);
+  if (!val.length) { $('kpisBlocos').innerHTML = ''; return; }
+  const ord = [...val].sort((a, b) => b.val - a.val);
+  const pico = ord[0], vale = ord[ord.length - 1];
+  const med = val.reduce((a, b) => a + b.val, 0) / val.length;
+  const queda = pico.val > 0 ? (1 - vale.val / pico.val) * 100 : 0;
+  const k = (v, l) => `<div class="kpi"><div class="v">${v}</div><div class="l">${l}</div></div>`;
+  $('kpisBlocos').innerHTML =
+    k(pico.val.toFixed(def.dec), `Pico — ${blocos[pico.i].rot}`) +
+    k(med.toFixed(def.dec), 'Média dos blocos') +
+    k(vale.val.toFixed(def.dec), `Menor — ${blocos[vale.i].rot}`) +
+    k(queda.toFixed(0) + '%', 'Queda pico → menor') +
+    k(val.length + '/' + serie.length, 'Blocos com dado');
+}
+
+function blkDiagnostico() {
+  if (!S.dados.size) { $('tabBlkDiag').innerHTML = ''; $('avisoBlkSinal').classList.add('oculto'); return; }
+  const cfg = obterSinal();
+  const linhas = [...S.dados].map(([id, d]) => {
+    const g = d.diag || {};
+    let durOk = 0;
+    const s = d.slim;
+    for (let i = 1; i < s.ts.length; i++) {
+      const dt = s.ts[i] - s.ts[i - 1];
+      if (!(dt > 0) || dt > 2) continue;
+      if (s._ok && (!s._ok[i] || !s._ok[i - 1])) continue;
+      durOk += dt;
+    }
+    const tot = (g.acc || 0) + (g.dec || 0);
+    return { id, nome: d.nome, grupo: d.grupo, g, tot, durOk,
+             porMin: durOk > 0 ? tot / (durOk / 60) : 0 };
+  }).sort((a, b) => b.porMin - a.porMin);
+
+  const temHdop = linhas.some(l => (l.g.comHdop || 0) > 0);
+  const q = v => v == null ? '—' : v.toFixed(1);
+  $('tabBlkDiag').innerHTML =
+    `<tr><th>Atleta</th><th>Pos</th>${temHdop ? '<th class="num">HDOP mediano</th><th class="num">HDOP p95</th><th class="num">Amostras cortadas</th>' : ''}
+     <th class="num">|a| p95</th><th class="num">|a| máx</th><th class="num">Acel</th><th class="num">Desacel</th>
+     <th class="num">Total</th><th class="num">Esforços/min</th></tr>`
+    + linhas.map(l => {
+      const pc = l.g.n ? (l.g.cortadas || 0) / l.g.n * 100 : 0;
+      const corte = l.g.cortadas ? `<span style="color:${pc > 20 ? 'var(--vermelho)' : 'var(--dourado)'}">${pc.toFixed(1)}%</span>` : '—';
+      const alerta = l.g.aP95 != null && l.g.aP95 >= cfg.limiar;
+      return `<tr><td>${l.nome}</td><td style="color:var(--dourado)">${l.grupo}</td>`
+        + (temHdop ? `<td class="num">${q(l.g.hdopMed)}</td><td class="num">${q(l.g.hdopP95)}</td><td class="num">${corte}</td>` : '')
+        + `<td class="num"${alerta ? ' style="color:var(--vermelho)" title="o p95 já está acima do limiar: isso é ruído, não esforço"' : ''}>${q(l.g.aP95)}</td>`
+        + `<td class="num">${q(l.g.aMax)}</td><td class="num">${l.g.acc || 0}</td><td class="num">${l.g.dec || 0}</td>`
+        + `<td class="num"><b>${l.tot}</b></td><td class="num"><b>${l.porMin.toFixed(2)}</b></td></tr>`;
+    }).join('');
+
+  const avisos = [];
+  if (!temHdop) avisos.push('Esta carga não trouxe <b>HDOP</b>. Marque <i>Qualidade de sinal</i> na barra de cima e carregue de novo para liberar o filtro.');
+  if (cfg.fonte === 'cat') avisos.push('Usando o campo <b>“a” bruto da Catapult</b>: é a derivada instantânea a 10 Hz, bastante ruidosa, e a decimação do backend subamostra em vez de fazer média — a contagem volta a depender do seletor de resolução. Serve para comparar, não para reportar.');
+  const ruins = linhas.filter(l => l.g.aP95 != null && l.g.aP95 >= cfg.limiar);
+  if (ruins.length) avisos.push(`Em <b>${ruins.map(l => l.nome).join(', ')}</b> o p95 de |a| já passa do limiar de ${cfg.limiar} m/s² — 5% de todas as amostras cruzariam o corte. Isso é ruído de sinal, não esforço: filtre por HDOP, aumente a janela J ou suba o limiar.`);
+  $('avisoBlkSinal').classList.toggle('oculto', !avisos.length);
+  $('avisoBlkSinal').innerHTML = avisos.map(a => '⚠ ' + a).join('<br><br>');
+}
+
+$('btnBlkCsv').onclick = () => {
+  if (!S._blkCsv) return;
+  const { blocos, serie, def, bS } = S._blkCsv;
+  const cab = ['Bloco', 'Período', 'Início jogo', 'Fim jogo', 'Duração (s)', def.rot,
+    ...(def.porMin ? [def.absRot] : []), 'Cobertura (%)', 'Atletas', 'Bloco curto'];
+  baixarCSV(`blocos_${Math.round(bS / 60)}min_${def.k}.csv`, paraCSV(cab, blocos.map((bl, i) => {
+    const s = serie[i];
+    return [bl.rot, bl.per, blkFmtMin(bl.jogo0), blkFmtMin(bl.jogo1), Math.round(bl.span),
+      s.val == null ? null : +s.val.toFixed(def.dec),
+      ...(def.porMin ? [s.abs == null ? null : +s.abs.toFixed(1)] : []),
+      s.val == null ? null : Math.round(s.cob * 100), s.n || null, bl.curto ? 'sim' : ''];
+  })));
+};
+$('btnBlkPadroes').onclick = () => {
+  $('selBlkFonteA').value = 'deriv';
+  $('inpBlkJanela').value = 0.6; $('inpBlkLimiar').value = 3; $('inpBlkMinDur').value = 0.6;
+  $('inpBlkHist').value = 70; $('inpBlkGap').value = 0.4;
+  blkAplicarSinal();
+};
+['selBlkBloco', 'inpBlkCustom', 'selBlkMetrica', 'selBlkEscopo', 'inpBlkCobMin', 'selBlkCor',
+ 'chkBlkRotulos', 'chkBlkMedia'].forEach(id => { $(id).onchange = renderBlocos; });
+['selBlkFonteA', 'inpBlkJanela', 'inpBlkLimiar', 'inpBlkMinDur', 'inpBlkHist', 'inpBlkGap', 'inpHdopMax']
+  .forEach(id => { $(id).onchange = blkAplicarSinal; });
+$('chkQualidade').onchange = () => {
+  $('grpHdop').classList.toggle('oculto', !$('chkQualidade').checked);
+  if (!$('chkQualidade').checked) { $('inpHdopMax').value = 0; blkAplicarSinal(); }
+};
 
 prepararCampo($('cvCampo'));
 renderChipsBandas();
