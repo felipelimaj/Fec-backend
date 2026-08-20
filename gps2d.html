@@ -354,6 +354,16 @@ h3 .btnCsv{float:right;margin-top:-4px}
   </div>
 
   <div class="card">
+    <h3>Participação por atleta</h3>
+    <div id="avisoBlkMerge" class="aviso oculto"></div>
+    <p style="font-size:11.5px;color:var(--txt2);margin-bottom:10px">
+      O período é do time, a participação é de cada um: o colete grava o tempo todo, banco incluído.
+      A janela abaixo é detectada pelo próprio sinal e conferida contra a <b>duração oficial da Catapult</b>
+      (a mesma do OpenField e do Power BI). Tudo fora dela sai de todas as abas.</p>
+    <div class="tblWrap" style="max-height:300px"><table id="tabBlkPart"></table></div>
+  </div>
+
+  <div class="card">
     <h3>Diagnóstico de sinal e esforços</h3>
     <details id="detBlkSinal">
       <summary style="cursor:pointer;font-size:12.5px;color:var(--dourado);margin-bottom:10px">
@@ -606,18 +616,34 @@ function bandaAccDe(a) {
   return -1;
 }
 
-/* ---------- Grupos posicionais ---------- */
+/* ---------- Grupos posicionais ----------
+   Os rótulos chegam de duas fontes com vocabulários diferentes: a Catapult
+   devolve "Centroavante", "Volante", "Meia", "Extremo"; a planilha de cadastro
+   usa "CENTROAVANTE", "MEIO CAMPO", "EXTREMO". As etiquetas antigas eram só
+   siglas de três letras, então "CENTROAVANTE" não casava com nada e caía em
+   "Outro" — e junto com ele iam os artilheiros, justamente os atletas de maior
+   interesse no relatório de sprint. O fallback para a planilha também falhava,
+   porque a planilha escreve a mesma palavra.
+   Agora a comparação é sem acento, em caixa alta, e as etiquetas incluem os
+   termos por extenso. A ordem importa: o primeiro grupo que casar vence. */
 const POS_GRUPOS = [
-  { g: 'GOL', tags: ['GOL', 'GK', 'GOALKEEPER'],                        cor: '#C4952A' },
-  { g: 'ZAG', tags: ['ZAG', 'CB', 'CENTRE BACK', 'CENTER BACK', 'DEF'], cor: '#003087' },
-  { g: 'LAT', tags: ['LAT', 'LB', 'RB', 'FULL', 'WING BACK', 'ALA'],    cor: '#5B8DEF' },
-  { g: 'VOL', tags: ['VOL', 'DM', 'DEFENSIVE MID', 'PIVOT'],            cor: '#38B26E' },
-  { g: 'MEI', tags: ['MEI', 'MID', 'CM', 'AM', 'MEIA'],                 cor: '#A9C93A' },
-  { g: 'ATA', tags: ['ATA', 'FW', 'ST', 'STRIKER', 'FORWARD', 'PONTA', 'WINGER', 'EXTREMO'], cor: '#E8360A' },
+  { g: 'GOL', cor: '#C4952A', tags: ['GOLEIR', 'ARQUEIR', 'GOALKEEPER', 'KEEPER', 'GOL', 'GK'] },
+  { g: 'ZAG', cor: '#003087', tags: ['ZAGUEIR', 'CENTRE BACK', 'CENTER BACK', 'CENTRAL', 'ZAG', 'CB', 'DEF'] },
+  { g: 'LAT', cor: '#5B8DEF', tags: ['LATERAL', 'ALA DIREIT', 'ALA ESQUERD', 'WING BACK', 'FULL BACK', 'FULLBACK', 'LAT', 'LB', 'RB'] },
+  { g: 'VOL', cor: '#38B26E', tags: ['VOLANTE', 'CABECA DE AREA', 'DEFENSIVE MID', 'PIVO', 'PIVOT', 'VOL', 'DM', 'CDM'] },
+  { g: 'MEI', cor: '#A9C93A', tags: ['MEIO CAMPO', 'MEIOCAMPO', 'MEIO-CAMPO', 'MEIA', 'ARMADOR', 'MIDFIELD', 'MEI', 'MID', 'CM', 'AM'] },
+  { g: 'ATA', cor: '#E8360A', tags: ['CENTROAVANTE', 'CENTRO AVANTE', 'SEGUNDO ATACANTE', 'ATACANTE', 'AVANTE', 'EXTREMO', 'PONTA', 'STRIKER', 'FORWARD', 'WINGER', 'ATA', 'FW', 'ST'] },
 ];
-function grupoPos(posicao) {
-  const p = String(posicao || '').toUpperCase();
-  for (const gr of POS_GRUPOS) if (gr.tags.some(t => p.includes(t))) return gr.g;
+const semAcento = x => String(x == null ? '' : x)
+  .normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().trim();
+/* alt = posição da planilha de cadastro, usada quando a Catapult vem vazia
+   ou com um rótulo que não reconhecemos */
+function grupoPos(posicao, alt) {
+  for (const cand of [posicao, alt]) {
+    const p = semAcento(cand);
+    if (!p) continue;
+    for (const gr of POS_GRUPOS) if (gr.tags.some(t => p.includes(t))) return gr.g;
+  }
   return 'Outro';
 }
 function corGrupo(g) {
@@ -931,13 +957,15 @@ function obterSinal() { return { ...SINAL }; }
 /* máscara de amostras válidas segundo o HDOP */
 function mascaraSinal(s, hdopMax) {
   const n = s.ts.length, ok = new Uint8Array(n);
-  let cortadas = 0, comHdop = 0;
+  const part = s._part || null;            // janela de participação (banco fora)
+  let cortadas = 0, comHdop = 0, foraJanela = 0;
   for (let i = 0; i < n; i++) {
     const h = s.hdop ? s.hdop[i] : null;
     if (h != null) comHdop++;
+    if (part && !part[i]) { ok[i] = 0; foraJanela++; continue; }
     if (hdopMax > 0 && h != null && h > hdopMax) { ok[i] = 0; cortadas++; } else ok[i] = 1;
   }
-  return { ok, cortadas, comHdop };
+  return { ok, cortadas, comHdop, foraJanela };
 }
 
 /* a(t) = [v(t + J/2) − v(t − J/2)] / J — janela em segundos, não em amostras */
@@ -1018,11 +1046,109 @@ function prepararSinal(s, cfg) {
     if (s.hdop && s.hdop[i] != null) hs.push(s.hdop[i]);
     if (s._ok[i] && s._a[i] != null) as.push(Math.abs(s._a[i]));
   }
-  s._diag = { cortadas: m.cortadas, comHdop: m.comHdop, n: s.ts.length,
+  s._diag = { cortadas: m.cortadas, comHdop: m.comHdop, foraJanela: m.foraJanela, n: s.ts.length,
               hdopMed: percentil(hs, 50), hdopP95: percentil(hs, 95),
               aP95: percentil(as, 95), aMax: as.length ? Math.max(...as) : null,
               acc: e.acc, dec: e.dec, esforcos: e.lista };
   return s._diag;
+}
+
+
+/* ================================================================
+   JANELA DE PARTICIPAÇÃO  (revisão 20/08/2026)
+
+   Um período da Catapult é uma janela de TEMPO aplicada ao time todo, mas o
+   colete de cada atleta grava o tempo inteiro — banco incluído. Quem entrou no
+   fim do 2º tempo aparecia no app com a distância dele dividida pela duração
+   cheia do período.
+
+   Caso real (Jogo x São Bernardo, período "2tempo" = 3033,77 s = 50,6 min):
+
+     MUCURI · distância 2099,99 m · duração oficial Catapult 1144,98 s (19,1 min)
+       correto      2099,99 / 19,08 = 110,0 m/min   ← bate com o Power BI do clube
+       app antes         2144 / 50,56 =  42,4 m/min
+
+   Os ~44 m a mais são o colete tremendo no banco por 31 min. A Catapult já sabe
+   o tempo certo: no POST /stats agrupado por período+atleta, os titulares vêm
+   com 3033,77 s e os que entraram no fim, com 1144,98 s.
+
+   Aqui a janela é detectada pelo próprio sinal (banco = distância por minuto
+   perto de zero) e, quando a duração oficial está disponível, é conferida e
+   ajustada contra ela. As amostras fora da janela viram s._part = 0 e somem de
+   TODAS as métricas pelo mesmo caminho já usado pelo HDOP.
+   ================================================================ */
+const PART_DEF = { bin: 60, limiar: 25, minJanela: 60, vMin: 4, tol: 45 };
+
+function janelaParticipacao(s, t0, t1, opts) {
+  const c = { ...PART_DEF, ...(opts || {}) };
+  const nb = Math.max(1, Math.ceil((t1 - t0) / c.bin));
+  const dist = new Float64Array(nb), dur = new Float64Array(nb);
+  for (let i = 1; i < s.ts.length; i++) {
+    const t = s.ts[i];
+    if (t < t0 || t > t1) continue;
+    const dt = t - s.ts[i - 1];
+    if (!(dt > 0) || dt > 2) continue;
+    const b = Math.min(nb - 1, Math.floor((t - t0) / c.bin));
+    dist[b] += (s.v[i] || 0) * dt; dur[b] += dt;
+  }
+  let ini = -1, fim = -1;
+  for (let b = 0; b < nb; b++) {
+    if (dur[b] < c.bin * 0.25) continue;                  // bin sem dado suficiente
+    if (dist[b] / (dur[b] / 60) < c.limiar) continue;     // parado → banco
+    if (ini < 0) ini = b;
+    fim = b;
+  }
+  if (ini < 0) return null;
+  const a0 = t0 + ini * c.bin, a1 = Math.min(t1, t0 + (fim + 1) * c.bin);
+  let e0 = null, e1 = null;                                // refina até a 1ª/última amostra em movimento
+  for (let i = 0; i < s.ts.length; i++) {
+    const t = s.ts[i];
+    if (t < a0 || t > a1) continue;
+    if ((s.v[i] || 0) * 3.6 < c.vMin) continue;
+    if (e0 == null) e0 = t;
+    e1 = t;
+  }
+  if (e0 == null) { e0 = a0; e1 = a1; }
+  if (e1 - e0 < c.minJanela) return null;
+  return { t0: e0, t1: e1, dur: e1 - e0, fonte: 'sinal' };
+}
+
+/* Confere a janela detectada contra a duração oficial da Catapult. Se divergir
+   mais que a tolerância, a oficial manda — mantendo a ponta que o dado indica
+   (entrou tarde → ancora no fim; saiu cedo → ancora no início). */
+function ajustarJanelaOficial(j, r, durOficial, tol) {
+  const T = tol == null ? PART_DEF.tol : tol;
+  if (!(durOficial > 0)) return j;
+  if (!j) {                          // nada detectado: assume a oficial no fim do período
+    const t1 = r.t1, t0 = Math.max(r.t0, t1 - durOficial);
+    return { t0, t1, dur: t1 - t0, fonte: 'oficial', oficial: durOficial, ajustada: true };
+  }
+  if (Math.abs(j.dur - durOficial) <= T) return { ...j, oficial: durOficial, conferida: true };
+  const gapIni = j.t0 - r.t0, gapFim = r.t1 - j.t1;
+  let t0, t1;
+  if (gapIni >= gapFim) { t1 = j.t1; t0 = t1 - durOficial; }
+  else                  { t0 = j.t0; t1 = t0 + durOficial; }
+  t0 = Math.max(r.t0, t0); t1 = Math.min(r.t1, t1);
+  return { t0, t1, dur: t1 - t0, fonte: 'oficial', oficial: durOficial, ajustada: true, detectada: j.dur };
+}
+
+/* Os períodos da Catapult se aninham: 2tempo ⊃ 2tempo2 ⊃ 2tempo3 ⊃ 2tempo4,
+   todos terminando no mesmo instante — são janelas de substituição, não blocos
+   sequenciais. Selecionar mais de um contava o mesmo trecho várias vezes e
+   quebrava o eixo de tempo, que pressupõe intervalos disjuntos. Aqui viram a
+   união, sem sobreposição. */
+function mesclarIntervalos(lista) {
+  const ord = [...lista].filter(r => r && r.t1 > r.t0).sort((a, b) => a.t0 - b.t0 || b.t1 - a.t1);
+  const out = [];
+  for (const r of ord) {
+    const u = out[out.length - 1];
+    if (u && r.t0 <= u.t1) {
+      if (r.t1 > u.t1) u.t1 = r.t1;
+      u.contidos.push(r);
+      if ((r.t1 - r.t0) > (u.principal.t1 - u.principal.t0)) u.principal = r;
+    } else out.push({ t0: r.t0, t1: r.t1, principal: r, contidos: [r] });
+  }
+  return out;
 }
 
 /* Assinatura preservada: usada pela série rolante de intensidade (aba MDP) */
@@ -1349,7 +1475,8 @@ if (typeof module !== 'undefined') module.exports = {
   autoCalibrar, calcularMetricas, METRICAS_DEF, valorMetrica, detectarEsforcos,
   classificarEsforco, ZONAS5, LANES3, TERCOS, janelasRolantes, topJanelas,
   marcarEsforcosAcc, esforcosAcc, prepararSinal, definirSinal, obterSinal,
-  mascaraSinal, aceleracaoDerivada, percentil, SINAL_DEF, ACC_MIN_DUR, INTENSIDADE_DEF, paraCSV, criarGrade, acumular, blurGauss, pearson, spearman,
+  mascaraSinal, aceleracaoDerivada, percentil, SINAL_DEF, ACC_MIN_DUR, INTENSIDADE_DEF,
+  janelaParticipacao, ajustarJanelaOficial, mesclarIntervalos, PART_DEF, semAcento, paraCSV, criarGrade, acumular, blurGauss, pearson, spearman,
   corrTest, welch, regressao, nomeExibicao, corCalor, media, desvio,
   shapiroWilk, anovaOneWay, kruskalWallis, postHocHolm, magD, magR,
   pValorF, pValorQui2, normCdf, normInv,
@@ -1380,7 +1507,8 @@ async function api(path) {
 const S = {
   atividades: [], atletas: [], periodos: [],
   selAtletas: new Set(), selPeriodos: new Set(['']),
-  dados: new Map(),      // athleteId → {slim, met, pts, nome, grupo, cor}
+  dados: new Map(),      // athleteId → {slim, met, pts, nome, grupo, cor, part}
+  oficial: new Map(),    // athleteId → {periodId: total_duration} (POST /stats)
   cache: new Map(),
   ranges: [],            // [{pid, nome, t0, t1}] períodos efetivamente carregados
   atk: {},               // pid → +1 | -1 | 0
@@ -1504,12 +1632,9 @@ $('selAtividade').onchange = async () => {
     ]);
     const cad = cadastroCarregado();
     S.atletas = ath.map(a => {
-      let grupo = grupoPos(a.position);
-      if (grupo === 'Outro' && cad) {   // fallback: posição da planilha de cadastro
-        const cid = (String(a.first_name || '').match(/^(\d+)/) || [])[1];
-        if (cid && cad[cid] && cad[cid].pos) grupo = grupoPos(cad[cid].pos);
-      }
-      return { ...a, nome: nomeExibicao(a), grupo };
+      const cid = (String(a.first_name || '').match(/^(\d+)/) || [])[1];
+      const posCad = (cad && cid && cad[cid] && cad[cid].pos) || '';
+      return { ...a, nome: nomeExibicao(a), grupo: grupoPos(a.position, posCad), posCad };
     }).sort((x, y) => x.nome.localeCompare(y.nome));
     S.periodos = per;
     // Pré-seleção: atividades "Jogo …" → só períodos com radical 1tempo/2tempo
@@ -1613,27 +1738,81 @@ $('btnCarregar').onclick = async () => {
   const rangeMap = new Map();
   for (const [id, blocos] of porAtleta) {
     blocos.sort((a, b) => a.slim.ts[0] - b.slim.ts[0]);
+    // Períodos da Catapult se aninham (2tempo ⊃ 2tempo2 ⊃ 2tempo3…). Concatenar
+    // os pedaços na ordem de chegada duplicava o trecho comum e fazia o tempo
+    // andar para trás na emenda. Aqui tudo é ordenado por instante e cada
+    // instante entra uma vez só.
     const m = { n: 0, ts: [], lat: [], lon: [], v: [], a: [], hr: [], hdop: [] };
+    const linhas = [];
     for (const b of blocos) {
-      for (const k of ['ts', 'lat', 'lon', 'v', 'a', 'hr']) m[k].push(...b.slim[k]);
-      const hd = b.slim.hdop;
-      for (let i = 0; i < b.slim.n; i++) m.hdop.push(hd ? hd[i] : null);
+      for (let i = 0; i < b.slim.n; i++) linhas.push([b.slim.ts[i], b.slim, i]);
       const r = rangeMap.get(b.pid) || { pid: b.pid, t0: Infinity, t1: -Infinity };
       r.t0 = Math.min(r.t0, b.slim.ts[0]);
       r.t1 = Math.max(r.t1, b.slim.ts[b.slim.n - 1]);
       rangeMap.set(b.pid, r);
     }
-    m.n = m.ts.length;
+    linhas.sort((x, y) => x[0] - y[0]);
+    let ultTs = -Infinity, repetidas = 0;
+    for (const [t, sl, i] of linhas) {
+      if (t - ultTs < 0.05) { repetidas++; continue; }   // mesmo instante vindo de outro período
+      ultTs = t;
+      m.ts.push(t); m.lat.push(sl.lat[i]); m.lon.push(sl.lon[i]);
+      m.v.push(sl.v[i]); m.a.push(sl.a[i]); m.hr.push(sl.hr[i]);
+      m.hdop.push(sl.hdop ? sl.hdop[i] : null);
+    }
+    m.n = m.ts.length; m._repetidas = repetidas;
     const a = S.atletas.find(x => x.id === id);
     S.dados.set(id, { slim: m, nome: a.nome, grupo: a.grupo, pos: a.position });
   }
-  S.ranges = [...rangeMap.values()].sort((a, b) => a.t0 - b.t0).map(r => ({
-    ...r, nome: r.pid === '' ? 'Sessão completa' : (S.periodos.find(p => p.id === r.pid) || {}).name || r.pid,
+  // Limites do período vêm da Catapult (start_time/end_time), não do primeiro e
+  // último ponto do atleta: quem entrou no fim tem dado só de um pedaço, e isso
+  // não encolhe o período do time. Depois os períodos aninhados viram a união.
+  const brutos = [...rangeMap.values()].map(r => {
+    const p = S.periodos.find(x => x.id === r.pid) || {};
+    return {
+      pid: r.pid,
+      nome: r.pid === '' ? 'Sessão completa' : (p.name || r.pid),
+      t0: p.start_time != null ? Math.min(p.start_time, r.t0) : r.t0,
+      t1: p.end_time != null ? Math.max(p.end_time, r.t1) : r.t1,
+    };
+  });
+  const grupos = mesclarIntervalos(brutos);
+  S.ranges = grupos.map(g => ({
+    pid: g.principal.pid, nome: g.principal.nome, t0: g.t0, t1: g.t1,
+    absorvidos: g.contidos.filter(x => x !== g.principal).map(x => x.nome),
   }));
+  S._partConferida = false;
   for (const r of S.ranges) if (!(r.pid in S.atk)) S.atk[r.pid] = 0;
   $('btnCarregar').disabled = false;
   posProcessar();
 };
+
+
+/* ---------- Janela de participação por atleta ----------
+   O período é do time; a participação é de cada um. Ver o bloco de comentário
+   em core.js: MUCURI no 2tempo do jogo x São Bernardo tinha 19,1 min reais de
+   jogo dentro de um período de 50,6 min, e o app dividia a distância dele pelos
+   50,6 — 42,4 m/min em vez de 110. */
+function calcularParticipacao() {
+  for (const [id, d] of S.dados) {
+    const sl = d.slim, janelas = [];
+    const of = S.oficial.get(id) || S.oficial.get(normNome(d.nome)) || {};
+    for (const r of S.ranges) {
+      let j = janelaParticipacao(sl, r.t0, r.t1);
+      j = ajustarJanelaOficial(j, r, of[r.pid]);
+      if (!j) continue;
+      janelas.push({ pid: r.pid, per: r.nome, janelaPer: r.t1 - r.t0, ...j });
+    }
+    d.part = janelas;
+    if (!janelas.length) { sl._part = null; sl._assin = null; continue; }
+    const part = new Uint8Array(sl.ts.length);
+    for (let i = 0; i < sl.ts.length; i++) {
+      const t = sl.ts[i];
+      for (const j of janelas) if (t >= j.t0 - 0.05 && t <= j.t1 + 0.05) { part[i] = 1; break; }
+    }
+    sl._part = part; sl._assin = null;
+  }
+}
 
 /* ---------- Calibração + pós-processamento ---------- */
 function calsSalvas() { return JSON.parse(localStorage.getItem('gps2d_cals') || '{}'); }
@@ -1643,12 +1822,19 @@ function obterCal() {
     if (c) { $('avisoAutoCal').classList.add('oculto'); return criarCalibracao(c.cantos, c.L, c.W); }
   }
   const lats = [], lons = [];
-  for (const d of S.dados.values()) { lats.push(...d.slim.lat); lons.push(...d.slim.lon); }
+  for (const d of S.dados.values()) {          // pontos de banco fora do PCA
+    const sl = d.slim, pt = sl._part;
+    for (let i = 0; i < sl.lat.length; i++) {
+      if (pt && !pt[i]) continue;
+      lats.push(sl.lat[i]); lons.push(sl.lon[i]);
+    }
+  }
   $('avisoAutoCal').classList.remove('oculto');
   return autoCalibrar(lats, lons, 105, 68);
 }
 function posProcessar() {
   if (!S.dados.size) return;
+  calcularParticipacao();          // antes da calibração: banco não entra no PCA
   S.cal = obterCal();
   if (!S.cal) { alert('Dados insuficientes para calibração.'); return; }
   definirSinal(blkCfg());
@@ -1689,6 +1875,26 @@ async function carregarStatsFMP() {
   try { rows = await api(`/api/gps/stats?activity=${act}`); }
   catch (e) { return; }   // stats indisponíveis — segue sem FMP
   if (!Array.isArray(rows) || !rows.length) return;
+  // Duração oficial por período+atleta: é o tempo real de participação, e o que
+  // permite conferir a janela detectada pelo sinal.
+  const ofc = new Map();
+  for (const r of rows) {
+    const ch = r.athlete_id || normNome(r.athlete_name);
+    const o = ofc.get(ch) || {};
+    o[r.period_id] = (o[r.period_id] || 0) + (r.total_duration || 0);
+    ofc.set(ch, o);
+  }
+  S.oficial = ofc;
+  if (!S._partConferida && S.dados.size) {
+    S._partConferida = true;
+    calcularParticipacao();                     // agora com a duração oficial na mão
+    for (const d of S.dados.values()) {
+      d.diag = prepararSinal(d.slim);
+      d.met = calcularMetricas(d.slim);
+    }
+    S.esfCache.clear(); S.esfSel = -1;
+    renderTudo();
+  }
   const pids = S.selPeriodos.has('') ? null : S.selPeriodos;
   const montar = filtrar => {
     const m = new Map();
@@ -3437,6 +3643,7 @@ function blkLegendaCor() {
 
 function renderBlocos() {
   $('grpBlkCustom').classList.toggle('oculto', $('selBlkBloco').value !== 'custom');
+  blkParticipacao();
   blkDiagnostico();
   if (!S.dados.size || !S.ranges.length) {
     $('grafBlocos').innerHTML = '<p style="font-size:11.5px;color:var(--txt2)">Carregue um jogo para ver os blocos.</p>';
@@ -3583,6 +3790,47 @@ function blkKpis(blocos, serie, def) {
     k(vale.val.toFixed(def.dec), `Menor — ${blocos[vale.i].rot}`) +
     k(queda.toFixed(0) + '%', 'Queda pico → menor') +
     k(val.length + '/' + serie.length, 'Blocos com dado');
+}
+
+function blkParticipacao() {
+  const mesclados = (S.ranges || []).filter(r => r.absorvidos && r.absorvidos.length);
+  $('avisoBlkMerge').classList.toggle('oculto', !mesclados.length);
+  if (mesclados.length) $('avisoBlkMerge').innerHTML =
+    '⚠ Períodos aninhados foram unidos: ' + mesclados.map(r =>
+      `<b>${r.nome}</b> já contém ${r.absorvidos.join(', ')}`).join(' · ')
+    + '. Na Catapult eles são janelas de substituição com o mesmo fim, não blocos em sequência — '
+    + 'somados em separado, o mesmo trecho contaria mais de uma vez.';
+
+  if (!S.dados.size) { $('tabBlkPart').innerHTML = ''; return; }
+  const fmt = x => x == null ? '—' : (x / 60).toFixed(1);
+  const linhas = [];
+  for (const [id, d] of S.dados) {
+    for (const r of S.ranges) {
+      const j = (d.part || []).find(x => x.pid === r.pid);
+      linhas.push({ nome: d.nome, grupo: d.grupo, per: r.nome, janela: r.t1 - r.t0, j });
+    }
+  }
+  linhas.sort((a, b) => (a.j ? a.j.dur : 0) - (b.j ? b.j.dur : 0));
+  const cortou = linhas.filter(l => l.j && (l.janela - l.j.dur) > 60);
+  $('tabBlkPart').innerHTML =
+    `<tr><th>Atleta</th><th>Pos</th><th>Período</th><th class="num">Janela do período</th>
+     <th class="num">Em campo</th><th class="num">Oficial Catapult</th><th class="num">Recortado</th><th>Conferência</th></tr>`
+    + linhas.map(l => {
+      if (!l.j) return `<tr><td>${l.nome}</td><td style="color:var(--dourado)">${l.grupo}</td><td>${l.per}</td>
+        <td class="num">${fmt(l.janela)}</td><td class="num" colspan="4" style="color:var(--txt2)">sem atividade detectada neste período</td></tr>`;
+      const rec = l.janela - l.j.dur;
+      const st = l.j.conferida ? '<span style="color:var(--verde)">✓ bate com a oficial</span>'
+        : l.j.ajustada ? `<span style="color:var(--dourado)">ajustada para a oficial (sinal indicava ${fmt(l.j.detectada)} min)</span>`
+        : '<span style="color:var(--txt2)">só pelo sinal — stats não carregados</span>';
+      return `<tr><td>${l.nome}</td><td style="color:var(--dourado)">${l.grupo}</td><td>${l.per}</td>
+        <td class="num">${fmt(l.janela)}</td><td class="num"><b>${fmt(l.j.dur)}</b></td>
+        <td class="num">${fmt(l.j.oficial)}</td>
+        <td class="num"${rec > 60 ? ' style="color:var(--vermelho)"' : ''}>${rec > 60 ? '−' + fmt(rec) : '—'}</td>
+        <td>${st}</td></tr>`;
+    }).join('')
+    + (cortou.length ? `<tr><td colspan="8" style="color:var(--txt2);font-size:11.5px;padding-top:10px">
+        ${cortou.length} atleta(s)×período com banco recortado. Sem esse recorte, a densidade deles sairia
+        diluída pela duração cheia do período.</td></tr>` : '');
 }
 
 function blkDiagnostico() {
