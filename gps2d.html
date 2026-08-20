@@ -273,9 +273,14 @@ h3 .btnCsv{float:right;margin-top:-4px}
       <div class="grupo"><label class="mini">Passo (s)</label>
         <select id="selMdpPasso"><option value="10" selected>10</option><option value="5">5</option><option value="30">30</option><option value="60">60</option></select></div>
       <div class="grupo"><label class="mini">Escopo</label><select id="selMdpEscopo"><option value="__team__">Equipe (média)</option></select></div>
+      <div class="grupo"><label class="mini" title="Fração mínima da janela com GPS válido para a janela valer. Abaixo disso a janela fica sem dado em vez de mostrar um valor artificialmente baixo.">Cobertura mín. (%)</label><input type="number" id="inpCobMin" value="80" min="0" max="100" step="5" style="width:70px"></div>
       <div class="grupo"><label class="chk"><input type="checkbox" id="chkTempoMorto" checked> 🛑 Detectar tempo morto</label></div>
       <div class="grupo"><label class="mini">Limiar (unid./min)</label><input type="number" id="inpTmLimiar" value="40" min="0" step="5" style="width:70px"></div>
     </div>
+    <p style="font-size:11.5px;color:var(--txt2);margin:-4px 0 10px">
+      Cada ponto = janela de <b>duração fixa</b>, com o valor dividido pelo tempo <b>efetivamente amostrado</b> dentro dela
+      (nunca pela duração nominal). Janelas não atravessam a fronteira entre períodos e o eixo está em <b>tempo de jogo</b>,
+      igual às tabelas.</p>
     <canvas class="grafico" id="cvMdp" width="1050" height="420"></canvas>
     <div class="legenda"><span class="item"><span class="cx" style="background:#38B26E"></span>Baixa</span>
       <span class="item"><span class="cx" style="background:#FF8C42"></span>Média-Alta (≥75% do máx)</span>
@@ -290,6 +295,7 @@ h3 .btnCsv{float:right;margin-top:-4px}
       <div class="tblWrap"><table id="tabTm"></table></div></div>
     <div class="card"><h3>Most Demanding Periods (top 3 por atleta) <button class="btn mini btnCsv" id="btnCsvMdp">⬇ CSV</button></h3>
       <p style="font-size:11.5px;color:var(--txt2);margin-bottom:8px">As colunas "% máx" e "% méd" comparam com o histórico de MDP do atleta nesta métrica/janela — o histórico acumula automaticamente a cada jogo carregado nesta aba.</p>
+      <div id="avisoCob" class="oculto" style="font-size:11.5px;color:#C4952A;background:rgba(196,149,42,.10);border:1px solid rgba(196,149,42,.35);border-radius:6px;padding:7px 9px;margin-bottom:8px"></div>
       <div class="tblWrap"><table id="tabMdp"></table></div></div>
   </div>
 </section>
@@ -740,47 +746,98 @@ function classificarEsforco(e, L, W, atkSign) {
 }
 
 /* ---------- Janelas rolantes (intensidade / MDP) ----------
-   metrica(j) deve devolver o incremento da amostra j (ex.: v*dt p/ distância).
-   Retorna {t:[s desde início], val:[valor/min]} com janela winS e passo stepS. */
-function janelasRolantes(slim, incFn, winS, stepS) {
+   incFn(i, dt) devolve o incremento da amostra i (ex.: v*dt p/ distância).
+
+   REGRA DE OURO (corrigida): o valor por minuto é SEMPRE
+        incremento acumulado ÷ tempo EFETIVAMENTE amostrado dentro da janela
+   e nunca ÷ duração nominal da janela. Dividir pelo nominal subestimava
+   qualquer janela com buraco de GPS, substituição ou borda de período
+   (ex.: 20 s sem fix numa janela de 60 s → 119 m/min em vez de 180 m/min).
+
+   opc.inicios : lista crescente de instantes de início (absolutos). Se omitida,
+                 usa t0..t1 da própria série com passo stepS. Passar a mesma
+                 lista para todos os atletas mantém as séries alinhadas.
+   opc.cobMin  : cobertura mínima (0–1) para a janela ser considerada válida;
+                 abaixo disso o valor vira null (sem dado) em vez de um número
+                 artificialmente baixo.
+
+   Retorna {ini, t, val, cob}
+     ini = início absoluto da janela · t = centro relativo ao 1º ts da série
+     val = valor/min (ou null) · cob = fração da janela com dado válido (0–1) */
+function janelasRolantes(slim, incFn, winS, stepS, opc) {
+  opc = opc || {};
+  const cobMin = opc.cobMin != null ? opc.cobMin : 0;
   const n = slim.ts.length;
-  if (n < 10) return { t: [], val: [] };
-  // incrementos acumulados
-  const cum = new Float64Array(n);
+  if (n < 2 || !(winS > 0)) return { ini: [], t: [], val: [], cob: [] };
+  // incrementos e TEMPO VÁLIDO acumulados (mesmo conjunto de intervalos)
+  const cum = new Float64Array(n), cumT = new Float64Array(n);
   for (let i = 1; i < n; i++) {
     const dt = slim.ts[i] - slim.ts[i - 1];
-    cum[i] = cum[i - 1] + ((dt > 0 && dt <= 2) ? incFn(i, dt) : 0);
+    const ok = dt > 0 && dt <= 2;
+    cum[i]  = cum[i - 1]  + (ok ? incFn(i, dt) : 0);
+    cumT[i] = cumT[i - 1] + (ok ? dt : 0);
   }
-  const t0 = slim.ts[0], t1 = slim.ts[n - 1];
-  const t = [], val = [];
+  let inicios = opc.inicios;
+  if (!inicios) {
+    inicios = [];
+    const t0 = slim.ts[0], t1 = slim.ts[n - 1];
+    for (let k = 0; t0 + k * stepS + winS <= t1 + 1e-6; k++) inicios.push(t0 + k * stepS);
+  }
+  const base = slim.ts[0];
+  const ini = [], t = [], val = [], cob = [];
   let lo = 0, hi = 0;
-  for (let ws = t0; ws + winS <= t1; ws += stepS) {
+  for (let q = 0; q < inicios.length; q++) {
+    const ws = inicios[q];
     while (lo < n - 1 && slim.ts[lo] < ws) lo++;
     while (hi < n - 1 && slim.ts[hi + 1] <= ws + winS) hi++;
-    t.push(ws - t0 + winS / 2);
-    val.push((cum[hi] - cum[lo]) / (winS / 60));   // por minuto
+    const durOk = hi > lo ? cumT[hi] - cumT[lo] : 0;
+    const c = durOk / winS;
+    ini.push(ws);
+    t.push(ws - base + winS / 2);
+    cob.push(c);
+    val.push(durOk > 0 && c >= cobMin ? (cum[hi] - cum[lo]) / (durOk / 60) : null);
   }
-  return { t, val };
+  return { ini, t, val, cob };
 }
-/* Top-N janelas não sobrepostas (MDP) */
+/* Top-N janelas não sobrepostas (MDP) — ignora janelas sem dado (null) */
 function topJanelas(t, val, winS, nTop) {
-  const idx = val.map((v, i) => i).sort((a, b) => val[b] - val[a]);
+  const idx = [];
+  for (let i = 0; i < val.length; i++) if (val[i] != null && isFinite(val[i])) idx.push(i);
+  idx.sort((a, b) => val[b] - val[a]);
   const escolhidas = [];
   for (const i of idx) {
     if (escolhidas.length >= nTop) break;
     if (escolhidas.every(j => Math.abs(t[j] - t[i]) >= winS)) escolhidas.push(i);
   }
-  return escolhidas.sort((a, b) => val[b] - val[a])
-    .map(i => ({ inicio: t[i] - winS / 2, valor: Math.round(val[i] * 10) / 10 }));
+  return escolhidas.map(i => ({ inicio: t[i] - winS / 2, valor: Math.round(val[i] * 10) / 10 }));
+}
+/* Marca o índice em que um esforço de acel/desacel é CONFIRMADO — mesma regra
+   de calcularMetricas (limiar sustentado por minDur), para que a série
+   rolante "n/min" some exatamente os mesmos esforços da tabela por posição.
+   Antes contava todo cruzamento do limiar: um pico de 0,2 s valia 1 esforço e
+   a contagem mudava conforme a decimação (each=2 vs each=5). */
+function marcarEsforcosAcc(s, limiar, minDur) {
+  const n = s.ts.length, on = new Uint8Array(n);
+  let accRun = 0, decRun = 0;
+  for (let i = 1; i < n; i++) {
+    const dt = s.ts[i] - s.ts[i - 1];
+    if (!(dt > 0) || dt > 2 || s.v[i] == null) { accRun = 0; decRun = 0; continue; }
+    const a = s.a[i];
+    if (a != null && a >= limiar)        { accRun += dt; decRun = 0; if (accRun >= minDur && accRun - dt < minDur) on[i] = 1; }
+    else if (a != null && a <= -limiar)  { decRun += dt; accRun = 0; if (decRun >= minDur && decRun - dt < minDur) on[i] = 1; }
+    else { accRun = 0; decRun = 0; }
+  }
+  return on;
 }
 /* Incrementos padrão por métrica de intensidade */
+const ACC_MIN_DUR = 0.6;
 const INTENSIDADE_DEF = [
   { k: 'dist',   label: 'Distância (m/min)',        inc: s => (i, dt) => (s.v[i] || 0) * dt },
   { k: 'hsr',    label: 'HSR B5–B7 (m/min)',        inc: s => (i, dt) => ((s.v[i] || 0) * 3.6 >= HSR_MIN ? s.v[i] * dt : 0) },
   { k: 'sprint', label: 'Sprint B6+B7 (m/min)',     inc: s => (i, dt) => ((s.v[i] || 0) * 3.6 >= SPRINT_MIN ? s.v[i] * dt : 0) },
-  { k: 'acc',    label: 'Acel+Desacel ≥3 m/s² (n/min)', inc: s => (i, dt) => {
-      const a = s.a[i], ap = s.a[i - 1];
-      return (a != null && Math.abs(a) >= 3 && (ap == null || Math.abs(ap) < 3)) ? 1 : 0;
+  { k: 'acc',    label: 'Acel+Desacel ≥3 m/s² (n/min)', inc: s => {
+      const on = marcarEsforcosAcc(s, 3, ACC_MIN_DUR);
+      return (i) => on[i];
     } },
 ];
 
@@ -1089,7 +1146,7 @@ if (typeof module !== 'undefined') module.exports = {
   grupoPos, corGrupo, geoParaMetros, homografia, aplicarH, criarCalibracao,
   autoCalibrar, calcularMetricas, METRICAS_DEF, valorMetrica, detectarEsforcos,
   classificarEsforco, ZONAS5, LANES3, TERCOS, janelasRolantes, topJanelas,
-  INTENSIDADE_DEF, paraCSV, criarGrade, acumular, blurGauss, pearson, spearman,
+  marcarEsforcosAcc, ACC_MIN_DUR, INTENSIDADE_DEF, paraCSV, criarGrade, acumular, blurGauss, pearson, spearman,
   corrTest, welch, regressao, nomeExibicao, corCalor, media, desvio,
   shapiroWilk, anovaOneWay, kruskalWallis, postHocHolm, magD, magR,
   pValorF, pValorQui2, normCdf, normInv,
@@ -2258,37 +2315,44 @@ function mdpJanelaS() {
   const v = $('selMdpJanela').value;
   return v === 'custom' ? Math.max(20, +$('inpMdpCustom').value || 120) : +v;
 }
+function cobMinFrac() {
+  const v = +$('inpCobMin').value;
+  return Math.min(100, Math.max(0, isFinite(v) ? v : 80)) / 100;
+}
+/* Grade de janelas que NUNCA atravessa a fronteira de um período.
+   Antes a grade ia de S.t0 a S.t1 em tempo absoluto: as janelas que pegavam o
+   intervalo 1T/2T mostravam intensidade despencando (e entravam como "tempo
+   morto") só porque metade da janela não tinha jogo nenhum. */
+function gradeJanelas(winS, stepS) {
+  const rs = (S.ranges && S.ranges.length) ? S.ranges : [{ t0: S.t0, t1: S.t1 }];
+  const out = [];
+  for (const r of rs) {
+    for (let k = 0; r.t0 + k * stepS + winS <= r.t1 + 1e-6; k++) out.push(r.t0 + k * stepS);
+  }
+  return out.sort((a, b) => a - b);
+}
 function seriesRolantes() {
   const mk = $('selMdpMetrica').value || 'dist';
   const def = INTENSIDADE_DEF.find(m => m.k === mk);
   const winS = mdpJanelaS(), stepS = +$('selMdpPasso').value;
-  const grade = [];
-  for (let ws = S.t0; ws + winS <= S.t1; ws += stepS) grade.push(ws);
-  const porAtleta = new Map();
+  const cobMin = cobMinFrac();
+  const grade = gradeJanelas(winS, stepS);
+  const porAtleta = new Map(), cobAtleta = new Map();
   for (const [id, d] of S.dados) {
-    const s = d.slim, n = s.n;
-    const inc = def.inc(s);
-    const cum = new Float64Array(n);
-    for (let i = 1; i < n; i++) {
-      const dt = s.ts[i] - s.ts[i - 1];
-      cum[i] = cum[i - 1] + ((dt > 0 && dt <= 2) ? inc(i, dt) : 0);
-    }
-    let lo = 0, hi = 0;
-    const val = grade.map(ws => {
-      while (lo < n - 1 && s.ts[lo] < ws) lo++;
-      while (hi < n - 1 && s.ts[hi + 1] <= ws + winS) hi++;
-      if (s.ts[lo] > ws + winS || s.ts[hi] < ws) return null;  // sem cobertura
-      return (cum[hi] - cum[lo]) / (winS / 60);
-    });
-    porAtleta.set(id, val);
+    // divisor = tempo realmente amostrado na janela (ver core.janelasRolantes)
+    const r = janelasRolantes(d.slim, def.inc(d.slim), winS, stepS, { inicios: grade, cobMin });
+    porAtleta.set(id, r.val);
+    cobAtleta.set(id, r.cob);
   }
-  // equipe = média (ignorando nulls)
-  const equipe = grade.map((_, i) => {
+  // equipe = média dos atletas COM cobertura na janela (quem está fora de campo
+  // não entra mais na média puxando-a para baixo)
+  const equipe = [], nAtl = [];
+  for (let i = 0; i < grade.length; i++) {
     let s = 0, c = 0;
     for (const val of porAtleta.values()) if (val[i] != null) { s += val[i]; c++; }
-    return c ? s / c : null;
-  });
-  return { grade, porAtleta, equipe, winS, def };
+    equipe.push(c ? s / c : null); nAtl.push(c);
+  }
+  return { grade, porAtleta, cobAtleta, equipe, nAtl, winS, stepS, def, cobMin };
 }
 function renderMdp() {
   const cv = $('cvMdp');
@@ -2296,7 +2360,7 @@ function renderMdp() {
   ctx.clearRect(0, 0, cw, chh);
   if (!S.dados.size) { $('tabMdp').innerHTML = ''; return; }
   $('grpMdpCustom').classList.toggle('oculto', $('selMdpJanela').value !== 'custom');
-  const { grade, porAtleta, equipe, winS, def } = seriesRolantes();
+  const { grade, porAtleta, cobAtleta, equipe, nAtl, winS, stepS, def, cobMin } = seriesRolantes();
   const escopo = $('selMdpEscopo').value;
   let serie;
   if (escopo === '__team__') serie = equipe;
@@ -2317,36 +2381,54 @@ function renderMdp() {
   const mx = Math.max(...vals), altaThr = 0.9 * mx, medThr = 0.75 * mx;
   const pl = 56, pb = 42, pt = 16, pr = 100;
   const wC = cw - pl - pr, hC = chh - pt - pb;
-  const t0 = grade[0], t1 = grade[grade.length - 1] + winS;
-  const SX = ts => pl + (ts + winS / 2 - t0) / (t1 - t0) * wC;
+  // eixo X em TEMPO DE JOGO (mesma escala das tabelas). Antes o gráfico usava
+  // tempo absoluto (com o intervalo dentro) e as tabelas usavam tempoJogoDe():
+  // o pico aparecia no minuto 62 no gráfico e às 48:30 na tabela.
+  const jogo = ws => tempoJogoDe(ws) + winS / 2;          // centro da janela
+  const tFim = Math.max(tempoJogoDe(S.t1), jogo(grade[grade.length - 1]) + winS / 2, 1);
+  const SX = ts => pl + jogo(ts) / tFim * wC;
+  const SXm = tm => pl + tm / tFim * wC;                   // já em tempo de jogo
   const SY = v => pt + hC - v / (mx * 1.08) * hC;
   // ── tempo morto: janelas abaixo do limiar → faixas cinza ──
+  // O segmento vai do CENTRO da 1ª janela baixa ao CENTRO da última (± meio
+  // passo). Antes ia do início da 1ª ao fim da última, inflando cada
+  // interrupção em ~1 janela inteira (com janela de 1 min e 20 paradas isso
+  // criava ~20 min de tempo morto fantasma).
   let tmSegs = [];
   if ($('chkTempoMorto').checked) {
     const thr = +$('inpTmLimiar').value || 0;
-    const passo = +$('selMdpPasso').value;
+    // índice do período de cada janela: uma interrupção nunca atravessa o
+    // intervalo (senão 1T e 2T viravam uma única "parada" de 81 min)
+    const per = grade.map(ws => S.ranges.findIndex(r => ws >= r.t0 - 1 && ws <= r.t1 + 1));
     let ini = -1;
-    for (let i = 0; i <= grade.length; i++) {
-      const baixo = i < grade.length && serie[i] != null && serie[i] < thr;
+    const fechar = (fim) => {                       // fim = índice exclusivo
+      const j0 = jogo(grade[ini]) - stepS / 2, j1 = jogo(grade[fim - 1]) + stepS / 2;
+      tmSegs.push({
+        ini: j0, fim: j1, dur: j1 - j0,
+        iniAbs: grade[ini], fimAbs: grade[fim - 1] + winS,
+        minVal: Math.min(...serie.slice(ini, fim).filter(v => v != null)),
+      });
+      ini = -1;
+    };
+    for (let i = 0; i < grade.length; i++) {
+      const baixo = serie[i] != null && serie[i] < thr;
+      if (ini >= 0 && (!baixo || per[i] !== per[ini])) fechar(i);
       if (baixo && ini < 0) ini = i;
-      if (!baixo && ini >= 0) {
-        tmSegs.push({ ini: grade[ini] - t0, fim: grade[i - 1] - t0 + winS, iniAbs: grade[ini], fimAbs: grade[i - 1] + winS, minVal: Math.min(...serie.slice(ini, i).filter(v => v != null)) });
-        ini = -1;
-      }
     }
+    if (ini >= 0) fechar(grade.length);
     ctx.fillStyle = 'rgba(160,170,190,0.18)';
     for (const s2 of tmSegs) {
-      const x0 = pl + (s2.ini) / (t1 - t0) * wC, x1 = pl + (s2.fim) / (t1 - t0) * wC;
+      const x0 = SXm(s2.ini), x1 = SXm(s2.fim);
       ctx.fillRect(x0, pt, Math.max(2, x1 - x0), hC);
     }
   }
-  const durTm = tmSegs.reduce((s2, x) => s2 + (x.fim - x.ini), 0);
+  const durTm = tmSegs.reduce((s2, x) => s2 + x.dur, 0);
   $('kTmTotal').textContent = tmSegs.length ? fmtMin(durTm) : '—';
   $('kTmN').textContent = tmSegs.length || '—';
   $('kTmPlan').textContent = (S.ctxAtual && S.ctxAtual['Tempo Morto']) || '—';
   $('tabTm').innerHTML = tmSegs.length
     ? '<tr><th class="num">#</th><th class="num">Início</th><th class="num">Fim</th><th class="num">Duração</th><th class="num">Mín (unid./min)</th></tr>' +
-      tmSegs.map((x, i) => `<tr><td class="num">${i + 1}</td><td class="num">${fmtMin(tempoJogoDe(x.iniAbs))}</td><td class="num">${fmtMin(tempoJogoDe(x.fimAbs))}</td><td class="num">${fmtMin(x.fim - x.ini)}</td><td class="num">${x.minVal.toFixed(1)}</td></tr>`).join('')
+      tmSegs.map((x, i) => `<tr><td class="num">${i + 1}</td><td class="num">${fmtMin(x.ini)}</td><td class="num">${fmtMin(x.fim)}</td><td class="num">${fmtMin(x.dur)}</td><td class="num">${x.minVal.toFixed(1)}</td></tr>`).join('')
     : '<tr><td style="color:var(--txt2)">Nenhuma janela abaixo do limiar.</td></tr>';
   tornarOrdenavel($('tabTm'));
   S._tmSegs = tmSegs;
@@ -2354,12 +2436,23 @@ function renderMdp() {
   ctx.strokeStyle = '#1E3D77'; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(pl, pt); ctx.lineTo(pl, pt + hC); ctx.lineTo(pl + wC, pt + hC); ctx.stroke();
   ctx.fillStyle = '#9FB0CC'; ctx.font = '11px Segoe UI'; ctx.textAlign = 'center';
-  const durMin = (t1 - t0) / 60;
+  const durMin = tFim / 60;
   for (let m = 0; m <= durMin; m += Math.max(5, Math.round(durMin / 10 / 5) * 5)) {
-    const x = pl + m * 60 / (t1 - t0) * wC;
-    ctx.fillText(m, x, pt + hC + 16);
+    ctx.fillText(m, SXm(m * 60), pt + hC + 16);
   }
-  ctx.fillText('Tempo (minutos)', pl + wC / 2, pt + hC + 32);
+  // marca a emenda entre períodos (o intervalo é descontado do eixo)
+  if (S.ranges.length > 1) {
+    ctx.strokeStyle = '#1E3D77'; ctx.setLineDash([3, 3]);
+    let acc = 0;
+    for (let i = 0; i < S.ranges.length - 1; i++) {
+      acc += S.ranges[i].t1 - S.ranges[i].t0;
+      const x = SXm(acc);
+      ctx.beginPath(); ctx.moveTo(x, pt); ctx.lineTo(x, pt + hC); ctx.stroke();
+    }
+    ctx.setLineDash([]);
+  }
+  ctx.fillStyle = '#9FB0CC';
+  ctx.fillText('Tempo de jogo (minutos) — intervalo descontado', pl + wC / 2, pt + hC + 32);
   ctx.textAlign = 'right';
   for (let f = 0; f <= 1; f += 0.25) ctx.fillText((mx * f).toFixed(0), pl - 8, SY(mx * f) + 4);
   ctx.save(); ctx.translate(14, pt + hC / 2); ctx.rotate(-Math.PI / 2);
@@ -2382,25 +2475,44 @@ function renderMdp() {
   }
   // MDP tabela: top 3 por atleta + equipe
   const linhas = [];
-  const addTop = (nome, val) => {
-    const t = grade.map(g => g - t0 + winS / 2);
+  const tJogo = grade.map(g => tempoJogoDe(g) + winS / 2);   // centros em tempo de jogo
+  const addTop = (nome, val, cob) => {
     const pares = [];
-    for (let i = 0; i < val.length; i++) if (val[i] != null) pares.push(i);
+    for (let i = 0; i < val.length; i++) if (val[i] != null && isFinite(val[i])) pares.push(i);
     const escolhidas = [];
     for (const i of pares.sort((a, b) => val[b] - val[a])) {
       if (escolhidas.length >= 3) break;
-      if (escolhidas.every(j => Math.abs(t[j] - t[i]) >= winS)) escolhidas.push(i);
+      if (escolhidas.every(j => Math.abs(tJogo[j] - tJogo[i]) >= winS)) escolhidas.push(i);
     }
     escolhidas.forEach((i, r) => linhas.push({
-      nome, rank: r + 1, ini: grade[i] - t0, fim: grade[i] - t0 + winS,
+      nome, rank: r + 1,
+      ini: tempoJogoDe(grade[i]), fim: tempoJogoDe(grade[i]) + winS,
       iniAbs: grade[i], fimAbs: grade[i] + winS,
+      cob: cob ? cob[i] : null, nAtl: cob ? null : nAtl[i],
       valor: Math.round(val[i] * 10) / 10,
     }));
   };
-  addTop('EQUIPE (média)', equipe);
-  for (const [id, val] of porAtleta) addTop(S.dados.get(id).nome, val);
+  addTop('EQUIPE (média)', equipe, null);
+  const semCob = [];
+  for (const [id, val] of porAtleta) {
+    const nome = S.dados.get(id).nome;
+    addTop(nome, val, cobAtleta.get(id));
+    // atleta sem NENHUMA janela válida some da tabela — avisa em vez de calar
+    if (!val.some(v => v != null)) {
+      const c = cobAtleta.get(id) || [];
+      semCob.push({ nome, melhor: c.length ? Math.max(...c) : 0 });
+    }
+  }
+  $('avisoCob').innerHTML = semCob.length
+    ? `⚠ Sem janela com cobertura ≥ ${Math.round(cobMin * 100)}% (colete com fix intermitente ou tempo em campo menor que a janela): ` +
+      semCob.map(x => `<b>${x.nome}</b> (melhor ${(x.melhor * 100).toFixed(0)}%)`).join(', ') +
+      '. Baixe a cobertura mínima para incluí-los — o valor será extrapolado do tempo com sinal.'
+    : '';
+  $('avisoCob').classList.toggle('oculto', !semCob.length);
   // ── referência histórica de MDP (acumula o top-1 de cada jogo carregado) ──
-  const chaveRef = `${def.k}|${winS}`;
+  // o passo entra na chave: passo menor encontra picos maiores, então
+  // comparar MDP de 10 s com MDP de 60 s no mesmo histórico não fecha
+  const chaveRef = `${def.k}|${winS}|${stepS}`;
   let mdprefs = {};
   try { mdprefs = JSON.parse(localStorage.getItem('gps2d_mdprefs') || '{}'); } catch (e) { mdprefs = {}; }
   const base = mdprefs[chaveRef] = mdprefs[chaveRef] || {};
@@ -2420,31 +2532,34 @@ function renderMdp() {
     return { max: Math.max(...vs), med: vs.reduce((s2, v) => s2 + v, 0) / vs.length, n: vs.length };
   };
   const pct = (v, r) => r > 0 ? `${(v / r * 100).toFixed(0)}%` : '—';
-  const cab = '<tr><th>Atleta</th><th class="num">#</th><th class="num">Início</th><th class="num">Fim</th><th class="num">' + def.label + '</th><th class="num">% máx hist</th><th class="num">% méd hist</th></tr>';
+  const cab = '<tr><th>Atleta</th><th class="num">#</th><th class="num">Início</th><th class="num">Fim</th><th class="num">' + def.label + '</th><th class="num">Cob.</th><th class="num">% máx hist</th><th class="num">% méd hist</th></tr>';
   $('tabMdp').innerHTML = cab + linhas.map(l => {
     const r = refDe(l.nome);
+    const cb = l.cob != null ? `${(l.cob * 100).toFixed(0)}%` : (l.nAtl != null ? `${l.nAtl} atl` : '—');
     return `<tr${l.nome.startsWith('EQUIPE') ? ' style="background:rgba(196,149,42,.08)"' : ''}><td>${l.nome}</td><td class="num">${l.rank}º</td>
-     <td class="num">${fmtMin(tempoJogoDe(l.iniAbs))}</td><td class="num">${fmtMin(tempoJogoDe(l.fimAbs))}</td><td class="num"><b>${l.valor}</b></td>
+     <td class="num">${fmtMin(l.ini)}</td><td class="num">${fmtMin(l.fim)}</td><td class="num"><b>${l.valor}</b></td>
+     <td class="num" title="fração da janela com dado de GPS válido">${cb}</td>
      <td class="num">${r ? pct(l.valor, r.max) : '—'}</td>
      <td class="num" ${r ? `title="média ${r.med.toFixed(1)} em ${r.n} jogo(s)"` : ''}>${r ? pct(l.valor, r.med) : '—'}</td></tr>`;
   }).join('');
-  S._mdpLinhas = { linhas, label: def.label, winS, refDe };
+  S._mdpLinhas = { linhas, label: def.label, winS, stepS, cobMin, refDe };
   tornarOrdenavel($('tabMdp'));
 }
-['selMdpMetrica', 'selMdpJanela', 'selMdpPasso', 'selMdpEscopo', 'chkTempoMorto', 'inpTmLimiar'].forEach(id => $(id).onchange = renderMdp);
+['selMdpMetrica', 'selMdpJanela', 'selMdpPasso', 'selMdpEscopo', 'chkTempoMorto', 'inpTmLimiar', 'inpCobMin'].forEach(id => $(id).onchange = renderMdp);
 $('inpMdpCustom').onchange = renderMdp;
 $('btnCsvTm').onclick = () => {
   if (!S._tmSegs || !S._tmSegs.length) return;
-  baixarCSV('tempo_morto.csv', paraCSV(['#', 'Início (s)', 'Fim (s)', 'Duração (s)', 'Mín (unid/min)'],
-    S._tmSegs.map((x, i) => [i + 1, Math.round(x.ini), Math.round(x.fim), Math.round(x.fim - x.ini), Math.round(x.minVal * 10) / 10])));
+  baixarCSV('tempo_morto.csv', paraCSV(['#', 'Início jogo (s)', 'Início (mm:ss)', 'Fim (mm:ss)', 'Duração (s)', 'Mín (unid/min)'],
+    S._tmSegs.map((x, i) => [i + 1, Math.round(x.ini), fmtMin(x.ini), fmtMin(x.fim), Math.round(x.dur), Math.round(x.minVal * 10) / 10])));
 };
 $('btnCsvMdp').onclick = () => {
   if (!S._mdpLinhas) return;
-  const { linhas, label, winS, refDe } = S._mdpLinhas;
-  const cab = ['Atleta', 'Rank', 'Início (s)', 'Início (mm:ss)', 'Fim (mm:ss)', 'Janela (s)', label, 'Máx hist', 'Méd hist', 'N jogos hist'];
+  const { linhas, label, winS, stepS, cobMin, refDe } = S._mdpLinhas;
+  const cab = ['Atleta', 'Rank', 'Início (s)', 'Início (mm:ss)', 'Fim (mm:ss)', 'Janela (s)', 'Passo (s)', 'Cob. mín (%)', label, 'Cobertura (%)', 'Máx hist', 'Méd hist', 'N jogos hist'];
   baixarCSV(`mdp_${winS}s.csv`, paraCSV(cab, linhas.map(l => {
     const r = refDe ? refDe(l.nome) : null;
-    return [l.nome, l.rank, Math.round(tempoJogoDe(l.iniAbs)), fmtMin(tempoJogoDe(l.iniAbs)), fmtMin(tempoJogoDe(l.fimAbs)), winS, l.valor,
+    return [l.nome, l.rank, Math.round(l.ini), fmtMin(l.ini), fmtMin(l.fim), winS, stepS, Math.round(cobMin * 100), l.valor,
+      l.cob == null ? null : Math.round(l.cob * 100),
       r ? Math.round(r.max * 10) / 10 : null, r ? Math.round(r.med * 10) / 10 : null, r ? r.n : null];
   })));
 };
