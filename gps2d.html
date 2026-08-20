@@ -162,6 +162,7 @@ h3 .btnCsv{float:right;margin-top:-4px}
   <div class="aba" data-aba="pos">Por Posição</div>
   <div class="aba" data-aba="mdp">Intensidade · MDP</div>
   <div class="aba" data-aba="blocos">Blocos de Tempo</div>
+  <div class="aba" data-aba="tempos">1º vs 2º Tempo</div>
   <div class="aba" data-aba="replay">Replay</div>
   <div class="aba" data-aba="stat">Estatísticas</div>
   <div class="aba" data-aba="cmp">Comparar Jogos</div>
@@ -394,6 +395,65 @@ h3 .btnCsv{float:right;margin-top:-4px}
       a posição começa a derivar — e posição ruim vira velocidade falsa, que vira aceleração falsa. Regra de leitura da
       tabela: se o <b>p95 de |a| já está acima do limiar</b>, 5% de todas as amostras passariam do corte — isso é ruído
       de sinal, não esforço. Para ver as colunas de HDOP é preciso marcar <i>Qualidade de sinal</i> antes de carregar.</p>
+  </div>
+</section>
+
+<section class="painel" id="painel-tempos">
+  <div id="avisoTp" class="aviso oculto"></div>
+
+  <div class="card">
+    <h3>1º vs 2º Tempo — equipe
+      <button class="btn mini" id="btnTpCsv">⬇ CSV</button></h3>
+    <div class="linha" style="margin-bottom:12px">
+      <div class="grupo"><label class="mini" title="Atleta precisa deste mínimo em CADA tempo para entrar no pareamento">Mín. por tempo (min)</label>
+        <input type="number" id="inpTpMinMin" value="15" min="0" max="45" step="5" style="width:82px"></div>
+      <div class="grupo"><label class="mini">Escopo</label><select id="selTpEscopo"><option value="__team__">Equipe (todos elegíveis)</option></select></div>
+      <div class="grupo"><label class="chk"><input type="checkbox" id="chkTpSoCompletos"> Só quem fez os dois tempos inteiros</label></div>
+    </div>
+    <div class="kpis" id="kpisTp"></div>
+    <p style="font-size:11.5px;color:var(--txt2);margin:6px 0 12px">
+      Cada atleta é <b>controle de si mesmo</b>: o par é (1T, 2T) do mesmo atleta, então a variação entre atletas —
+      que num elenco pequeno domina tudo — sai da conta. <b>d<sub>z</sub></b> é o Cohen para medidas repetidas
+      (média das diferenças ÷ desvio das diferenças); não é comparável ao d de amostras independentes.
+      Métricas de <b>volume</b> caem junto com o tempo em campo: para quem não fez os dois tempos inteiros, leia a densidade.</p>
+    <div id="grafTpDelta"></div>
+    <div class="tblWrap" style="max-height:none"><table id="tabTpEquipe"></table></div>
+  </div>
+
+  <div class="card">
+    <h3>Por atleta</h3>
+    <div class="linha" style="margin-bottom:12px">
+      <div class="grupo"><label class="mini">Métrica</label><select id="selTpMetrica"></select></div>
+      <div class="grupo"><label class="chk"><input type="checkbox" id="chkTpRotAtl" checked> Nomes no gráfico</label></div>
+    </div>
+    <div id="grafTpAtleta" style="overflow-x:auto"></div>
+    <div class="tblWrap"><table id="tabTpAtleta"></table></div>
+  </div>
+
+  <div class="card">
+    <h3>Por grupo posicional</h3>
+    <p style="font-size:11.5px;color:var(--txt2);margin-bottom:10px">
+      Grupos com menos de 3 atletas elegíveis aparecem sem teste — com n&nbsp;=&nbsp;1 ou 2 o p não significa nada.</p>
+    <div class="tblWrap"><table id="tabTpGrupo"></table></div>
+  </div>
+
+  <div class="card">
+    <h3>Perfil dentro do tempo — mesmo minuto de cada etapa</h3>
+    <div class="linha" style="margin-bottom:12px">
+      <div class="grupo"><label class="mini">Bloco</label>
+        <select id="selTpBloco">
+          <option value="300" selected>5 min</option><option value="600">10 min</option>
+          <option value="900">15 min</option><option value="180">3 min</option>
+        </select></div>
+      <div class="grupo"><label class="mini">Cobertura mín. (%)</label>
+        <input type="number" id="inpTpCobMin" value="50" min="0" max="100" step="5" style="width:74px"></div>
+    </div>
+    <p style="font-size:11.5px;color:var(--txt2);margin:-4px 0 12px">
+      Alinha os blocos pelo minuto <b>dentro de cada tempo</b>: 0–5 do 1T contra 0–5 do 2T, e assim por diante.
+      É o que separa uma queda distribuída ao longo dos 45 minutos de uma queda concentrada no fim — as duas dão
+      o mesmo Δ% no agregado e pedem intervenções diferentes.</p>
+    <div id="grafTpPerfil" style="overflow-x:auto"></div>
+    <div class="legenda" id="legendaTpPerfil"></div>
   </div>
 </section>
 
@@ -1040,7 +1100,7 @@ function prepararSinal(s, cfg) {
   s._ok = m.ok;
   s._a = c.fonte === 'cat' ? s.a : aceleracaoDerivada(s, c.jan, m.ok);
   const e = esforcosAcc(s, c);
-  s._acc = e.on; s._assin = assin;
+  s._acc = e.on; s._esf = e.lista; s._assin = assin;
   const hs = [], as = [];
   for (let i = 0; i < s.ts.length; i++) {
     if (s.hdop && s.hdop[i] != null) hs.push(s.hdop[i]);
@@ -1168,6 +1228,69 @@ const INTENSIDADE_DEF = [
       return (i) => on[i];
     } },
 ];
+
+
+/* ---------- Métricas restritas a uma faixa de tempo ----------
+   Mesmas regras de calcularMetricas (máscara de HDOP, janela de participação,
+   intervalos com as duas pontas dentro da faixa). Os esforços de acel/desacel
+   vêm da lista já detectada na série inteira e são contados pelo instante em
+   que COMEÇAM — detectar de novo só no pedaço partiria em duas metades os
+   esforços que cruzam a fronteira. */
+function metricasRange(s, t0, t1) {
+  const n = s.ts.length, ok = s._ok || null;
+  let dist = 0, hsr = 0, sprint = 0, vmax = 0, tempo = 0, hrSum = 0, hrN = 0;
+  for (let i = 1; i < n; i++) {
+    const t = s.ts[i];
+    if (t < t0 || t > t1) continue;
+    const dt = t - s.ts[i - 1];
+    if (!(dt > 0) || dt > 2) continue;
+    if (ok && (!ok[i] || !ok[i - 1])) continue;
+    if (s.ts[i - 1] < t0) continue;
+    const v = s.v[i];
+    if (v == null) continue;
+    const vk = v * 3.6;
+    tempo += dt; dist += v * dt;
+    if (vk >= HSR_MIN) hsr += v * dt;
+    if (vk >= SPRINT_MIN) sprint += v * dt;
+    if (vk > vmax && vk < 45) vmax = vk;
+    if (s.hr[i] != null && s.hr[i] > 30) { hrSum += s.hr[i]; hrN++; }
+  }
+  let acc = 0, dec = 0;
+  for (const e of (s._esf || [])) {
+    if (e.t0 < t0 || e.t0 > t1) continue;
+    if (e.sig > 0) acc++; else dec++;
+  }
+  const min = tempo / 60;
+  const pm = x => min > 0 ? x / min : null;
+  return {
+    minutos: min, dist, hsr, sprint, acc, dec, esf: acc + dec,
+    dens: pm(dist), hsrMin: pm(hsr), sprintMin: pm(sprint), esfMin: pm(acc + dec),
+    vmax: vmax || null, fcMedia: hrN > 0 ? hrSum / hrN : null,
+  };
+}
+
+/* ---------- Teste t pareado ----------
+   Cada atleta é controle de si mesmo: o par é (1º tempo, 2º tempo) do MESMO
+   atleta, então a variação entre atletas — que num elenco de 11 é enorme — sai
+   da conta. dz = Cohen para medidas repetidas (média das diferenças ÷ desvio
+   das diferenças), que é o tamanho de efeito correto aqui: não é comparável a
+   um d de amostras independentes.
+   O p sai da distribuição t com n−1 graus de liberdade. */
+function tPareado(a, b) {
+  const d = [];
+  for (let i = 0; i < Math.min(a.length, b.length); i++) {
+    if (a[i] == null || b[i] == null || !isFinite(a[i]) || !isFinite(b[i])) continue;
+    d.push(b[i] - a[i]);
+  }
+  const n = d.length;
+  if (n < 3) return { n, md: n ? media(d) : null, p: null, dz: null };
+  const md = media(d), sd = desvio(d);
+  if (!(sd > 0)) return { n, md, sd, t: null, p: md === 0 ? 1 : 0, dz: null, ic: [md, md] };
+  const se = sd / Math.sqrt(n), t = md / se, df = n - 1;
+  const tc = 1.96 + 2.4 / df;                   // aproximação do t crítico de 95%
+  return { n, md, sd, t, df, p: pValorT(Math.abs(t), df), dz: md / sd,
+           ic: [md - tc * se, md + tc * se] };
+}
 
 /* ---------- CSV (padrão Excel pt-BR: ; e vírgula decimal) ---------- */
 function paraCSV(cabecalho, linhas) {
@@ -1476,7 +1599,8 @@ if (typeof module !== 'undefined') module.exports = {
   classificarEsforco, ZONAS5, LANES3, TERCOS, janelasRolantes, topJanelas,
   marcarEsforcosAcc, esforcosAcc, prepararSinal, definirSinal, obterSinal,
   mascaraSinal, aceleracaoDerivada, percentil, SINAL_DEF, ACC_MIN_DUR, INTENSIDADE_DEF,
-  janelaParticipacao, ajustarJanelaOficial, mesclarIntervalos, PART_DEF, semAcento, paraCSV, criarGrade, acumular, blurGauss, pearson, spearman,
+  janelaParticipacao, ajustarJanelaOficial, mesclarIntervalos, PART_DEF, semAcento,
+  metricasRange, tPareado, paraCSV, criarGrade, acumular, blurGauss, pearson, spearman,
   corrTest, welch, regressao, nomeExibicao, corCalor, media, desvio,
   shapiroWilk, anovaOneWay, kruskalWallis, postHocHolm, magD, magR,
   pValorF, pValorQui2, normCdf, normInv,
@@ -3514,12 +3638,95 @@ function renderTudo() {
   else if (ativo === 'painel-pos') renderPos();
   else if (ativo === 'painel-mdp') renderMdp();
   else if (ativo === 'painel-blocos') renderBlocos();
+  else if (ativo === 'painel-tempos') renderTempos();
   else if (ativo === 'painel-replay') renderReplayFrame();
   else if (ativo === 'painel-stat') renderStat();
   else if (ativo === 'painel-cmp') renderCmp();
   else if (ativo === 'painel-ref') renderRef();
 }
 
+
+
+/* ==================== ABA 1º vs 2º TEMPO ====================
+   Comparação pareada: cada atleta é controle de si mesmo. Volume e densidade
+   são lidos em separado de propósito — quem foi substituído perde volume por
+   ter jogado menos, o que não é queda de rendimento; a densidade é que responde
+   essa pergunta. */
+const TP_METRICAS = [
+  { k: 'dist',      rot: 'Distância (m)',        tipo: 'volume',    dec: 0, un: 'm' },
+  { k: 'hsr',       rot: 'HSR B5–B7 (m)',        tipo: 'volume',    dec: 0, un: 'm' },
+  { k: 'sprint',    rot: 'Sprint B6+B7 (m)',     tipo: 'volume',    dec: 0, un: 'm' },
+  { k: 'esf',       rot: 'Acel+Desacel (n)',     tipo: 'volume',    dec: 0, un: 'n' },
+  { k: 'minutos',   rot: 'Minutos em campo',     tipo: 'volume',    dec: 1, un: 'min' },
+  { k: 'dens',      rot: 'Densidade (m/min)',    tipo: 'densidade', dec: 1, un: 'm/min' },
+  { k: 'hsrMin',    rot: 'HSR (m/min)',          tipo: 'densidade', dec: 1, un: 'm/min' },
+  { k: 'sprintMin', rot: 'Sprint (m/min)',       tipo: 'densidade', dec: 2, un: 'm/min' },
+  { k: 'esfMin',    rot: 'Acel+Desacel (n/min)', tipo: 'densidade', dec: 2, un: 'n/min' },
+  { k: 'vmax',      rot: 'Vel. máxima (km/h)',   tipo: 'pico',      dec: 1, un: 'km/h' },
+  { k: 'fcMedia',   rot: 'FC média (bpm)',       tipo: 'pico',      dec: 0, un: 'bpm' },
+];
+const TP_PERMIN = { dist: 'dens', hsr: 'hsrMin', sprint: 'sprintMin', esf: 'esfMin', minutos: 'dens' };
+const TP_TIPO_ROT = { volume: 'Volume', densidade: 'Densidade (por minuto em campo)', pico: 'Pico e resposta interna' };
+
+/* Um "tempo" pode ser mais de um range (1tempo + 1tempo2…): soma os volumes e
+   recalcula as densidades sobre o tempo total, em vez de tirar média de médias. */
+function tpSomaRanges(s, ranges) {
+  let dist = 0, hsr = 0, sprint = 0, acc = 0, dec = 0, min = 0, vmax = 0, fcS = 0, fcN = 0;
+  for (const r of ranges) {
+    const m = metricasRange(s, r.t0, r.t1);
+    dist += m.dist; hsr += m.hsr; sprint += m.sprint;
+    acc += m.acc; dec += m.dec; min += m.minutos;
+    if (m.vmax && m.vmax > vmax) vmax = m.vmax;
+    if (m.fcMedia != null) { fcS += m.fcMedia * m.minutos; fcN += m.minutos; }
+  }
+  const pm = x => min > 0 ? x / min : null;
+  return { minutos: min, dist, hsr, sprint, acc, dec, esf: acc + dec,
+    dens: pm(dist), hsrMin: pm(hsr), sprintMin: pm(sprint), esfMin: pm(acc + dec),
+    vmax: vmax || null, fcMedia: fcN > 0 ? fcS / fcN : null };
+}
+
+function tpDados() {
+  const t1 = S.ranges.filter(r => classifyPeriod(r.nome) === 't1');
+  const t2 = S.ranges.filter(r => classifyPeriod(r.nome) === 't2');
+  if (!t1.length || !t2.length) return { t1, t2, linhas: [], fora: [] };
+  const minMin = Math.max(0, +$('inpTpMinMin').value || 0);
+  const soCompletos = $('chkTpSoCompletos').checked;
+  const linhas = [], fora = [];
+  for (const [id, d] of S.dados) {
+    const m1 = tpSomaRanges(d.slim, t1), m2 = tpSomaRanges(d.slim, t2);
+    const mx = Math.max(m1.minutos, m2.minutos);
+    const parcial = mx > 0 && Math.abs(m1.minutos - m2.minutos) / mx > 0.10;
+    if (m1.minutos < minMin || m2.minutos < minMin) {
+      fora.push({ nome: d.nome, m1: m1.minutos, m2: m2.minutos, motivo: 'abaixo do mínimo' });
+      continue;
+    }
+    if (soCompletos && parcial) { fora.push({ nome: d.nome, m1: m1.minutos, m2: m2.minutos, motivo: 'tempo desigual' }); continue; }
+    linhas.push({ id, nome: d.nome, grupo: d.grupo, m1, m2, parcial });
+  }
+  return { t1, t2, linhas, fora, minMin };
+}
+
+/* Estatística pareada por métrica */
+function tpEstat(linhas, k) {
+  const a = [], b = [];
+  for (const l of linhas) {
+    if (l.m1[k] == null || l.m2[k] == null) continue;
+    a.push(l.m1[k]); b.push(l.m2[k]);
+  }
+  if (!a.length) return null;
+  const m1 = media(a), m2 = media(b);
+  const t = tPareado(a, b);
+  return { n: a.length, m1, m2, dif: m2 - m1, pct: m1 !== 0 ? (m2 - m1) / Math.abs(m1) * 100 : null, ...t };
+}
+const tpCorPct = p => p == null ? '#9FB0CC'
+  : p <= -10 ? '#E8360A' : p <= -3 ? '#FF8C42' : p < 3 ? '#5B8DEF' : p < 10 ? '#A9C93A' : '#38B26E';
+const tpSig = p => p == null ? '' : p < 0.001 ? '***' : p < 0.01 ? '**' : p < 0.05 ? '*' : '';
+const tpFmtP = p => p == null ? '—' : p < 0.001 ? '<0,001' : p.toFixed(3).replace('.', ',');
+const tpNum = (v, d) => {
+  if (v == null || !isFinite(v)) return '—';
+  if (Math.abs(v) < Math.pow(10, -d) / 2) v = 0;        // evita "-0" quando arredonda
+  return v.toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
+};
 
 /* ==================== ABA BLOCOS DE TEMPO ====================
    Blocos contíguos e não sobrepostos, recomeçando a cada período. Compartilha
@@ -3640,6 +3847,343 @@ function blkLegendaCor() {
   return it('#1F7A4C', '≤ −10% da média') + it('#38B26E', '−10% a −3%') + it('#5B8DEF', 'na média (±3%)')
     + it('#FF8C42', '+3% a +10%') + it('#E8360A', '≥ +10% da média');
 }
+
+function renderTempos() {
+  const D = tpDados();
+  const av = $('avisoTp');
+  if (!S.dados.size) {
+    av.classList.remove('oculto');
+    av.innerHTML = 'Carregue um jogo para comparar os tempos.';
+    ['kpisTp', 'grafTpDelta', 'tabTpEquipe', 'grafTpAtleta', 'tabTpAtleta', 'tabTpGrupo', 'grafTpPerfil', 'legendaTpPerfil']
+      .forEach(id => { $(id).innerHTML = ''; });
+    return;
+  }
+  if (!D.t1.length || !D.t2.length) {
+    av.classList.remove('oculto');
+    av.innerHTML = '⚠ Esta aba precisa dos <b>dois tempos carregados</b>. Marque <b>1tempo</b> e <b>2tempo</b> nos períodos e carregue de novo.'
+      + (D.t1.length || D.t2.length ? ` Agora só há ${D.t1.length ? '1º' : '2º'} tempo.` : '');
+    ['kpisTp', 'grafTpDelta', 'tabTpEquipe', 'grafTpAtleta', 'tabTpAtleta', 'tabTpGrupo', 'grafTpPerfil', 'legendaTpPerfil']
+      .forEach(id => { $(id).innerHTML = ''; });
+    return;
+  }
+  if (!$('selTpMetrica').options.length)
+    $('selTpMetrica').innerHTML = TP_METRICAS.map(m => `<option value="${m.k}"${m.k === 'dens' ? ' selected' : ''}>${m.rot}</option>`).join('');
+
+  const parciais = D.linhas.filter(l => l.parcial);
+  const msgs = [];
+  if (D.linhas.length < 3) msgs.push(`Só ${D.linhas.length} atleta(s) elegível(is) — sem pareamento estatístico. Baixe o <i>mín. por tempo</i>.`);
+  if (D.fora.length) msgs.push(`<b>${D.fora.length}</b> fora do pareamento: ` + D.fora.map(f =>
+    `${f.nome} (${f.m1.toFixed(0)}′ / ${f.m2.toFixed(0)}′ — ${f.motivo})`).join(' · '));
+  if (parciais.length) msgs.push(`<b>${parciais.length}</b> com tempo desigual entre as etapas (${parciais.map(l => l.nome).join(', ')}): nas linhas de <b>volume</b> a queda deles é tempo em campo, não rendimento. A densidade continua comparável.`);
+  av.classList.toggle('oculto', !msgs.length);
+  av.innerHTML = msgs.map(m => '⚠ ' + m).join('<br><br>');
+
+  const escAtual = $('selTpEscopo').value;
+  const grupos = [...new Set(D.linhas.map(l => l.grupo))];
+  $('selTpEscopo').innerHTML = '<option value="__team__">Equipe (todos elegíveis)</option>'
+    + (grupos.length > 1 ? grupos.map(g => `<option value="__g_${g}">Grupo: ${g}</option>`).join('') : '');
+  if ([...$('selTpEscopo').options].some(o => o.value === escAtual)) $('selTpEscopo').value = escAtual;
+  const esc = $('selTpEscopo').value;
+  const linhas = esc.startsWith('__g_') ? D.linhas.filter(l => l.grupo === esc.slice(4)) : D.linhas;
+
+  const est = {};
+  for (const m of TP_METRICAS) est[m.k] = tpEstat(linhas, m.k);
+  tpKpis(est, linhas, D);
+  tpGrafDelta(est);
+  tpTabelaEquipe(est, linhas, parciais);
+  tpPorAtleta(linhas);
+  tpPorGrupo(D.linhas);
+  tpPerfil(D);
+  S._tpCsv = { est, linhas, D };
+}
+
+function tpKpis(est, linhas, D) {
+  const k = (v, l, cor) => `<div class="kpi"><div class="v"${cor ? ` style="color:${cor}"` : ''}>${v}</div><div class="l">${l}</div></div>`;
+  const pct = kk => {
+    const e = est[kk];
+    if (!e || e.pct == null) return k('—', kk);
+    const s = (e.pct > 0 ? '+' : '') + e.pct.toFixed(1) + '%';
+    return k(s + tpSig(e.p), TP_METRICAS.find(m => m.k === kk).rot + ' · 2T vs 1T', tpCorPct(e.pct));
+  };
+  $('kpisTp').innerHTML = pct('dens') + pct('hsrMin') + pct('sprintMin') + pct('esfMin')
+    + k(linhas.length, 'Atletas pareados')
+    + k(tpNum(est.minutos ? est.minutos.m1 : null, 0) + '′ / ' + tpNum(est.minutos ? est.minutos.m2 : null, 0) + '′', 'Minutos médios 1T / 2T');
+}
+
+/* Barras divergentes: Δ% de cada métrica, agrupadas por natureza */
+function tpGrafDelta(est) {
+  const its = TP_METRICAS.map(m => ({ m, e: est[m.k] })).filter(x => x.e && x.e.pct != null);
+  if (!its.length) { $('grafTpDelta').innerHTML = ''; return; }
+  const mx = Math.max(12, ...its.map(x => Math.abs(x.e.pct))) * 1.15;
+  const pl = 196, wC = 620, pr = 150, hL = 26, pt = 26;
+  const larg = pl + wC + pr, cx = pl + wC / 2;
+  const X = p => cx + p / mx * (wC / 2);
+  let y = pt, corpo = '', tipoAnt = null;
+  for (const { m, e } of its) {
+    if (m.tipo !== tipoAnt) {
+      if (tipoAnt !== null) y += 12;                 // respiro entre blocos
+      corpo += `<text x="8" y="${y + 12}" font-size="10.5" fill="#C4952A" letter-spacing="1">${TP_TIPO_ROT[m.tipo].toUpperCase()}</text>`;
+      y += 22; tipoAnt = m.tipo;
+    }
+    const x0 = Math.min(cx, X(e.pct)), w = Math.abs(X(e.pct) - cx);
+    const cor = tpCorPct(e.pct);
+    const forte = e.p != null && e.p < 0.05;
+    corpo += `<text x="${pl - 10}" y="${y + hL / 2 + 4}" text-anchor="end" font-size="11.5" fill="#EAF0FA">${m.rot}</text>`
+      + `<rect x="${x0}" y="${y + 4}" width="${Math.max(w, 1)}" height="${hL - 8}" rx="2" fill="${cor}" fill-opacity="${forte ? 1 : 0.4}"/>`
+      + `<text x="${e.pct >= 0 ? X(e.pct) + 7 : X(e.pct) - 7}" y="${y + hL / 2 + 4}" text-anchor="${e.pct >= 0 ? 'start' : 'end'}" font-size="11.5" font-weight="600" fill="${cor}">${(e.pct > 0 ? '+' : '') + e.pct.toFixed(1)}%</text>`
+      + `<text x="${pl + wC + 62}" y="${y + hL / 2 + 4}" font-size="10.5" fill="#9FB0CC">p ${tpFmtP(e.p)}${e.dz != null ? ` · d<tspan baseline-shift="sub" font-size="8">z</tspan> ${e.dz.toFixed(2)}` : ''}</text>`;
+    y += hL;
+  }
+  const alt = y + 30;
+  let eixo = '';
+  for (const p of [-mx, -mx / 2, 0, mx / 2, mx]) {
+    eixo += `<line x1="${X(p)}" y1="${pt - 6}" x2="${X(p)}" y2="${y + 2}" stroke="#1E3D77" stroke-width="${p === 0 ? 1.6 : 1}" stroke-opacity="${p === 0 ? 1 : .5}"/>`
+      + `<text x="${X(p)}" y="${y + 16}" text-anchor="middle" font-size="10" fill="#9FB0CC">${(p > 0 ? '+' : '') + p.toFixed(0)}%</text>`;
+  }
+  $('grafTpDelta').innerHTML = `<svg width="${larg}" height="${alt}" style="display:block;max-width:100%">
+    ${eixo}${corpo}
+    <text x="${cx}" y="${pt - 12}" text-anchor="middle" font-size="10.5" fill="#9FB0CC">← 2º tempo menor   ·   2º tempo maior →</text>
+  </svg>
+  <p style="font-size:11px;color:var(--txt2);margin:6px 0 14px">Barra cheia = diferença significativa (p &lt; 0,05); barra apagada = dentro do ruído.
+  <b>*</b> p&lt;0,05 · <b>**</b> p&lt;0,01 · <b>***</b> p&lt;0,001</p>`;
+}
+
+function tpTabelaEquipe(est, linhas, parciais) {
+  let html = `<tr><th>Métrica</th><th class="num">1º tempo</th><th class="num">2º tempo</th><th class="num">Δ</th>
+    <th class="num">Δ%</th><th class="num">IC 95% da Δ</th><th class="num">p</th><th class="num">d<sub>z</sub></th><th>Magnitude</th></tr>`;
+  let tipoAnt = null;
+  for (const m of TP_METRICAS) {
+    const e = est[m.k];
+    if (!e) continue;
+    if (m.tipo !== tipoAnt) {
+      html += `<tr><td colspan="9" style="color:var(--dourado);font-size:10.5px;letter-spacing:1px;text-transform:uppercase;padding-top:14px;border-bottom:none">
+        ${TP_TIPO_ROT[m.tipo]}${m.tipo === 'volume' && parciais.length ? ` <span style="color:var(--txt2);text-transform:none;letter-spacing:0">— ${parciais.length} atleta(s) com tempo desigual entre as etapas</span>` : ''}</td></tr>`;
+      tipoAnt = m.tipo;
+    }
+    const cor = tpCorPct(e.pct);
+    html += `<tr><td>${m.rot}${m.tipo === 'volume' && parciais.length ? ' <span title="há atletas com tempo desigual — parte da queda é tempo em campo" style="color:var(--dourado)">⚠</span>' : ''}</td>
+      <td class="num">${tpNum(e.m1, m.dec)}</td><td class="num">${tpNum(e.m2, m.dec)}</td>
+      <td class="num">${(e.dif > 0 ? '+' : '') + tpNum(e.dif, m.dec)}</td>
+      <td class="num" style="color:${cor};font-weight:700">${e.pct == null ? '—' : (e.pct > 0 ? '+' : '') + e.pct.toFixed(1) + '%'}${tpSig(e.p)}</td>
+      <td class="num" style="color:var(--txt2)">${e.ic ? `${tpNum(e.ic[0], m.dec)} … ${tpNum(e.ic[1], m.dec)}` : '—'}</td>
+      <td class="num">${tpFmtP(e.p)}</td>
+      <td class="num">${e.dz == null ? '—' : e.dz.toFixed(2)}</td>
+      <td style="color:var(--txt2)">${e.dz == null ? '—' : magD(e.dz)}</td></tr>`;
+  }
+  $('tabTpEquipe').innerHTML = html;
+}
+
+/* Afasta rótulos que se sobrepõem, mantendo a ordem vertical original. */
+function tpEspalhar(ys, minGap, lo, hi) {
+  const ord = ys.map((y, i) => ({ i, y })).sort((a, b) => a.y - b.y);
+  let prev = -Infinity;
+  for (const o of ord) { o.ay = Math.max(o.y, prev + minGap); prev = o.ay; }
+  if (ord.length) {
+    const excesso = ord[ord.length - 1].ay - hi;
+    if (excesso > 0) {
+      const folga = Math.min(excesso, Math.max(0, ord[0].ay - lo));
+      for (const o of ord) o.ay -= folga;
+      prev = -Infinity;
+      for (const o of ord) { o.ay = Math.max(o.ay, prev + minGap); prev = o.ay; }
+    }
+  }
+  const out = new Array(ys.length);
+  for (const o of ord) out[o.i] = o.ay;
+  return out;
+}
+
+/* Slope chart: cada atleta é uma linha ligando o 1T ao 2T */
+function tpPorAtleta(linhas) {
+  const def = TP_METRICAS.find(m => m.k === $('selTpMetrica').value) || TP_METRICAS[5];
+  const k = def.k;
+  const its = linhas.map(l => ({
+    nome: l.nome, grupo: l.grupo, parcial: l.parcial,
+    v1: l.m1[k], v2: l.m2[k],
+    pct: (l.m1[k] && l.m2[k] != null) ? (l.m2[k] - l.m1[k]) / Math.abs(l.m1[k]) * 100 : null,
+  })).filter(x => x.v1 != null && x.v2 != null);
+  if (!its.length) { $('grafTpAtleta').innerHTML = ''; $('tabTpAtleta').innerHTML = ''; return; }
+  its.sort((a, b) => (a.pct == null ? 0 : a.pct) - (b.pct == null ? 0 : b.pct));
+
+  const vs = its.flatMap(x => [x.v1, x.v2]);
+  let lo = Math.min(...vs), hi = Math.max(...vs);
+  const pad = (hi - lo) * 0.12 || Math.abs(hi) * 0.1 || 1;
+  lo -= pad; hi += pad;
+  const alt = Math.max(280, its.length * 24 + 86), pt = 40, pb = 30;
+  const hU = alt - pt - pb, x1 = 210, x2 = 560;
+  const Y = v => pt + hU - (v - lo) / (hi - lo || 1) * hU;
+  const rot = $('chkTpRotAtl').checked;
+  // Com 11 atletas num intervalo estreito os nomes empilham em cima uns dos
+  // outros. Aqui os rótulos são afastados verticalmente até caber, e um fio
+  // liga o rótulo deslocado ao ponto de verdade.
+  const ly1 = tpEspalhar(its.map(x => Y(x.v1)), 13, pt, pt + hU);
+  const ly2 = tpEspalhar(its.map(x => Y(x.v2)), 13, pt, pt + hU);
+
+  let corpo = '';
+  for (let idx = 0; idx < its.length; idx++) {
+    const x = its[idx];
+    const cor = tpCorPct(x.pct);
+    corpo += `<g><title>${x.nome} · ${def.rot}\n1T: ${tpNum(x.v1, def.dec)}\n2T: ${tpNum(x.v2, def.dec)}\nΔ ${(x.pct > 0 ? '+' : '') + x.pct.toFixed(1)}%${x.parcial ? '\n⚠ tempo desigual entre as etapas' : ''}</title>`
+      + `<line x1="${x1}" y1="${Y(x.v1)}" x2="${x2}" y2="${Y(x.v2)}" stroke="${cor}" stroke-width="2" stroke-opacity=".85"${x.parcial ? ' stroke-dasharray="5 3"' : ''}/>`
+      + `<circle cx="${x1}" cy="${Y(x.v1)}" r="3.6" fill="${cor}"/><circle cx="${x2}" cy="${Y(x.v2)}" r="3.6" fill="${cor}"/>`;
+    if (rot) {
+      const fio = (xa, ya, xb, yb) => Math.abs(ya - yb) < 3 ? ''
+        : `<line x1="${xa}" y1="${ya}" x2="${xb}" y2="${yb}" stroke="${cor}" stroke-width="1" stroke-opacity=".35"/>`;
+      corpo += fio(x1 - 5, Y(x.v1), x1 - 9, ly1[idx])
+        + `<text x="${x1 - 13}" y="${ly1[idx] + 4}" text-anchor="end" font-size="10.5" fill="#EAF0FA">${x.nome}</text>`
+        + fio(x2 + 5, Y(x.v2), x2 + 9, ly2[idx])
+        + `<text x="${x2 + 13}" y="${ly2[idx] + 4}" font-size="10.5" fill="${cor}">${tpNum(x.v2, def.dec)} <tspan fill="#9FB0CC">(${(x.pct > 0 ? '+' : '') + x.pct.toFixed(0)}%)</tspan></text>`;
+    }
+    corpo += '</g>';
+  }
+  let eixo = '';
+  for (let f = 0; f <= 1.0001; f += 0.25) {
+    const v = lo + (hi - lo) * f;
+    eixo += `<line x1="${x1 - 4}" y1="${Y(v)}" x2="${x2 + 4}" y2="${Y(v)}" stroke="#1E3D77" stroke-opacity=".3"/>`
+      + `<text x="${x1 - 150}" y="${Y(v) + 4}" font-size="10" fill="#9FB0CC">${tpNum(v, def.dec)}</text>`;
+  }
+  $('grafTpAtleta').innerHTML = `<svg width="${x2 + 190}" height="${alt}" style="display:block">
+    ${eixo}${corpo}
+    <text x="${x1}" y="${pt - 14}" text-anchor="middle" font-size="11.5" fill="#C4952A" font-weight="600">1º TEMPO</text>
+    <text x="${x2}" y="${pt - 14}" text-anchor="middle" font-size="11.5" fill="#C4952A" font-weight="600">2º TEMPO</text>
+    <text x="${(x1 + x2) / 2}" y="${alt - 6}" text-anchor="middle" font-size="10.5" fill="#9FB0CC">${def.rot} · linha tracejada = tempo desigual entre as etapas</text>
+  </svg>`;
+
+  $('tabTpAtleta').innerHTML =
+    `<tr><th>Atleta</th><th>Pos</th><th class="num">Min 1T</th><th class="num">Min 2T</th>
+     <th class="num">${def.rot} 1T</th><th class="num">2T</th><th class="num">Δ</th><th class="num">Δ%</th><th>Obs.</th></tr>`
+    + its.map(x => {
+      const l = linhas.find(y => y.nome === x.nome);
+      return `<tr><td>${x.nome}</td><td style="color:var(--dourado)">${x.grupo}</td>
+        <td class="num">${tpNum(l.m1.minutos, 1)}</td><td class="num">${tpNum(l.m2.minutos, 1)}</td>
+        <td class="num">${tpNum(x.v1, def.dec)}</td><td class="num">${tpNum(x.v2, def.dec)}</td>
+        <td class="num">${(x.v2 - x.v1 > 0 ? '+' : '') + tpNum(x.v2 - x.v1, def.dec)}</td>
+        <td class="num" style="color:${tpCorPct(x.pct)};font-weight:700">${(x.pct > 0 ? '+' : '') + x.pct.toFixed(1)}%</td>
+        <td style="color:var(--txt2)">${x.parcial ? 'tempo desigual' : ''}</td></tr>`;
+    }).join('');
+}
+
+function tpPorGrupo(linhas) {
+  const def = TP_METRICAS.find(m => m.k === $('selTpMetrica').value) || TP_METRICAS[5];
+  const grupos = [...new Set(linhas.map(l => l.grupo))]
+    .sort((a, b) => POS_GRUPOS.findIndex(g => g.g === a) - POS_GRUPOS.findIndex(g => g.g === b));
+  $('tabTpGrupo').innerHTML =
+    `<tr><th>Grupo</th><th class="num">n</th><th class="num">${def.rot} 1T</th><th class="num">2T</th>
+     <th class="num">Δ%</th><th class="num">p</th><th class="num">d<sub>z</sub></th><th>Magnitude</th></tr>`
+    + grupos.map(g => {
+      const sub = linhas.filter(l => l.grupo === g);
+      const e = tpEstat(sub, def.k);
+      if (!e) return '';
+      const poucos = sub.length < 3;
+      return `<tr><td style="color:${corGrupo(g)};font-weight:600">${g}</td><td class="num">${sub.length}</td>
+        <td class="num">${tpNum(e.m1, def.dec)}</td><td class="num">${tpNum(e.m2, def.dec)}</td>
+        <td class="num" style="color:${tpCorPct(e.pct)};font-weight:700">${e.pct == null ? '—' : (e.pct > 0 ? '+' : '') + e.pct.toFixed(1) + '%'}</td>
+        <td class="num">${poucos ? '<span style="color:var(--txt2)">n&lt;3</span>' : tpFmtP(e.p)}</td>
+        <td class="num">${poucos || e.dz == null ? '—' : e.dz.toFixed(2)}</td>
+        <td style="color:var(--txt2)">${poucos || e.dz == null ? 'amostra pequena demais' : magD(e.dz)}</td></tr>`;
+    }).join('');
+}
+
+/* Perfil: mesmo minuto de cada etapa, 1T contra 2T, em barras lado a lado */
+function tpPerfil(D) {
+  const defSel = TP_METRICAS.find(m => m.k === $('selTpMetrica').value) || TP_METRICAS[5];
+  const kk = TP_PERMIN[defSel.k] || defSel.k;          // volume vira por-minuto: bloco parcial não engana
+  const def = TP_METRICAS.find(m => m.k === kk);
+  const bS = +$('selTpBloco').value || 300;
+  const cobMin = Math.min(100, Math.max(0, +$('inpTpCobMin').value || 0)) / 100;
+
+  const serie = etapa => {
+    const rs = etapa === 1 ? D.t1 : D.t2;
+    const r = rs[0], rn = rs[rs.length - 1];
+    const dur = rn.t1 - r.t0;
+    const nb = Math.max(1, Math.ceil(dur / bS - 1e-9));
+    const out = [];
+    for (let b = 0; b < nb; b++) {
+      const t0 = r.t0 + b * bS, t1 = Math.min(rn.t1, t0 + bS);
+      let soma = 0, n = 0;
+      for (const l of D.linhas) {
+        const d = S.dados.get(l.id);
+        const m = metricasRange(d.slim, t0, t1);
+        if (m.minutos * 60 < (t1 - t0) * cobMin) continue;
+        const v = m[kk];
+        if (v == null) continue;
+        soma += v; n++;
+      }
+      out.push({ b, t0, t1, span: t1 - t0, val: n ? soma / n : null, n,
+        rot: `${Math.round(b * bS / 60)}–${Math.round((b * bS + (t1 - t0)) / 60)}` });
+    }
+    return out;
+  };
+  const s1 = serie(1), s2 = serie(2);
+  const nb = Math.max(s1.length, s2.length);
+  const vals = [...s1, ...s2].filter(x => x.val != null).map(x => x.val);
+  if (!vals.length) { $('grafTpPerfil').innerHTML = ''; $('legendaTpPerfil').innerHTML = ''; return; }
+  const mx = Math.max(...vals);
+
+  const bw = Math.max(14, Math.min(46, Math.floor(820 / Math.max(nb, 1) / 2) - 3));
+  const gGap = 8, par = bw * 2 + 4;
+  const pl = 66, pr = 20, pt = 26, pb = 58;
+  const wC = nb * (par + gGap), alt = 340, hU = alt - pt - pb, larg = pl + wC + pr;
+  const topo = mx * 1.14 || 1;
+  const Y = v => pt + hU - v / topo * hU;
+
+  let corpo = '', eixoX = '', x = pl;
+  for (let b = 0; b < nb; b++) {
+    const a = s1[b], c = s2[b];
+    const barra = (o, dx, cor) => {
+      if (!o || o.val == null) return '';
+      const h = Math.max(1, o.val / topo * hU);
+      return `<g><title>${dx ? '2º' : '1º'} tempo · ${o.rot} min\n${def.rot}: ${tpNum(o.val, def.dec)}\nAtletas: ${o.n}</title>`
+        + `<rect x="${x + dx}" y="${Y(o.val)}" width="${bw}" height="${h}" rx="2" fill="${cor}"/></g>`
+        + `<text x="${x + dx + bw / 2}" y="${Y(o.val) - 5}" text-anchor="middle" font-size="9.5" fill="#9FB0CC">${tpNum(o.val, def.dec === 0 ? 0 : 1)}</text>`;
+    };
+    corpo += barra(a, 0, '#5B8DEF') + barra(c, bw + 4, '#E8360A');
+    if (a && c && a.val != null && c.val != null) {
+      const p = (c.val - a.val) / Math.abs(a.val) * 100;
+      corpo += `<text x="${x + par / 2}" y="${pt + hU + 32}" text-anchor="middle" font-size="10" font-weight="600" fill="${tpCorPct(p)}">${(p > 0 ? '+' : '') + p.toFixed(0)}%</text>`;
+    }
+    eixoX += `<text x="${x + par / 2}" y="${pt + hU + 16}" text-anchor="middle" font-size="10" fill="#9FB0CC">${(a || c).rot}</text>`;
+    x += par + gGap;
+  }
+  let eixoY = '';
+  for (let f = 0; f <= 1.0001; f += 0.25) {
+    const v = mx * f;
+    eixoY += `<line x1="${pl - 4}" y1="${Y(v)}" x2="${pl + wC}" y2="${Y(v)}" stroke="#1E3D77" stroke-opacity="${f === 0 ? 1 : .4}"/>`
+      + `<text x="${pl - 9}" y="${Y(v) + 4}" text-anchor="end" font-size="10.5" fill="#9FB0CC">${tpNum(v, def.dec)}</text>`;
+  }
+  $('grafTpPerfil').innerHTML = `<svg width="${larg}" height="${alt}" style="display:block">
+    ${eixoY}${corpo}${eixoX}
+    <text transform="rotate(-90 14 ${pt + hU / 2})" x="14" y="${pt + hU / 2}" text-anchor="middle" font-size="11" fill="#9FB0CC">${def.rot}</text>
+    <text x="${pl}" y="${pt - 12}" font-size="10.5" fill="#9FB0CC">minuto dentro de cada tempo</text>
+    <text x="${pl + wC / 2}" y="${alt - 6}" text-anchor="middle" font-size="10" fill="#9FB0CC">Δ% do 2º tempo em relação ao 1º, no mesmo trecho</text>
+  </svg>`;
+  $('legendaTpPerfil').innerHTML =
+    `<span class="item"><span class="cx" style="background:#5B8DEF"></span>1º tempo</span>`
+    + `<span class="item"><span class="cx" style="background:#E8360A"></span>2º tempo</span>`
+    + `<span class="item">média da equipe por bloco · ${defSel.tipo === 'volume' ? `<b>${defSel.rot}</b> é volume, então o gráfico mostra a versão por minuto (${def.rot}) — bloco parcial não vira queda` : def.rot}</span>`;
+}
+
+$('btnTpCsv').onclick = () => {
+  if (!S._tpCsv) return;
+  const { est, linhas } = S._tpCsv;
+  const cab = ['Bloco', 'Métrica', '1º tempo', '2º tempo', 'Delta', 'Delta %', 'IC95 inf', 'IC95 sup', 'p', 'dz', 'Magnitude', 'n'];
+  const eq = TP_METRICAS.filter(m => est[m.k]).map(m => {
+    const e = est[m.k];
+    return ['EQUIPE', m.rot, +e.m1.toFixed(m.dec), +e.m2.toFixed(m.dec), +e.dif.toFixed(m.dec),
+      e.pct == null ? null : +e.pct.toFixed(1), e.ic ? +e.ic[0].toFixed(m.dec) : null, e.ic ? +e.ic[1].toFixed(m.dec) : null,
+      e.p == null ? null : +e.p.toFixed(4), e.dz == null ? null : +e.dz.toFixed(3), e.dz == null ? '' : magD(e.dz), e.n];
+  });
+  const atl = [];
+  for (const l of linhas) for (const m of TP_METRICAS) {
+    const v1 = l.m1[m.k], v2 = l.m2[m.k];
+    if (v1 == null || v2 == null) continue;
+    atl.push([l.nome, m.rot, +v1.toFixed(m.dec), +v2.toFixed(m.dec), +(v2 - v1).toFixed(m.dec),
+      v1 ? +((v2 - v1) / Math.abs(v1) * 100).toFixed(1) : null, null, null, null, null,
+      l.parcial ? 'tempo desigual' : '', 1]);
+  }
+  baixarCSV('1T_vs_2T.csv', paraCSV(cab, [...eq, ...atl]));
+};
+['inpTpMinMin', 'selTpEscopo', 'chkTpSoCompletos', 'selTpMetrica', 'chkTpRotAtl', 'selTpBloco', 'inpTpCobMin']
+  .forEach(id => { $(id).onchange = renderTempos; });
 
 function renderBlocos() {
   $('grpBlkCustom').classList.toggle('oculto', $('selBlkBloco').value !== 'custom');
