@@ -1,7 +1,14 @@
-// GET /api/gps/sensor?activity=ID&athlete=ID[&period=ID][&each=2]
+// GET /api/gps/sensor?activity=ID&athlete=ID[&period=ID][&each=2][&q=1]
 // Stream 10 Hz do sensor (ts, lat, long, v, a, hr) em formato "slim" (arrays
 // paralelos) com decimação — reduz o payload de ~8 MB para ~1 MB por atleta.
 // each=1 → 10 Hz | each=2 → 5 Hz (padrão) | each=5 → 2 Hz
+//
+// q=1 acrescenta os campos de qualidade de sinal da Catapult:
+//   hdop → horizontal dilution of precision (menor = melhor; > ~2,5 é suspeito)
+//   pq   → positional quality em %
+//   ref  → nº de satélites/referências no fix
+// Custa ~30% de payload, por isso é opcional. Sem q=1 a resposta é idêntica
+// à de antes — o gps2d.html em produção não muda.
 export const config = { maxDuration: 60 };
 
 const BASE = process.env.CATAPULT_BASE || 'https://connect-us.catapultsports.com/api/v6';
@@ -35,7 +42,9 @@ export default async function handler(req, res) {
     const path = period
       ? `periods/${period}/athletes/${athlete}/sensor`
       : `activities/${activity}/athletes/${athlete}/sensor`;
-    const raw = await cat(path, { parameters: 'ts,lat,long,v,a,hr', nulls: '1' });
+    const q = req.query.q === '1' || req.query.q === 'true';
+    const params = q ? 'ts,lat,long,v,a,hr,hdop,pq,ref' : 'ts,lat,long,v,a,hr';
+    const raw = await cat(path, { parameters: params, nulls: '1' });
 
     // Normaliza: v6 devolve [{athlete_id, data:[{ts,lat,long,v,a,hr},...]}]
     let samples = [];
@@ -46,6 +55,7 @@ export default async function handler(req, res) {
     }
 
     const out = { n: 0, each, ts: [], lat: [], lon: [], v: [], a: [], hr: [] };
+    if (q) { out.hdop = []; out.pq = []; out.ref = []; }
     for (let i = 0; i < samples.length; i += each) {
       const s = samples[i];
       if (!s) continue;
@@ -57,6 +67,11 @@ export default async function handler(req, res) {
       out.v.push(r2(s.v));       // m/s
       out.a.push(r2(s.a));       // m/s²
       out.hr.push(s.hr == null ? null : Math.round(s.hr));
+      if (q) {
+        out.hdop.push(s.hdop == null ? null : Math.round(s.hdop * 10) / 10);
+        out.pq.push(s.pq == null ? null : Math.round(s.pq));
+        out.ref.push(s.ref == null ? null : Math.round(s.ref));
+      }
     }
     out.n = out.ts.length;
     res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=86400');
