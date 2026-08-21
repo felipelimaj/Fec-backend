@@ -29,6 +29,14 @@
 
 const CATAPULT_BASE = 'https://connect-us.catapultsports.com/api/v6';
 
+// Planilha CADASTRO_ATLETAS_PROFISSIONAL_FEC, publicada na web.
+// Fonte da posição e do status de cada atleta — o registro da Catapult nem
+// sempre traz posição, e não tem status nenhum. Sobrescreva por variável de
+// ambiente se a planilha mudar de endereço.
+const CADASTRO_CSV =
+  process.env.CADASTRO_CSV_URL ||
+  'https://docs.google.com/spreadsheets/d/e/2PACX-1vT2jaLvln5GbiUoNsczLHRMYt0gHjzDOEar1h9LLuKG-Xa4KJKZr2SS133l0pr8AgetsdYF5Ek2KU7Q/pub?output=csv';
+
 const MAX_DATAS = 14;      // datas por chamada — mantém a cota da Catapult folgada
 const CONCURRENCY = 4;     // jogos processados em paralelo dentro do lote
 const CHUNK_DAYS = 60;     // janela máxima por chamada /activities
@@ -53,6 +61,16 @@ const PARAMETERS = [
   'fmp_running_total_duration',
   'fmp_dynamic_total_duration',
 ];
+
+// Auditoria: as oito bandas de velocidade e as oito de aceleração Gen2, somadas
+// por jogo. Servem para a identidade soma(bandas) = distância total e para
+// mostrar quais bandas de aceleração o tenant realmente popula. Sem isso, a
+// escolha dos slugs é ato de fé.
+const PARAMS_AUDITORIA = [];
+for (let i = 1; i <= 8; i++) {
+  PARAMS_AUDITORIA.push(`velocity_band${i}_total_distance`);
+  PARAMS_AUDITORIA.push(`gen2_acceleration_band${i}_total_effort_count`);
+}
 
 // ----------------------------------------------------------------------------
 // Infra
@@ -164,6 +182,91 @@ const round = (v, c = 1) => {
 };
 
 // ----------------------------------------------------------------------------
+// Cadastro publicado — posição e status
+// ----------------------------------------------------------------------------
+// Divide uma linha de CSV respeitando aspas. Nome de atleta com vírgula
+// ("SILVA, J.") quebraria um split ingênuo.
+function linhaCSV(linha) {
+  const out = [];
+  let campo = '';
+  let aspas = false;
+  for (let i = 0; i < linha.length; i++) {
+    const c = linha[i];
+    if (c === '"') {
+      if (aspas && linha[i + 1] === '"') { campo += '"'; i++; }
+      else aspas = !aspas;
+    } else if (c === ',' && !aspas) { out.push(campo); campo = ''; }
+    else campo += c;
+  }
+  out.push(campo);
+  return out.map(v => v.trim());
+}
+
+// Acha a coluna pelo texto do cabeçalho, sem acento e sem depender da ordem.
+function acharColuna(cabecalho, candidatos) {
+  for (const cand of candidatos) {
+    const i = cabecalho.findIndex(h => semAcento(h) === cand);
+    if (i >= 0) return i;
+  }
+  for (const cand of candidatos) {
+    const i = cabecalho.findIndex(h => semAcento(h).includes(cand));
+    if (i >= 0) return i;
+  }
+  return -1;
+}
+
+let cacheCadastro = null; // sobrevive entre invocações na mesma lambda quente
+
+async function carregarCadastro() {
+  if (cacheCadastro) return cacheCadastro;
+  const vazio = { porId: {}, total: 0, ativos: 0, colunas: null, erro: null };
+  try {
+    const r = await fetch(CADASTRO_CSV, { redirect: 'follow' });
+    if (!r.ok) throw new Error(`HTTP ${r.status} ao ler a planilha de cadastro`);
+    const texto = await r.text();
+    const linhas = texto.split(/\r?\n/).filter(l => l.trim().length);
+    if (linhas.length < 2) throw new Error('planilha de cadastro veio vazia');
+
+    const cab = linhaCSV(linhas[0]);
+    const cId = acharColuna(cab, ['ID', 'CADASTRO', 'ID CADASTRO', 'NUMERO', 'NUM', 'CODIGO']);
+    const cNome = acharColuna(cab, ['NOME', 'ATLETA', 'NOME CURTO']);
+    const cPos = acharColuna(cab, ['POSICAO', 'POS', 'FUNCAO']);
+    const cSt = acharColuna(cab, ['STATUS', 'SITUACAO', 'ATIVO']);
+    if (cId < 0) throw new Error(`coluna de ID não encontrada. Cabeçalho: ${cab.join(' | ')}`);
+
+    const porId = {};
+    let ativos = 0;
+    for (let i = 1; i < linhas.length; i++) {
+      const col = linhaCSV(linhas[i]);
+      const id = parseInt(String(col[cId] || '').replace(/\D/g, ''), 10);
+      if (!isFinite(id)) continue;
+      const status = cSt >= 0 ? semAcento(col[cSt]) : '';
+      const reg = {
+        cadastroId: id,
+        nome: (cNome >= 0 ? col[cNome] : '') || '',
+        posicao: (cPos >= 0 ? col[cPos] : '') || '',
+        status: status || 'SEM STATUS',
+        ativo: status ? status.startsWith('ATIV') : true,
+      };
+      porId[id] = reg;
+      if (reg.ativo) ativos++;
+    }
+    cacheCadastro = {
+      porId,
+      total: Object.keys(porId).length,
+      ativos,
+      colunas: { id: cab[cId], nome: cab[cNome] || null, posicao: cab[cPos] || null, status: cab[cSt] || null },
+      erro: null,
+    };
+    return cacheCadastro;
+  } catch (e) {
+    // Falha aqui não derruba a extração: o painel segue com a posição da
+    // Catapult e avisa na tela que o status não pôde ser lido.
+    return { ...vazio, erro: e.message };
+  }
+}
+
+// ----------------------------------------------------------------------------
 // Elenco — nome e posição vêm da própria Catapult
 // ----------------------------------------------------------------------------
 async function carregarElenco(token) {
@@ -203,8 +306,14 @@ function meioTempoVazio() {
     hrSoma: 0, hrDur: 0, fmpRun: 0, fmpDyn: 0,
   };
 }
+function auditoriaVazia() {
+  const o = { dist: 0 };
+  for (let i = 1; i <= 8; i++) { o['vb' + i] = 0; o['ab' + i] = 0; }
+  o.accBand7plus = 0;
+  return o;
+}
 
-async function processarJogo(data, atividades, token, elenco) {
+async function processarJogo(data, atividades, token, elenco, cadastro) {
   const jogo = atividades.find(
     a =>
       unixParaDataBR(a.start_time || a.start) === data &&
@@ -214,9 +323,11 @@ async function processarJogo(data, atividades, token, elenco) {
 
   const stats = await catapultPOST('/stats', token, {
     filters: [{ name: 'activity_id', comparison: '=', values: [jogo.id] }],
-    parameters: PARAMETERS,
+    parameters: PARAMETERS.concat(PARAMS_AUDITORIA),
     group_by: ['period', 'athlete'],
   });
+
+  const aud = auditoriaVazia();
 
   const porAtleta = {};
   for (const s of stats || []) {
@@ -247,7 +358,15 @@ async function processarJogo(data, atividades, token, elenco) {
     acc.hrMax = Math.max(acc.hrMax, s.percentage_max_heart_rate || 0);
     acc.hrSoma += (s.percentage_avg_heart_rate || 0) * dur;
     acc.hrDur += dur;
+
+    aud.dist += s.total_distance || 0;
+    aud.accBand7plus += s.gen2_acceleration_band7plus_total_effort_count || 0;
+    for (let i = 1; i <= 8; i++) {
+      aud['vb' + i] += s[`velocity_band${i}_total_distance`] || 0;
+      aud['ab' + i] += s[`gen2_acceleration_band${i}_total_effort_count`] || 0;
+    }
   }
+  Object.keys(aud).forEach(k => { aud[k] = round(aud[k], 1); });
 
   // Todo período visto na atividade, classificado ou não. Serve para auditar
   // contagem de atletas: um substituto some da lista quando o período dele foi
@@ -273,13 +392,19 @@ async function processarJogo(data, atividades, token, elenco) {
       (a.cadastroId != null && elenco.porId[a.cadastroId]) ||
       elenco.porNome[semAcento(a.nome)] ||
       null;
+    // O cadastro publicado manda na posição e é a única fonte de status.
+    // A Catapult entra só quando o atleta não está na planilha.
+    const cad = (a.cadastroId != null && cadastro.porId[a.cadastroId]) || null;
+    const posicao = (cad && cad.posicao) || (reg && reg.posicao) || '';
 
     const hrDur = a.t1.hrDur + a.t2.hrDur;
     atletas.push({
       id: a.cadastroId,
-      nome: (reg && reg.nome) || a.nome,
-      posicao: (reg && reg.posicao) || '',
-      grupo: (reg && reg.grupo) || null,
+      nome: a.nome || (cad && cad.nome) || (reg && reg.nome) || '',
+      posicao: posicao,
+      grupo: grupoPosicional(posicao),
+      status: cad ? cad.status : 'FORA DO CADASTRO',
+      ativo: cad ? cad.ativo : null,
       min: round(min, 1),
       t1Min: round(t1Min, 1),
       t2Min: round(t2Min, 1),
@@ -324,7 +449,7 @@ async function processarJogo(data, atividades, token, elenco) {
 
   atletas.sort((x, y) => y.min - x.min);
   return {
-    data, id: jogo.id, nome: (jogo.name || '').trim(), atletas, ignorados,
+    data, id: jogo.id, nome: (jogo.name || '').trim(), atletas, ignorados, auditoria: aud,
     periodos: Object.keys(periodosVistos).map(n => ({ nome: n, classificado: periodosVistos[n] })),
   };
 }
@@ -395,6 +520,19 @@ export default async function handler(req, res) {
       return res.status(200).json({ total: jogos.length, jogos });
     }
 
+    // --- Modo cadastro: confere a leitura da planilha ------------------------
+    if (req.query.cadastro) {
+      const c = await carregarCadastro();
+      return res.status(200).json({
+        origem: CADASTRO_CSV,
+        colunas_reconhecidas: c.colunas,
+        total: c.total,
+        ativos: c.ativos,
+        erro: c.erro,
+        atletas: Object.values(c.porId).sort((a, b) => a.cadastroId - b.cadastroId),
+      });
+    }
+
     // --- Modo dados: um lote de datas --------------------------------------
     const datas = String(req.query.datas || '')
       .split(',')
@@ -439,11 +577,11 @@ export default async function handler(req, res) {
       }
     }
 
-    const elenco = await carregarElenco(token);
+    const [elenco, cadastro] = await Promise.all([carregarElenco(token), carregarCadastro()]);
 
     const falhas = [];
     const resultados = await emLotes(datas, CONCURRENCY, d =>
-      processarJogo(d, atividades, token, elenco).catch(err => {
+      processarJogo(d, atividades, token, elenco, cadastro).catch(err => {
         falhas.push({ data: d, motivo: err.message });
         return null;
       })
@@ -459,6 +597,10 @@ export default async function handler(req, res) {
       },
       fmp: 'fmp_running_total_duration e fmp_dynamic_total_duration, convertidos para minutos',
       elenco_erro: elenco.erro,
+      cadastro: {
+        total: cadastro.total, ativos: cadastro.ativos,
+        colunas: cadastro.colunas, erro: cadastro.erro,
+      },
       jogos: resultados.filter(Boolean),
       falhas,
     });
