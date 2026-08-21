@@ -155,6 +155,13 @@ code{background:var(--lt);border:1px solid var(--bdr);border-radius:4px;padding:
   .hd-in{flex-direction:column;align-items:flex-start}
   .status{margin-left:0;width:100%}
 }
+#tip{position:fixed;z-index:200;pointer-events:none;opacity:0;transition:opacity .1s;
+  background:var(--azn);color:#fff;border-radius:7px;padding:8px 11px;font-size:11.5px;line-height:1.55;
+  box-shadow:0 6px 20px rgba(7,26,62,.28);max-width:280px;border-left:3px solid var(--our)}
+#tip.on{opacity:1}
+#tip b{font-family:var(--cond);font-size:14px;letter-spacing:.03em;display:block;margin-bottom:3px}
+#tip .k{color:#A8BBDD}
+[data-tip]{cursor:default}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -204,6 +211,13 @@ code{background:var(--lt);border:1px solid var(--bdr);border-radius:4px;padding:
       </div>
     </div>
     <div class="fld">
+      <label>Elenco</label>
+      <div class="seg" id="seg-elenco">
+        <button data-v="ativos" class="on">Só ativos</button>
+        <button data-v="todos">Todos</button>
+      </div>
+    </div>
+    <div class="fld">
       <label for="inp-min">Mín. de minutos</label>
       <input type="number" id="inp-min" value="60" min="0" max="120" step="5" style="width:62px">
     </div>
@@ -213,6 +227,7 @@ code{background:var(--lt);border:1px solid var(--bdr);border-radius:4px;padding:
   </div>
 </div>
 
+<div id="tip" role="tooltip" aria-hidden="true"></div>
 <nav class="tabs"><div class="tabs-in" id="tabs" role="tablist"></div></nav>
 
 <div class="wrap">
@@ -222,6 +237,7 @@ code{background:var(--lt);border:1px solid var(--bdr);border-radius:4px;padding:
   <div class="panel" id="p-individual"></div>
   <div class="panel" id="p-minutagem"></div>
   <div class="panel" id="p-contexto"></div>
+  <div class="panel" id="p-auditoria"></div>
   <div class="panel" id="p-metodo"></div>
 </div>
 
@@ -336,6 +352,7 @@ function normalizar(atletas){
       g = grupoDePosicao(a.posicao);
     }
     a.grupo = g;
+    if(a.ativo === undefined) a.ativo = null;   // sem linha no cadastro
     if(!g) SEM_POSICAO[a.nome||('ID '+a.id)] = 1;
     return a;
   });
@@ -345,17 +362,18 @@ function normalizar(atletas){
 // MÉTRICAS
 // ============================================================================
 var METRICAS = [
-  {k:'dist',   lab:'Distância Total',   un:'m',    unMin:'m/min',    dp:0, dpMin:1, nota:'Soma dos atletas de linha'},
-  {k:'altInt', lab:'Alta Intensidade',  un:'m',    unMin:'m/min',    dp:0, dpMin:1, nota:'≥ 19,80 km/h · B5+B6+B7'},
-  {k:'sprint', lab:'Sprint',            un:'m',    unMin:'m/min',    dp:0, dpMin:2, nota:'≥ 25,20 km/h · B6+B7'},
-  {k:'acc',    lab:'Acelerações',       un:'nº',   unMin:'nº/min',   dp:0, dpMin:3, nota:'≥ 3 m/s²'},
-  {k:'dec',    lab:'Desacelerações',    un:'nº',   unMin:'nº/min',   dp:0, dpMin:3, nota:'≥ 3 m/s²'},
-  {k:'pl',     lab:'Player Load',       un:'u.a.', unMin:'u.a./min', dp:0, dpMin:2, nota:'Carga acelerométrica'},
+  {k:'dist',   lab:'Distância Total',  curto:'Distância',    un:'m',    unMin:'m/min',     dp:0, dpMin:1, nota:'Soma dos atletas de linha'},
+  {k:'altInt', lab:'Alta Intensidade', curto:'Alta Int.',    un:'m',    unMin:'m/min',     dp:0, dpMin:1, nota:'≥ 19,80 km/h · B5+B6+B7'},
+  {k:'sprint', lab:'Sprint',           curto:'Sprint',       un:'m',    unMin:'m/min',     dp:0, dpMin:1, nota:'≥ 25,20 km/h · B6+B7'},
+  // Contagens por 10 minutos, e não por minuto: com uma casa decimal, "0,2/min"
+  // não distingue 0,18 de 0,24. Por 10 min a mesma casa decimal separa 1,8 de 2,4.
+  {k:'acc',    lab:'Acelerações',      curto:'Acel.',        un:'nº',   unMin:'nº/10 min', dp:0, dpMin:1, nota:'≥ 3 m/s²', x10:true},
+  {k:'dec',    lab:'Desacelerações',   curto:'Desacel.',     un:'nº',   unMin:'nº/10 min', dp:0, dpMin:1, nota:'≥ 3 m/s² (desaceleração)', x10:true},
+  {k:'pl',     lab:'Player Load',      curto:'P. Load',      un:'u.a.', unMin:'u.a./min',  dp:0, dpMin:1, nota:'Carga acelerométrica'},
   // FMP: a Catapult entrega segundos. O percentual é sempre recalculado aqui
-  // (tempo na banda ÷ tempo de jogo); somar o campo *_percentage dos dois
-  // tempos daria número errado.
-  {k:'fmpRun', lab:'FMP Total Running',  un:'min',  unMin:'% do tempo', dp:0, dpMin:1, nota:'Tempo na banda Running', pct:true},
-  {k:'fmpDyn', lab:'FMP Total Dynamic',  un:'min',  unMin:'% do tempo', dp:0, dpMin:1, nota:'Tempo na banda Dynamic', pct:true}
+  // (tempo na banda ÷ tempo em campo).
+  {k:'fmpRun', lab:'FMP Total Running',curto:'FMP Running',  un:'min',  unMin:'% do tempo',dp:1, dpMin:1, nota:'Tempo na banda Running', pct:true},
+  {k:'fmpDyn', lab:'FMP Total Dynamic',curto:'FMP Dynamic',  un:'min',  unMin:'% do tempo',dp:1, dpMin:1, nota:'Tempo na banda Dynamic', pct:true}
 ];
 var GRUPOS = ['Zagueiros','Laterais','Meias','Atacantes'];
 // "Paulo Autuori" vira "Autuori". Sobrenome é como a comissão fala no dia a dia.
@@ -369,13 +387,14 @@ var ABAS = [
   {id:'individual',lab:'Individual'},
   {id:'minutagem', lab:'Minutagem'},
   {id:'contexto',  lab:'Contexto'},
+  {id:'auditoria', lab:'Auditoria'},
   {id:'metodo',    lab:'Método'}
 ];
 
 // ============================================================================
 // ESTADO
 // ============================================================================
-var S = {ref:'top10var', exp:'marcar', esc:'abs', minMin:60, aba:'resumo',
+var S = {ref:'top10var', exp:'marcar', esc:'abs', minMin:60, elenco:'ativos', aba:'resumo',
          ordIndiv:{col:'dNovo',dir:-1}, ordMin:{col:'minNovo',dir:-1}, metricaFoco:'dist'};
 var DADOS = {};        // { 'DD/MM/YYYY': [atleta, ...] }
 var EXTRAS = {};       // { 'DD/MM/YYYY': {ignorados:[], periodos:[]} } — para a conferência de elenco
@@ -385,6 +404,13 @@ var CARREGADO = false;
 // UTILITÁRIOS
 // ============================================================================
 function chaveData(d){ var p=(d||'').split('/'); return p.length===3 ? p[2]+p[1]+p[0] : '00000000'; }
+// Rótulo curto para caber em barra estreita: 115.444 vira "115,4k".
+function fmtCompacto(v,dp){
+  if(v===null||v===undefined||!isFinite(v)) return '—';
+  if(Math.abs(v)>=10000) return fmt(v/1000,1)+'k';
+  if(Math.abs(v)>=1000)  return fmt(v,0);
+  return fmt(v,dp);
+}
 function fmt(v,dp){
   if(v===null||v===undefined||!isFinite(v)) return '—';
   dp = dp===undefined?0:dp;
@@ -483,11 +509,12 @@ function agGrupo(data,grupo){
 // Valor de uma métrica num agregado, na escala corrente.
 // Por minuto = por atleta-minuto em campo — imune a expulsão e a rodízio.
 var MET_PCT = {fmpRun:1, fmpDyn:1};
+var MET_X10 = {acc:1, dec:1};
 function valor(ag,k,escala){
   if(!ag) return null;
   if(escala==='min'){
     if(!ag.min) return null;
-    return MET_PCT[k] ? (ag[k]/ag.min)*100 : ag[k]/ag.min;
+    return (ag[k]/ag.min) * (MET_PCT[k] ? 100 : MET_X10[k] ? 10 : 1);
   }
   return ag[k];
 }
@@ -615,10 +642,25 @@ function avisos(){
   }
   var semPos = Object.keys(SEM_POSICAO||{});
   if(semPos.length){
-    h+='<div class="warn"><span>⚠</span><div><b>'+semPos.length+' atleta(s) sem posição registrada:</b> '+
-       semPos.slice(0,8).map(esc).join(', ')+(semPos.length>8?' e outros':'')+'. Eles contam nos totais de equipe e na '+
-       'minutagem, mas ficam de fora do recorte por grupo posicional. Corrija a posição no cadastro da Catapult, ou '+
-       'acrescente o ID ao mapa <code>CADASTRO_POS</code> no topo do script.</div></div>';
+    h+='<div class="warn"><span>⚠</span><div><b>'+semPos.length+' atleta(s) sem posição no cadastro:</b> '+
+       semPos.slice(0,8).map(esc).join(', ')+(semPos.length>8?' e outros':'')+'. Contam nos totais de equipe e na '+
+       'minutagem, mas ficam de fora do recorte por grupo posicional. A posição é lida da planilha '+
+       'CADASTRO_ATLETAS_PROFISSIONAL_FEC; confira a linha desses atletas.</div></div>';
+  }
+  var foraCad = {};
+  Object.keys(DADOS).forEach(function(d){
+    atletasLinha(d).forEach(function(a){ if(a.ativo===null||a.ativo===undefined) foraCad[a.nome]=1; });
+  });
+  var fc=Object.keys(foraCad);
+  if(fc.length && S.elenco==='ativos'){
+    h+='<div class="warn"><span>⚠</span><div><b>'+fc.length+' atleta(s) fora da planilha de cadastro:</b> '+
+       fc.slice(0,8).map(esc).join(', ')+(fc.length>8?' e outros':'')+'. Sem linha na planilha não há status, então '+
+       'ficaram de fora das abas Individual e Minutagem. Continuam somando nos totais de equipe.</div></div>';
+  }
+  if(S.elenco==='ativos'){
+    h+='<div class="warn info"><span>ⓘ</span><div><b>Filtro de elenco ativo:</b> vale para as abas Individual e '+
+       'Minutagem. Totais de equipe e recortes por posição usam <b>todos</b> que entraram em campo — tirar de um jogo '+
+       'de março quem já saiu do clube faria a referência daquele jogo descrever uma partida que não aconteceu.</div></div>';
   }
   var somaFmp = Object.keys(DADOS).reduce(function(s2,d){ return s2+agEquipe(d).fmpDyn; },0);
   if(CARREGADO && somaFmp===0){
@@ -766,7 +808,7 @@ function renderEquipe(){
   h+='<div class="card"><div class="ctitle">Jogo a jogo · '+esc(LB_NOVO)+'</div>';
   h+='<div class="tbl-w"><table><thead><tr><th class="l">Data</th><th class="l">Adversário</th>'+
      '<th class="l">Competição</th><th>Atletas</th><th>Minutos</th>';
-  METRICAS.forEach(function(m){ h+='<th>'+esc(m.lab.split(' ')[0])+'</th>'; });
+  METRICAS.forEach(function(m){ h+='<th>'+esc(m.curto)+'</th>'; });
   h+='</tr></thead><tbody>';
   jogosDe(BLOCOS.novo).forEach(function(g){
     var ag=agEquipe(g.data);
@@ -814,7 +856,7 @@ function linhaTempo(met, dp, un){
   // independente do seletor de referência. É a régua fixa da temporada: mudar de
   // régua no meio da leitura do gráfico temporal só confunde.
   var c = comparar(met.k, agEquipe, 'top10var');
-  var LARG = 38, W=Math.max(760, todos.length*LARG), H=286, PAD_B=132, PAD_T=16, PAD_L=8;
+  var LARG = 38, W=Math.max(760, todos.length*LARG), H=296, PAD_B=132, PAD_T=26, PAD_L=8;
   var vals = todos.map(function(g){ return valor(agEquipe(g.data),met.k,S.esc)||0; });
   var max = Math.max.apply(null, vals.concat([c.ref?c.ref.max:0]))*1.08 || 1;
   var bw = (W-2*PAD_L)/todos.length;
@@ -844,8 +886,15 @@ function linhaTempo(met, dp, un){
        fmt(v,dp)+' '+esc(un)+'</title></rect>';
     if((g.exp||0)>0){
       s+='<rect x="'+x0+'" y="'+y(v)+'" width="'+w+'" height="'+alt+'" fill="url(#hx2)" opacity=".9" pointer-events="none"/>';
-      s+='<text x="'+(x0+w/2)+'" y="'+(y(v)-4)+'" text-anchor="middle" font-size="11" fill="#E8360A" font-weight="700">⚠</text>';
+      if(alt>18){
+        s+='<text x="'+(x0+w/2)+'" y="'+(y(v)+13)+'" text-anchor="middle" font-size="11" fill="#E8360A" '+
+           'font-weight="700" pointer-events="none">⚠</text>';
+      }
     }
+    // Rótulo acima da barra. Fonte 9 em barra de 38 px comporta "115,4k".
+    s+='<text x="'+(x0+w/2)+'" y="'+(y(v)-5)+'" text-anchor="middle" font-size="9" '+
+       'font-family="Barlow Condensed,sans-serif" font-weight="700" fill="'+(cor==='#003087'?'#071A3E':'#64748B')+
+       '" pointer-events="none">'+fmtCompacto(v,dp)+'</text>';
   });
   if(c.ref){
     s+='<line x1="0" y1="'+y(c.ref.v)+'" x2="'+W+'" y2="'+y(c.ref.v)+'" stroke="#C4952A" stroke-width="2.5" stroke-dasharray="7 4"/>';
@@ -942,10 +991,18 @@ function renderPosicao(){
 // ============================================================================
 // ATLETAS — série por bloco
 // ============================================================================
+// Status vem da planilha de cadastro, lida ao vivo pelo endpoint. Atleta que
+// não está na planilha entra como não-ativo e é nomeado num aviso — melhor
+// aparecer como pendência de cadastro do que sumir sem explicação.
+function atletaAtivo(a){
+  if(S.elenco==='todos') return true;
+  return a.ativo === true;
+}
 function serieAtletas(bloco, corteMin){
   var mapa = {};
   jogosDe(bloco).forEach(function(g){
     atletasLinha(g.data).forEach(function(a){
+      if(!atletaAtivo(a)) return;
       if(a.min < corteMin) return;
       var ch = a.id!=null ? 'id:'+a.id : 'nm:'+a.nome;
       if(!mapa[ch]) mapa[ch]={ch:ch,id:a.id,nome:a.nome,grupo:a.grupo,posicao:a.posicao,jogos:[]};
@@ -957,7 +1014,7 @@ function serieAtletas(bloco, corteMin){
 function valorAtleta(a,k,escala){
   if(escala==='min'){
     if(!a.min) return null;
-    return MET_PCT[k] ? (a[k]/a.min)*100 : a[k]/a.min;
+    return (a[k]/a.min) * (MET_PCT[k] ? 100 : MET_X10[k] ? 10 : 1);
   }
   return a[k];
 }
@@ -1087,6 +1144,7 @@ function minutosPorAtleta(jogos){
   var m={};
   jogos.forEach(function(g){
     atletasLinha(g.data).forEach(function(a){
+      if(!atletaAtivo(a)) return;
       var ch = a.id!=null?'id:'+a.id:'nm:'+a.nome;
       if(!m[ch]) m[ch]={ch:ch,nome:a.nome,grupo:a.grupo,min:0,jogos:0,titular:0,t1:0,t2:0};
       m[ch].min+=a.min; m[ch].jogos++; m[ch].t1+=a.t1Min||0; m[ch].t2+=a.t2Min||0;
@@ -1216,12 +1274,24 @@ function barrasMinutos(linhas){
   });
   L.forEach(function(r,i){
     var y=14+i*RH;
+    var dpp = r.delta===null ? 'novo no bloco'
+      : (r.delta>0?'+':r.delta<0?'−':'')+Math.abs(r.delta).toFixed(1).replace('.',',')+' p.p.';
+    var tip = '<b>'+esc(r.nome)+'</b>'+
+      '<span class="k">'+esc(LB_NOVO)+':</span> '+fmt(r.minNovo,0)+' min em '+r.jNovo+' jogo'+(r.jNovo===1?'':'s')+
+      ' · '+fmt(r.partNovo,1)+'% <br>'+
+      '<span class="k">Últimos 5 de '+esc(LB_ANT)+':</span> '+fmt(r.minU5,0)+' min em '+r.jU5+' jogo'+(r.jU5===1?'':'s')+
+      ' · '+fmt(r.partU5,1)+'%<br>'+
+      '<span class="k">Diferença:</span> '+dpp+
+      (r.jNovo?'<br><span class="k">Como titular:</span> '+r.titNovo+' de '+r.jNovo:'');
+    // Faixa invisível cobrindo a linha inteira: o alvo do mouse é a linha, não
+    // a barra. Com barras curtas, mirar em 3 px seria impraticável.
+    s+='<g data-tip="'+esc(tip).replace(/&lt;/g,'<').replace(/&gt;/g,'>')+'">';
+    s+='<rect x="0" y="'+y+'" width="'+W+'" height="'+(RH-2)+'" fill="transparent"/>';
     s+='<text x="0" y="'+(y+9)+'" font-size="10.5" font-family="Inter,sans-serif" fill="#0F172A" font-weight="600">'+
        esc(r.nome.length>16?r.nome.slice(0,15)+'…':r.nome)+'</text>';
-    s+='<rect x="'+PAD_L+'" y="'+(y+1)+'" width="'+Math.max(0,x(r.partU5)-PAD_L)+'" height="5" fill="#C4952A" opacity=".65" rx="1">'+
-       '<title>Últimos 5 do anterior: '+fmt(r.partU5,1)+'%</title></rect>';
-    s+='<rect x="'+PAD_L+'" y="'+(y+7)+'" width="'+Math.max(0,x(r.partNovo)-PAD_L)+'" height="7" fill="#003087" rx="1">'+
-       '<title>'+esc(LB_NOVO)+': '+fmt(r.partNovo,1)+'%</title></rect>';
+    s+='<rect x="'+PAD_L+'" y="'+(y+1)+'" width="'+Math.max(0,x(r.partU5)-PAD_L)+'" height="5" fill="#C4952A" opacity=".65" rx="1"/>';
+    s+='<rect x="'+PAD_L+'" y="'+(y+7)+'" width="'+Math.max(0,x(r.partNovo)-PAD_L)+'" height="7" fill="#003087" rx="1"/>';
+    s+='</g>';
   });
   s+='</svg>';
   return s+'<div class="lg"><span><i style="background:#003087"></i>'+esc(LB_NOVO)+'</span>'+
@@ -1271,42 +1341,11 @@ function conferenciaElenco(jogos){
 // ============================================================================
 function renderContexto(){
   var el=document.getElementById('p-contexto');
-  var jn=BLOCOS.novo.jogos, ja=BLOCOS.anterior.jogos;
-  var refJogos = (S.ref==='ult5') ? ja.slice(-5) : ja;
-
-  function num(lst,f){ var v=lst.map(f).filter(function(x){ return x!==null&&x!==undefined&&isFinite(x); }); return v.length?media(v):null; }
-  function frac(lst,f){ return lst.length? lst.filter(f).length/lst.length*100 : null; }
-
-  var linhas=[
-    ['Jogos', jn.length, refJogos.length, 'un', 0],
-    ['Jogos em casa', frac(jn,function(g){return g.mando==='Casa';}), frac(refJogos,function(g){return g.mando==='Casa';}),'%',0],
-    ['Distância média de viagem', num(jn,function(g){return g.viagem;}), num(refJogos,function(g){return g.viagem;}),'km',0],
-    ['Dias fora por jogo', num(jn,function(g){return g.dias;}), num(refJogos,function(g){return g.dias;}),'dias',1],
-    ['Temperatura', num(jn,function(g){return g.temp;}), num(refJogos,function(g){return g.temp;}),'°C',1],
-    ['Umidade', num(jn,function(g){return g.umi;}), num(refJogos,function(g){return g.umi;}),'%',0],
-    ['Pontos por jogo', num(jn,function(g){return g.pts;}), num(refJogos,function(g){return g.pts;}),'pts',2],
-    ['Gols marcados por jogo', num(jn,function(g){return g.gf;}), num(refJogos,function(g){return g.gf;}),'gols',2],
-    ['Gols sofridos por jogo', num(jn,function(g){return g.gc;}), num(refJogos,function(g){return g.gc;}),'gols',2],
-    ['Posse de bola', num(jn,function(g){return g.posse;}), num(refJogos,function(g){return g.posse;}),'%',1],
-    ['Jogos com expulsão', frac(jn,function(g){return (g.exp||0)>0;}), frac(refJogos,function(g){return (g.exp||0)>0;}),'%',0]
-  ];
+  var jn=BLOCOS.novo.jogos;
 
   var h='<div class="warn info"><span>ⓘ</span><div>Estes números vêm da aba <b>Jogos 2026</b> da planilha do '+
     'departamento, não da Catapult. Servem para enquadrar a comparação física: viagem longa, calor e mando de campo '+
-    'mexem na demanda de um jogo independentemente de quem treina. Posse de bola e xG não estão preenchidos a partir '+
-    'do jogo 39, então essas médias saem de amostras menores.</div></div>';
-
-  h+='<div class="card"><div class="ctitle">Contexto dos dois blocos<span class="tag">'+
-     esc(LB_NOVO)+' × '+esc(LB_ANT)+'</span></div>';
-  h+='<div class="tbl-w"><table><thead><tr><th class="l">Variável</th><th>'+esc(LB_NOVO)+'</th>'+
-     '<th>'+esc(LB_ANT)+'</th><th>Diferença</th></tr></thead><tbody>';
-  linhas.forEach(function(r){
-    var d = (r[1]!==null&&r[2]!==null) ? r[1]-r[2] : null;
-    h+='<tr><td class="l">'+esc(r[0])+'</td><td class="num">'+fmt(r[1],r[4])+' <span class="mut" style="font-size:10px">'+esc(r[3])+'</span></td>';
-    h+='<td class="num">'+fmt(r[2],r[4])+' <span class="mut" style="font-size:10px">'+esc(r[3])+'</span></td>';
-    h+='<td class="num mut">'+(d===null?'—':(d>0?'+':'')+fmt(d,r[4]))+'</td></tr>';
-  });
-  h+='</tbody></table></div></div>';
+    'mexem na demanda de um jogo independentemente de quem treina.</div></div>';
 
   h+='<div class="card"><div class="ctitle">Os '+jn.length+' jogos de '+esc(LB_NOVO)+'</div>';
   h+='<div class="tbl-w"><table><thead><tr><th class="l">#</th><th class="l">Data</th><th class="l">Adversário</th>'+
@@ -1338,85 +1377,187 @@ function renderContexto(){
 }
 
 // ============================================================================
+// ABA · AUDITORIA
+// Confere as bandas contra o próprio dado, em vez de confiar na documentação.
+// A identidade que decide tudo é soma(band1..band8) = distância total: se ela
+// fecha, a numeração dos slugs está entendida corretamente.
+// ============================================================================
+var FAIXAS_VEL = ['0,50 – 7,20','7,20 – 9,97','9,97 – 14,40','14,40 – 19,80',
+                  '19,80 – 25,20','25,20 – 30,00','> 30,00','(não configurada)'];
+var NOMES_VEL  = ['Caminhada','Trote Leve','Trote','Corrida','Corrida Intensa','Sprint','Sprint Máximo','—'];
+
+function somarAuditoria(datas){
+  var o={dist:0,accBand7plus:0,n:0};
+  for(var i=1;i<=8;i++){ o['vb'+i]=0; o['ab'+i]=0; }
+  datas.forEach(function(d){
+    var a=(EXTRAS[d]||{}).auditoria; if(!a) return;
+    o.dist+=a.dist||0; o.accBand7plus+=a.accBand7plus||0; o.n++;
+    for(var i=1;i<=8;i++){ o['vb'+i]+=a['vb'+i]||0; o['ab'+i]+=a['ab'+i]||0; }
+  });
+  return o;
+}
+function selo(ok, txtOk, txtNao){
+  var cor = ok ? '#15803D' : '#B91C1C', bg = ok ? '#F0FDF4' : '#FEF2F2';
+  return '<span style="display:inline-block;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:20px;'+
+    'background:'+bg+';color:'+cor+';border:1px solid '+cor+'33">'+(ok?'✓ ':'✕ ')+esc(ok?txtOk:txtNao)+'</span>';
+}
+
+function renderAuditoria(){
+  var el=document.getElementById('p-auditoria');
+  if(!CARREGADO){ el.innerHTML=vazio(); return; }
+  var datas=Object.keys(DADOS).filter(function(d){ return (EXTRAS[d]||{}).auditoria; });
+  if(!datas.length){
+    el.innerHTML='<div class="card"><div class="empty"><strong>Sem dados de auditoria</strong>'+
+      'Os campos de conferência vêm do endpoint. Clique em <b>Buscar dados</b> para recarregar com a versão nova — '+
+      'um cache antigo não tem esses campos.</div></div>';
+    return;
+  }
+  var A=somarAuditoria(datas);
+  var somaVB=0; for(var i=1;i<=8;i++) somaVB+=A['vb'+i];
+  var residuo = A.dist ? (A.dist-somaVB)/A.dist*100 : null;
+  var altInt = A.vb5+A.vb6+A.vb7, sprint = A.vb6+A.vb7;
+  var pctAI = A.dist ? altInt/A.dist*100 : 0;
+  var decUsada = A.ab1+A.ab2, accSoma78 = A.ab7+A.ab8;
+
+  var h='<div class="warn info"><span>ⓘ</span><div>Todos os números desta aba somam <b>todos os atletas</b> com '+
+    'minutos em 1tempo/2tempo, goleiro incluído, nos '+A.n+' jogos carregados. É conferência de dado bruto, não '+
+    'leitura fisiológica — por isso não segue os filtros da barra de controle.</div></div>';
+
+  // ---- 1. identidade das bandas de velocidade
+  var okResiduo = residuo!==null && Math.abs(residuo)<1.5;
+  var okBand8 = A.vb8===0;
+  var okB6 = A.vb6>0;
+  var okPct = pctAI>=3 && pctAI<=9;
+  h+='<div class="card"><div class="ctitle">Bandas de velocidade</div>';
+  h+='<p class="csub">A conta que decide: se a soma das oito bandas reproduz a distância total, a numeração dos slugs '+
+     'está entendida certo. O resíduo esperado é pequeno e positivo — é o deslocamento abaixo de 0,50 km/h, que não '+
+     'entra em banda nenhuma.</p>';
+  h+='<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">';
+  h+=selo(okResiduo,'Soma das bandas fecha com a distância total (resíduo '+fmt(residuo,2)+'%)',
+          'Resíduo de '+fmt(residuo,2)+'% — acima do esperado');
+  h+=selo(okBand8,'band8 zerada: o tenant tem 7 bandas','band8 com '+fmt(A.vb8,0)+' m — a tabela mudou');
+  h+=selo(okB6,'band6 (25,20–30,00) tem volume e está somada','band6 zerada — verificar');
+  h+=selo(okPct,'%AI/DT em '+fmt(pctAI,2)+'%, dentro do plausível','%AI/DT em '+fmt(pctAI,2)+'% — fora do plausível');
+  h+='</div>';
+  h+='<div class="tbl-w"><table><thead><tr><th class="l">Banda</th><th class="l">Slug</th><th class="l">Faixa (km/h)</th>'+
+     '<th class="l">Nome</th><th>Distância</th><th>% da total</th><th class="l">Entra em</th></tr></thead><tbody>';
+  for(var b=1;b<=8;b++){
+    var v=A['vb'+b], entra = b>=5&&b<=7 ? 'Alta Intensidade' : '', spr = b>=6&&b<=7;
+    h+='<tr'+(b>=5&&b<=7?' style="background:#F0F5FF"':'')+'>';
+    h+='<td class="l"><b>B'+b+'</b></td><td class="l mut" style="font-size:10.5px">velocity_band'+b+'_total_distance</td>';
+    h+='<td class="l">'+esc(FAIXAS_VEL[b-1])+'</td><td class="l mut">'+esc(NOMES_VEL[b-1])+'</td>';
+    h+='<td class="num">'+fmt(v,0)+' m</td><td class="num">'+fmt(A.dist?v/A.dist*100:0,2)+'%</td>';
+    h+='<td class="l" style="font-size:11px">'+esc(entra)+(spr?' <b style="color:var(--vm)">+ Sprint</b>':'')+'</td></tr>';
+  }
+  h+='<tr class="tot"><td class="l">Soma das 8 bandas</td><td class="l"></td><td class="l"></td><td class="l"></td>';
+  h+='<td class="num">'+fmt(somaVB,0)+' m</td><td class="num">'+fmt(A.dist?somaVB/A.dist*100:0,2)+'%</td><td></td></tr>';
+  h+='<tr class="tot" style="background:#fff"><td class="l">Distância total medida</td><td class="l"></td><td class="l"></td><td class="l"></td>';
+  h+='<td class="num">'+fmt(A.dist,0)+' m</td><td class="num">100%</td><td></td></tr>';
+  h+='</tbody></table></div>';
+  h+='<p class="csub" style="margin-top:11px">Alta Intensidade = B5+B6+B7 = <b>'+fmt(altInt,0)+' m</b> '+
+     '('+fmt(pctAI,2)+'% da distância). Sprint = B6+B7 = <b>'+fmt(sprint,0)+' m</b>. '+
+     'A B6, faixa de 25,20 a 30,00 km/h, responde por '+fmt(A.vb6,0)+' m: se ela ficasse de fora, a Alta Intensidade '+
+     'perderia '+fmt(altInt?A.vb6/altInt*100:0,1)+'% do seu volume.</p></div>';
+
+  // ---- 2. aceleração
+  var okAcc78 = Math.abs(A.accBand7plus-accSoma78) <= Math.max(1, accSoma78*0.02);
+  h+='<div class="card"><div class="ctitle">Bandas de aceleração Gen2</div>';
+  h+='<p class="csub">A Catapult numera as bandas de aceleração do mais negativo para o mais positivo: as primeiras '+
+     'são desaceleração, as últimas são aceleração. O painel usa <code>band7plus</code> para aceleração e a soma de '+
+     '<code>band1</code> e <code>band2</code> para desaceleração, ambas no limiar de 3 m/s².</p>';
+  h+='<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">';
+  h+=selo(okAcc78,'band7plus ('+fmt(A.accBand7plus,0)+') bate com band7+band8 ('+fmt(accSoma78,0)+')',
+          'band7plus ('+fmt(A.accBand7plus,0)+') não bate com band7+band8 ('+fmt(accSoma78,0)+')');
+  h+=selo(A.ab1+A.ab2>0,'Desaceleração vem de band1+band2 ('+fmt(decUsada,0)+' esforços)','band1 e band2 zeradas');
+  h+='</div>';
+  h+='<div class="tbl-w"><table><thead><tr><th class="l">Banda Gen2</th><th>Esforços</th><th>% do total</th>'+
+     '<th class="l">Uso no painel</th></tr></thead><tbody>';
+  var totAb=0; for(var q=1;q<=8;q++) totAb+=A['ab'+q];
+  for(var b2=1;b2<=8;b2++){
+    var uso = b2<=2 ? 'Desacelerações' : (b2>=7 ? 'Acelerações (via band7plus)' : '');
+    h+='<tr'+(uso?' style="background:#F0F5FF"':'')+'><td class="l"><b>band'+b2+'</b></td>';
+    h+='<td class="num">'+fmt(A['ab'+b2],0)+'</td><td class="num">'+fmt(totAb?A['ab'+b2]/totAb*100:0,1)+'%</td>';
+    h+='<td class="l" style="font-size:11px">'+esc(uso)+'</td></tr>';
+  }
+  h+='<tr class="tot"><td class="l">band7plus (somada pela Catapult)</td><td class="num">'+fmt(A.accBand7plus,0)+
+     '</td><td></td><td class="l" style="font-size:11px">Acelerações do painel</td></tr>';
+  h+='</tbody></table></div>';
+  h+='<p class="csub" style="margin-top:11px">Se as bandas 1 e 2 tiverem volume parecido com as 7 e 8, a leitura de '+
+     'que as primeiras são desaceleração e as últimas aceleração está correta: freada e arranque acontecem em número '+
+     'semelhante ao longo de um jogo. Aqui: band1+band2 = '+fmt(decUsada,0)+', band7+band8 = '+fmt(accSoma78,0)+'.</p></div>';
+
+  // ---- 3. por jogo
+  h+='<div class="card"><div class="ctitle">Resíduo por jogo</div>';
+  h+='<p class="csub">Um jogo isolado com resíduo alto costuma indicar colete com falha de sinal, não erro de banda.</p>';
+  h+='<div class="tbl-w"><table><thead><tr><th class="l">Data</th><th class="l">Adversário</th><th>Distância</th>'+
+     '<th>Soma das bandas</th><th>Resíduo</th><th>B6 (25,2–30)</th><th>B7 (>30)</th><th>B8</th><th>%AI/DT</th></tr></thead><tbody>';
+  datas.slice().sort(function(a,b){ return chaveData(b).localeCompare(chaveData(a)); }).forEach(function(d){
+    var a=EXTRAS[d].auditoria, sv=0;
+    for(var i2=1;i2<=8;i2++) sv+=a['vb'+i2]||0;
+    var r=a.dist?(a.dist-sv)/a.dist*100:0;
+    var ai=(a.vb5||0)+(a.vb6||0)+(a.vb7||0);
+    var ctxg=CTX[d]||{};
+    h+='<tr><td class="l"><b>'+esc(d)+'</b></td><td class="l">'+esc(ctxg.adv||'—')+'</td>';
+    h+='<td class="num">'+fmt(a.dist,0)+'</td><td class="num">'+fmt(sv,0)+'</td>';
+    h+='<td class="num" style="color:'+(Math.abs(r)<1.5?'var(--mt)':'var(--vm)')+'">'+fmt(r,2)+'%</td>';
+    h+='<td class="num">'+fmt(a.vb6,0)+'</td><td class="num">'+fmt(a.vb7,0)+'</td>';
+    h+='<td class="num" style="color:'+((a.vb8||0)===0?'var(--mt)':'var(--vm)')+'">'+fmt(a.vb8,0)+'</td>';
+    h+='<td class="num">'+fmt(a.dist?ai/a.dist*100:0,2)+'%</td></tr>';
+  });
+  h+='</tbody></table></div></div>';
+  el.innerHTML=h;
+}
+
+// ============================================================================
 // ABA · MÉTODO
 // ============================================================================
 function renderMetodo(){
   var jn=BLOCOS.novo.jogos.length, ja=BLOCOS.anterior.jogos.length;
   var h='<div class="card met">';
-  h+='<div class="ctitle">O que este painel compara</div>';
-  h+='<p>Dois blocos de jogos da temporada 2026, separados pela coluna <code>CODIGO</code> da aba <b>Jogos 2026</b>: '+
-     'os <b>'+jn+' jogos</b> de '+esc(LB_NOVO)+' contra os <b>'+ja+' jogos</b> de '+esc(LB_ANT)+'. '+
-     'Jogo sob comando interino fica fora das duas médias.</p>';
+  h+='<div class="ctitle">Critérios</div>';
 
-  h+='<h4>Origem dos dados</h4><ul>'+
-     '<li><b>GPS:</b> Catapult Connect API v6, <code>POST /stats</code> agrupado por período e atleta, exatamente como no '+
-     'relatório de jogo. Um período conta como jogo quando o nome contém <code>1tempo</code> ou <code>2tempo</code>; '+
-     'aquecimento e banco ficam de fora.</li>'+
-     '<li><b>Contexto:</b> aba Jogos 2026 da planilha do departamento, embutida no arquivo. Para incluir um jogo novo, '+
-     'acrescente uma linha ao array <code>CONTEXTO</code> no topo do script.</li></ul>';
+  h+='<h4>O que está sendo comparado</h4>';
+  h+='<p>Os <b>'+jn+' jogos</b> de '+esc(LB_NOVO)+' contra os <b>'+ja+' jogos</b> de '+esc(LB_ANT)+'. '+
+     'A separação vem da coluna CODIGO da aba Jogos 2026. Jogo sob comando interino fica fora das duas médias.</p>';
 
-  h+='<h4>Definições travadas</h4><ul>'+
-     '<li><b>Alta Intensidade</b> = B5+B6+B7, tudo acima de 19,80 km/h.</li>'+
-     '<li><b>Sprint</b> = B6+B7, tudo acima de 25,20 km/h.</li>'+
-     '<li><b>Acelerações</b> = <code>gen2_acceleration_band7plus</code>, esforços ≥ 3 m/s² já somados pela Catapult.</li>'+
-     '<li><b>Desacelerações</b> = soma das bandas Gen2 1 e 2 (a numeração da desaceleração é invertida no Gen2).</li>'+
-     '<li><b>FMP Total Running</b> e <b>FMP Total Dynamic</b> chegam em segundos. Em valores absolutos aparecem como '+
-     'minutos somados da equipe; na escala por minuto viram <b>% do tempo de jogo</b>, sempre recalculado aqui '+
-     '(tempo na banda ÷ tempo em campo). Somar o campo de percentual que a Catapult devolve para cada tempo daria '+
-     'número errado.</li>'+
-     '<li><b>Goleiros</b> ficam fora de toda soma e média. Atleta sem posição no cadastro conta como jogador de '+
-     'linha e entra nos totais; ele só fica de fora do recorte por grupo posicional, e o painel avisa quem é.</li>'+
-     '<li><b>Velocidade máxima</b> saiu do painel a seu pedido: é um pico de um único atleta e não descreve o bloco.</li></ul>';
-  h+='<p>A tabela de bandas foi confirmada em 19/08/2026 por sonda em dado real (soma das bandas contra a distância '+
-     'total, em três jogos). Qualquer leitura de intensidade tirada de painel anterior a essa data precisa ser refeita.</p>';
+  h+='<h4>Variáveis</h4><ul>'+
+     '<li>Alta Intensidade = B5+B6+B7, acima de 19,80 km/h.</li>'+
+     '<li>Sprint = B6+B7, acima de 25,20 km/h.</li>'+
+     '<li>Acelerações e desacelerações no limiar de 3 m/s².</li>'+
+     '<li>FMP Total Running e Total Dynamic: minutos na escala absoluta, % do tempo de jogo na escala por minuto.</li>'+
+     '<li>Goleiros fora de todos os agregados.</li></ul>';
 
-  h+='<h4>Como a referência é montada</h4><ul>'+
-     '<li><b>10 maiores por variável</b> (padrão): para cada variável, os 10 maiores valores da era anterior, '+
-     'e a média deles. É a mesma regra dos Valores Referenciais já usados no departamento. Cada variável pode vir de '+
-     'jogos diferentes — é um teto por variável, não o retrato de um jogo.</li>'+
-     '<li><b>10 maiores em distância</b>: escolhe os 10 jogos de maior distância e tira todas as médias desses mesmos '+
-     'jogos. Perde altura em cada variável, mas descreve partidas reais.</li>'+
-     '<li><b>Últimos 5 jogos</b>: comparação de igual para igual — mesmo número de partidas, mesmo momento de temporada, '+
-     'mesmo elenco disponível. É a mais justa para julgar mudança de trabalho, e a menos estável.</li>'+
-     '<li><b>Todos os jogos</b>: a média da era inteira. Estável, mas dilui fases muito diferentes da temporada.</li></ul>';
-  h+='<p>Comparar contra os 10 maiores responde "o quanto o time está abaixo do próprio teto". Comparar contra os '+
-     'últimos 5 responde "o que mudou desde a troca". São perguntas diferentes e costumam dar respostas diferentes; '+
-     'vale olhar as duas antes de levar qualquer número para a reunião.</p>';
+  h+='<h4>Referência</h4>'+
+     '<p>Padrão: média dos 10 maiores jogos de '+esc(LB_ANT)+', variável por variável. O seletor da barra de controle '+
+     'troca para os 10 maiores em distância, os últimos 5 jogos ou a média de todos. O gráfico da temporada usa sempre '+
+     'os 10 maiores por variável, como régua fixa.</p>';
 
-  h+='<h4>Expulsões</h4>'+
-     '<p>Um jogo com um atleta a menos perde minutos de campo e, com eles, todo total absoluto de equipe — sem que a '+
-     'intensidade de quem ficou tenha mudado. Há um jogo assim no bloco de '+esc(BLOCOS.novo.tec)+' e outros na era '+
-     'anterior. O painel oferece as duas saídas: <b>Marcar</b> mantém o jogo e o sinaliza (losango hachurado, ⚠ nas '+
-     'tabelas); <b>Excluir jogos</b> tira da conta dos dois blocos. Na escala por minuto a expulsão praticamente não '+
-     'importa, porque o denominador encolhe junto.</p>';
+  h+='<h4>Escalas</h4>'+
+     '<p>Absoluto é volume: a soma dos atletas de linha naquela partida. Por minuto é densidade: a mesma soma dividida '+
+     'pelos minutos em campo. A densidade não se altera com expulsão, rodízio ou acréscimo longo, e é a escala que '+
+     'responde à pergunta de intensidade. Acelerações e desacelerações aparecem por 10 minutos, não por minuto, para '+
+     'não perder resolução na casa decimal.</p>';
 
-  h+='<h4>Absoluto e por minuto</h4>'+
-     '<p>Absoluto é volume: quanto o time produziu naquela partida. Responde à pergunta de carga. Por minuto é '+
-     'densidade: quanto se produz por minuto de atleta em campo. Responde à pergunta de intensidade, e é o único dos '+
-     'dois que sobrevive a expulsão, rodízio pesado e acréscimo longo. No nível individual, absoluto mede sobretudo '+
-     'tempo de jogo — quem foi substituído aos 60 minutos acumula menos por ter jogado menos.</p>';
+  h+='<h4>Filtros</h4><ul>'+
+     '<li><b>Expulsões:</b> marcar mantém o jogo e o sinaliza; excluir tira dos dois blocos.</li>'+
+     '<li><b>Elenco:</b> só ativos vale para Individual e Minutagem. Totais de equipe usam todos que jogaram.</li>'+
+     '<li><b>Mínimo de minutos:</b> corte para um jogo entrar na comparação individual.</li>'+
+     '<li>Titular = pelo menos 40 minutos no primeiro tempo.</li></ul>';
 
-  h+='<h4>Limites que este painel não resolve</h4><ul>'+
-     '<li><b>n=5.</b> Cinco jogos não separam efeito de trabalho de variação normal entre partidas. A faixa dourada de '+
-     'cada trilho mostra o quanto a própria referência oscilou; um desvio dentro dessa faixa não é achado.</li>'+
-     '<li><b>Adversário e contexto mudam junto com o bloco.</b> Quatro dos cinco jogos novos foram fora de casa, '+
-     'dois deles contra o Palmeiras. A aba Contexto existe para essa leitura, mas não corrige o número.</li>'+
-     '<li><b>Sem teste estatístico.</b> Os Δ% são descritivos. Nada aqui é um p-valor.</li>'+
-     '<li><b>Elenco diferente.</b> Atleta sem jogo elegível na era anterior aparece sem referência, e não entra na '+
-     'comparação individual.</li></ul>';
+  h+='<h4>Limites</h4><ul>'+
+     '<li>Cinco jogos não separam efeito de trabalho de variação normal entre partidas. A faixa dourada de cada '+
+     'trilho mostra o quanto a referência oscilou.</li>'+
+     '<li>Adversário, mando e viagem mudaram junto com o bloco. A aba Contexto enquadra, mas não corrige.</li>'+
+     '<li>Os Δ% são descritivos. Não há teste estatístico.</li></ul>';
 
-  h+='<h4>Contagem de atletas</h4>'+
-     '<p>Atleta de linha é todo mundo que não é goleiro. Se a contagem de um jogo divergir da súmula, abra '+
-     '<b>Conferência de elenco</b> na aba Minutagem: ela lista, jogo a jogo, quem entrou na conta com quantos minutos, '+
-     'quem ficou de fora e por quê. As três causas possíveis são colete que não gravou, período de substituto nomeado '+
-     'sem o radical <code>1tempo</code>/<code>2tempo</code>, e atleta cadastrado como goleiro.</p>';
-  h+='<h4>Atualizando</h4><ul>'+
-     '<li>Depois de cada jogo: acrescente a linha no array <code>CONTEXTO</code> e clique em <b>Buscar dados</b>.</li>'+
-     '<li>Os dados ficam guardados neste navegador. O botão sempre refaz a busca na Catapult; não há atualização automática.</li>'+
-     '<li>A Catapult recusa varreduras longas, então o painel pede em lotes de '+LOTE+' jogos com pausa entre eles. '+
-     'Se algum lote falhar, o painel diz quais datas não vieram em vez de mostrar média incompleta em silêncio.</li></ul>';
-  h+='<p class="mut" style="font-size:11.5px;margin-top:18px">Fortaleza Esporte Clube · Departamento de Fisiologia do '+
-     'Esporte · Adriano Lima e Felipe Lima</p>';
+  h+='<h4>Fontes</h4><ul>'+
+     '<li>GPS: Catapult Connect API, períodos 1tempo e 2tempo.</li>'+
+     '<li>Posição e status: planilha CADASTRO_ATLETAS_PROFISSIONAL_FEC.</li>'+
+     '<li>Contexto do jogo: aba Jogos 2026, embutida no arquivo.</li>'+
+     '<li>Conferência das bandas contra o dado bruto: aba Auditoria.</li></ul>';
+
+  h+='<p class="mut" style="font-size:11.5px;margin-top:18px">Fortaleza Esporte Clube · Departamento de Fisiologia · '+
+     'Adriano Lima — Felipe Lima</p>';
   h+='</div>';
   document.getElementById('p-metodo').innerHTML=h;
 }
@@ -1467,7 +1608,7 @@ async function carregar(){
       var data = await r.json();
       (data.jogos||[]).forEach(function(j){
         DADOS[j.data]=normalizar(j.atletas);
-        EXTRAS[j.data]={ignorados:j.ignorados||[], periodos:j.periodos||[]};
+        EXTRAS[j.data]={ignorados:j.ignorados||[], periodos:j.periodos||[], auditoria:j.auditoria||null};
         ok++;
       });
       (data.falhas||[]).forEach(function(f){ falhas.push(f.data+' ('+f.motivo+')'); });
@@ -1536,6 +1677,7 @@ function demo(){
       var min = tit ? (r()<0.25 ? 55+r()*30 : 90+r()*5) : 8+r()*35;
       var dm = 101+r()*20, dist=min*dm;
       lst.push({id:900+k, nome:NOMES_DEMO[k%NOMES_DEMO.length], posicao:pg[1], grupo:pg[0],
+        status:'ATIVO', ativo:true,
         min:+min.toFixed(1), t1Min:+(tit?Math.min(min,48):Math.max(0,min-20)).toFixed(1),
         t2Min:+Math.max(0,min-(tit?48:min-20)).toFixed(1),
         dist:Math.round(dist), altInt:Math.round(dist*(0.045+r()*0.03)), sprint:Math.round(dist*(0.008+r()*0.012)),
@@ -1547,6 +1689,15 @@ function demo(){
         t1AltInt:Math.round(dist*0.03), t2AltInt:Math.round(dist*0.025)});
     }
     DADOS[g.data]=lst;
+    var dTot=lst.reduce(function(t,a){ return t+a.dist; },0);
+    var aud={dist:Math.round(dTot/0.996), accBand7plus:lst.reduce(function(t,a){return t+a.acc;},0)};
+    var frac=[0.410,0.163,0.221,0.142,0.0455,0.0090,0.0005,0];
+    for(var b=1;b<=8;b++) aud['vb'+b]=Math.round(aud.dist*frac[b-1]);
+    var dec=lst.reduce(function(t,a){return t+a.dec;},0);
+    aud.ab1=Math.round(dec*0.38); aud.ab2=Math.round(dec*0.62);
+    aud.ab3=0; aud.ab4=0; aud.ab5=0; aud.ab6=0;
+    aud.ab7=Math.round(aud.accBand7plus*0.72); aud.ab8=aud.accBand7plus-aud.ab7;
+    EXTRAS[g.data]={ignorados:[],periodos:[],auditoria:aud};
   });
   CARREGADO=true;
   document.getElementById('demo-bar').style.display='block';
@@ -1598,6 +1749,7 @@ function render(){
     else if(S.aba==='individual') renderIndividual();
     else if(S.aba==='minutagem') renderMinutagem();
     else if(S.aba==='contexto') renderContexto();
+    else if(S.aba==='auditoria') renderAuditoria();
     else if(S.aba==='metodo') renderMetodo();
   }catch(e){
     console.error('render '+S.aba+':',e);
@@ -1614,6 +1766,35 @@ function render(){
 }
 
 // ============================================================================
+// TOOLTIP
+// Um só elemento, delegado no documento. Qualquer coisa com data-tip mostra.
+// ============================================================================
+(function(){
+  var tip=document.getElementById('tip'), alvo=null;
+  function posicionar(e){
+    var m=14, w=tip.offsetWidth, hh=tip.offsetHeight;
+    var x=e.clientX+m, y=e.clientY+m;
+    if(x+w>window.innerWidth-8) x=e.clientX-w-m;
+    if(y+hh>window.innerHeight-8) y=e.clientY-hh-m;
+    tip.style.left=Math.max(8,x)+'px'; tip.style.top=Math.max(8,y)+'px';
+  }
+  document.addEventListener('mouseover',function(e){
+    var el=e.target.closest ? e.target.closest('[data-tip]') : null;
+    if(!el){ return; }
+    alvo=el; tip.innerHTML=el.getAttribute('data-tip');
+    tip.classList.add('on'); tip.setAttribute('aria-hidden','false'); posicionar(e);
+  });
+  document.addEventListener('mousemove',function(e){ if(alvo) posicionar(e); });
+  document.addEventListener('mouseout',function(e){
+    var el=e.target.closest ? e.target.closest('[data-tip]') : null;
+    if(el===alvo){ alvo=null; tip.classList.remove('on'); tip.setAttribute('aria-hidden','true'); }
+  });
+  document.addEventListener('scroll',function(){
+    if(alvo){ alvo=null; tip.classList.remove('on'); tip.setAttribute('aria-hidden','true'); }
+  },true);
+})();
+
+// ============================================================================
 // BOOT
 // ============================================================================
 montarAbas();
@@ -1622,6 +1803,7 @@ document.getElementById('inp-min').addEventListener('change',function(e){
   S.minMin=Math.max(0,Math.min(120,Number(e.target.value)||0)); render();
 });
 seg('seg-exp','exp');
+seg('seg-elenco','elenco');
 seg('seg-esc','esc');
 document.getElementById('btn-load').addEventListener('click',carregar);
 document.getElementById('btn-demo').addEventListener('click',demo);
