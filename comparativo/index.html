@@ -123,10 +123,38 @@ th[role=button]:hover{color:var(--az)}
 th.srt{color:var(--az)}
 td.l,th.l{text-align:left}
 tbody tr:hover{background:var(--lt)}
+/* Tabela com colunas agrupadas por treinador: faixa colorida no topo e fundo
+   tênue descendo pelas colunas, para o olho não precisar contar posições. */
+table.grp th{position:static}
+th.gh{text-align:center;font-family:var(--cond);font-size:14px;font-weight:700;letter-spacing:.09em;
+  color:#fff;padding:6px 8px;text-transform:uppercase}
+th.gh small{display:block;font-family:var(--sans);font-size:9.5px;font-weight:600;letter-spacing:.04em;
+  opacity:.72;text-transform:none;margin-top:1px}
+th.gh.a{background:var(--az)} th.gh.c{background:#9C7A1D} th.gh.d{background:#334155}
+th.gh.n{background:transparent}
+.cA{background:#F4F8FF} .cC{background:#FDFAF1} .cD{background:#F8FAFC}
+thead tr:first-child th{border-bottom:0}
+thead tr:nth-child(2) th.cA{border-top:2px solid var(--az)}
+thead tr:nth-child(2) th.cC{border-top:2px solid #9C7A1D}
+thead tr:nth-child(2) th.cD{border-top:2px solid #334155}
 tr.tot{background:var(--lt);font-weight:700}
 tr.tot td{border-top:2px solid var(--azn)}
 .num{font-family:var(--cond);font-size:14px;font-weight:700}
 .chip{display:inline-block;font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:4px;color:#fff;letter-spacing:.03em}
+/* Selos de tamanho de efeito: matiz = direção, intensidade = magnitude.
+   Trivial é cinza dos dois lados, de propósito. */
+.ef{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;
+  letter-spacing:.03em;white-space:nowrap;border:1px solid transparent}
+.ef b{font-family:var(--cond);font-size:12px;margin-left:3px}
+.ef0{background:#F1F5F9;color:#64748B;border-color:#DDE3EC}
+.efA1{background:#EEF4FF;color:#1D4ED8;border-color:#C3D6F7}
+.efA2{background:#DCE8FF;color:#1A3FA8;border-color:#A8C4F2}
+.efA3{background:#C3D8FF;color:#122E7D;border-color:#8AB0EC}
+.efA4{background:#003087;color:#fff;border-color:#003087}
+.efB1{background:#FFF1EC;color:#C2410C;border-color:#FBD3C3}
+.efB2{background:#FFE0D4;color:#A5350B;border-color:#F7BAA1}
+.efB3{background:#FFC9B4;color:#7C2708;border-color:#F09E7C}
+.efB4{background:#E8360A;color:#fff;border-color:#E8360A}
 .mut{color:var(--mt);font-weight:500}
 .exp-flag{color:var(--vm);font-weight:800;cursor:help}
 
@@ -394,7 +422,7 @@ var ABAS = [
 // ============================================================================
 // ESTADO
 // ============================================================================
-var S = {ref:'top10var', exp:'marcar', esc:'abs', minMin:60, elenco:'ativos', aba:'resumo',
+var S = {ref:'top10var', exp:'marcar', esc:'abs', minMin:60, elenco:'ativos', matriz:'delta', aba:'resumo',
          ordIndiv:{col:'dNovo',dir:-1}, ordMin:{col:'minNovo',dir:-1}, metricaFoco:'dist'};
 var DADOS = {};        // { 'DD/MM/YYYY': [atleta, ...] }
 var EXTRAS = {};       // { 'DD/MM/YYYY': {ignorados:[], periodos:[]} } — para a conferência de elenco
@@ -417,7 +445,22 @@ function fmt(v,dp){
   var s = Math.abs(v).toFixed(dp);
   var pt = s.split('.');
   pt[0] = pt[0].replace(/\B(?=(\d{3})+(?!\d))/g,'.');
-  return (v<0?'−':'')+pt.join(',');
+  // "−0,0" não existe: se o arredondamento zerou o número, o sinal também some.
+  var zerou = Number(s) === 0;
+  return (v<0 && !zerou ? '−' : '')+pt.join(',');
+}
+// Diferença em unidade física. Quando ela é real mas não cabe na casa decimal
+// exibida, mostra "≈ 0" — dizer "0,0" ao lado de um Δ% de −1% seria contradição.
+function fmtDelta(v,dp){
+  if(v===null||v===undefined||!isFinite(v)) return '—';
+  if(v!==0 && Math.abs(v) < 0.5/Math.pow(10,dp)) return '≈ 0';
+  return fmt(v,dp);
+}
+// Pontos percentuais, mesma regra.
+function fmtPP(v){
+  if(v===null||v===undefined||!isFinite(v)) return '—';
+  if(v!==0 && Math.abs(v)<0.05) return '≈ 0';
+  return (v>0?'+':v<0?'−':'')+Math.abs(v).toFixed(1).replace('.',',');
 }
 function pct(v,dp){ if(v===null||!isFinite(v)) return '—'; dp=dp===undefined?1:dp;
   return (v>0?'+':v<0?'−':'')+Math.abs(v).toFixed(dp).replace('.',',')+'%'; }
@@ -557,7 +600,78 @@ function comparar(k, fnAg, modoRef){
   var ref = referencia(serieAnt, modo, serieAntD);
   var novoV = vnos.length ? media(vnos) : null;
   var d = (ref && ref.v && novoV!==null) ? (novoV-ref.v)/ref.v*100 : null;
-  return {k:k, novo:novoV, nNovo:vnos.length, ref:ref, delta:d, serie:serieNovo, serieAnt:serieAnt};
+  var ef = efeitoDeSeries(
+    serieAnt.map(function(x){ return x.v; }).filter(function(v){ return v!==null&&isFinite(v); }),
+    vnos);
+  return {k:k, novo:novoV, nNovo:vnos.length, ref:ref, delta:d, ef:ef, serie:serieNovo, serieAnt:serieAnt};
+}
+
+// ============================================================================
+// TAMANHO DE EFEITO
+// ============================================================================
+// Δ% responde "para que lado". Não responde "isso importa". Uma queda de 3%
+// numa variável que oscila 12% entre jogos é ruído; a mesma queda numa que
+// oscila 2% é mudança de patamar. O tamanho de efeito divide a diferença pela
+// variação normal entre partidas e resolve isso numa escala só.
+//
+// DENOMINADOR: desvio padrão combinado, ponderado pelos graus de liberdade
+// (Cohen). Com 45 jogos de um lado e 5 do outro, ele fica dominado pelo bloco
+// grande — que é o desejável: um DP tirado de 5 jogos tem erro de estimativa
+// perto de 30%, e ele está no denominador. Usar só o DP do bloco novo faria o
+// mesmo efeito parecer grande ou trivial conforme o acaso de cinco partidas.
+//
+// NUMERADOR: média de TODOS os jogos do bloco de referência, nunca a dos 10
+// maiores. Os 10 maiores são uma cauda truncada: o DP deles é artificialmente
+// pequeno e inflaria o efeito. Por isso esta análise ignora o seletor de
+// referência da barra de controle — ela compara distribuição com distribuição.
+var EFEITO_FAIXAS = [
+  {lim:0.2, lab:'Trivial',      nivel:0},
+  {lim:0.6, lab:'Pequeno',      nivel:1},
+  {lim:1.2, lab:'Moderado',     nivel:2},
+  {lim:2.0, lab:'Grande',       nivel:3},
+  {lim:Infinity, lab:'Muito grande', nivel:4}
+];
+function classificarEfeito(d){
+  if(d===null||!isFinite(d)) return null;
+  var a=Math.abs(d);
+  for(var i=0;i<EFEITO_FAIXAS.length;i++){ if(a<EFEITO_FAIXAS[i].lim) return EFEITO_FAIXAS[i]; }
+  return EFEITO_FAIXAS[EFEITO_FAIXAS.length-1];
+}
+
+// Calcula o efeito de uma métrica num nível (equipe ou grupo posicional).
+function efeito(k, fnAg){
+  var jn=jogosDe(BLOCOS.novo), ja=jogosDe(BLOCOS.anterior);
+  var v2=jn.map(function(g){ return valor(fnAg(g.data),k,S.esc); }).filter(function(v){ return v!==null&&isFinite(v); });
+  var v1=ja.map(function(g){ return valor(fnAg(g.data),k,S.esc); }).filter(function(v){ return v!==null&&isFinite(v); });
+  return efeitoDeSeries(v1,v2);
+}
+function efeitoDeSeries(v1,v2){
+  var n1=v1.length, n2=v2.length;
+  if(n1<3||n2<2) return {d:null,n1:n1,n2:n2,m1:n1?media(v1):null,m2:n2?media(v2):null,sp:null,ic:null,classe:null};
+  var m1=media(v1), m2=media(v2), s1=desvio(v1), s2=desvio(v2);
+  var sp=Math.sqrt(((n1-1)*s1*s1 + (n2-1)*s2*s2)/(n1+n2-2));
+  if(!(sp>0)) return {d:null,n1:n1,n2:n2,m1:m1,m2:m2,sp:sp,ic:null,classe:null};
+  var d=(m2-m1)/sp;
+  // Erro padrão de d (Hedges & Olkin). O IC de 90% é a convenção de Hopkins
+  // para ciências do esporte. Com n2=5 ele sai largo — e é essa largura que
+  // impede de tratar um d isolado como veredito.
+  var se=Math.sqrt((n1+n2)/(n1*n2) + (d*d)/(2*(n1+n2)));
+  return {d:d, n1:n1, n2:n2, m1:m1, m2:m2, s1:s1, s2:s2, sp:sp,
+          ic:[d-1.645*se, d+1.645*se], classe:classificarEfeito(d)};
+}
+
+// Selo colorido: matiz pela direção, intensidade pelo tamanho. Trivial é
+// sempre cinza, independente do sinal — é justamente o recado da métrica.
+function seloEfeito(e, comValor){
+  if(!e || e.d===null) return '<span class="ef ef0">sem n suficiente</span>';
+  var cl = e.classe.nivel===0 ? 'ef0' : (e.d>0?'efA':'efB')+e.classe.nivel;
+  var v = comValor ? ' <b>'+(e.d>0?'+':'−')+fmt(Math.abs(e.d),2)+'</b>' : '';
+  return '<span class="ef '+cl+'">'+esc(e.classe.lab)+v+'</span>';
+}
+// Verdadeiro quando o intervalo de confiança vai de trivial negativo a trivial
+// positivo para os dois lados: o dado não distingue queda de aumento.
+function efeitoIncerto(e){
+  return !!(e && e.ic && e.ic[0] < 0 && e.ic[1] > 0);
 }
 
 // ============================================================================
@@ -613,7 +727,9 @@ function trilho(c, met){
   h+=s;
   h+='<div class="trk-ft"><span>Referência '+(c.ref?fmt(c.ref.v,dp):'—')+' '+esc(un)+
      (c.ref?' · faixa '+fmt(c.ref.min,dp)+'–'+fmt(c.ref.max,dp)+' · n='+c.ref.n:'')+'</span>';
-  h+='<span>'+c.nNovo+' jogo'+(c.nNovo===1?'':'s')+' de '+esc(LB_NOVO)+'</span></div>';
+  h+='<span style="display:flex;align-items:center;gap:8px">'+
+     (c.ef?'<span style="color:var(--mt)">efeito</span>'+seloEfeito(c.ef,true):'')+
+     '<span>'+c.nNovo+' jogo'+(c.nNovo===1?'':'s')+' de '+esc(LB_NOVO)+'</span></span></div>';
   h+='</div>';
   return h;
 }
@@ -713,8 +829,81 @@ function renderResumo(){
      '<span><i style="background:#E8360A"></i>Jogo com expulsão</span></div>';
   h+='</div>';
 
+  h+=cartaoEfeito(comps);
   h+='<div class="card"><div class="ctitle">Leitura</div>'+leitura(comps)+'</div>';
   el.innerHTML=h;
+}
+
+function cartaoEfeito(comps){
+  var ja=jogosDe(BLOCOS.anterior), jn=jogosDe(BLOCOS.novo);
+  var h='<div class="card"><div class="ctitle">Tamanho do efeito'+
+    '<span class="tag">contra a média dos '+ja.length+' jogos de '+esc(LB_ANT)+'</span></div>';
+  h+='<p class="csub">O Δ% das barras acima diz para que lado a diferença foi. Ele não diz se ela importa: '+
+     '3% numa variável que oscila 12% entre jogos é ruído; os mesmos 3% numa que oscila 2% é mudança de patamar. '+
+     'Aqui a diferença é dividida pela variação normal entre partidas, e o resultado sai numa escala única. '+
+     '<b>Esta tabela ignora o seletor de referência</b> — ela compara a média de '+esc(LB_NOVO)+' com a média de '+
+     '<b>todos</b> os jogos de '+esc(LB_ANT)+', porque efeito se calcula entre distribuições, não contra uma cauda '+
+     'de 10 jogos.</p>';
+  h+=escalaEfeito();
+  h+='<div class="tbl-w"><table><thead><tr><th class="l">Variável</th>'+
+     '<th>'+esc(LB_NOVO)+'</th><th>'+esc(LB_ANT)+'</th><th>Diferença</th>'+
+     '<th>Variação entre jogos</th><th>d</th><th class="l">Tamanho do efeito</th>'+
+     '<th>IC 90%</th></tr></thead><tbody>';
+  METRICAS.forEach(function(m,i){
+    var e=comps[i].ef, d2=(S.esc==='min')?m.dpMin:m.dp;
+    h+='<tr><td class="l"><b>'+esc(m.lab)+'</b><div class="mut" style="font-size:10px">'+
+       esc((S.esc==='min')?m.unMin:m.un)+'</div></td>';
+    h+='<td class="num">'+fmt(e.m2,d2)+'</td><td class="num">'+fmt(e.m1,d2)+'</td>';
+    h+='<td class="num">'+((e.m1!==null&&e.m2!==null)?fmtDelta(e.m2-e.m1,d2):'—')+'</td>';
+    h+='<td class="num mut">± '+fmt(e.sp,d2)+'</td>';
+    h+='<td class="num">'+(e.d===null?'—':(e.d>0?'+':'−')+fmt(Math.abs(e.d),2))+'</td>';
+    h+='<td class="l">'+seloEfeito(e,false)+
+       (efeitoIncerto(e)?' <span class="mut" style="font-size:10px">incerto</span>':'')+'</td>';
+    h+='<td class="num mut" style="font-size:11px">'+
+       (e.ic?(e.ic[0]>0?'+':'−')+fmt(Math.abs(e.ic[0]),2)+' a '+(e.ic[1]>0?'+':'−')+fmt(Math.abs(e.ic[1]),2):'—')+
+       '</td></tr>';
+  });
+  h+='</tbody></table></div>';
+  h+='<p class="csub" style="margin-top:11px">A coluna <b>Variação entre jogos</b> é o desvio padrão combinado dos '+
+     'dois blocos, ponderado pelo número de jogos — é a régua do denominador. O <b>IC 90%</b> mostra até onde o '+
+     'efeito poderia ir com '+jn.length+' jogos de um lado; quando ele atravessa o zero, o dado não separa queda de '+
+     'aumento, e a linha aparece marcada como <b>incerto</b>.</p></div>';
+  return h;
+}
+
+// Régua visual da escala, para a leitura não depender de decorar os cortes.
+function escalaEfeito(){
+  var W=700,H=54, x0=10, x1=W-10, mid=(x0+x1)/2;
+  var cortes=[0,0.2,0.6,1.2,2.0,2.6];
+  function px(v){ return mid + (v/2.6)*(x1-mid); }
+  var s='<svg viewBox="0 0 '+W+' '+H+'" height="'+H+'" width="100%" preserveAspectRatio="none" role="img" '+
+        'aria-label="Escala de tamanho de efeito">';
+  var coresA=['#F1F5F9','#EEF4FF','#DCE8FF','#C3D8FF','#003087'];
+  var coresB=['#F1F5F9','#FFF1EC','#FFE0D4','#FFC9B4','#E8360A'];
+  for(var i=0;i<5;i++){
+    var a=px(cortes[i]), b=px(cortes[i+1]);
+    s+='<rect x="'+a+'" y="14" width="'+(b-a)+'" height="18" fill="'+coresA[i]+'"/>';
+    var a2=mid-(b-mid), b2=mid-(a-mid);
+    s+='<rect x="'+b2+'" y="14" width="'+(a2-b2)+'" height="18" fill="'+coresB[i]+'"/>';
+  }
+  s+='<line x1="'+mid+'" y1="10" x2="'+mid+'" y2="36" stroke="#071A3E" stroke-width="2"/>';
+  var rot=[['Trivial',0.1],['Pequeno',0.4],['Moderado',0.9],['Grande',1.6],['Muito grande',2.3]];
+  rot.forEach(function(r){
+    s+='<text x="'+px(r[1])+'" y="46" text-anchor="middle" font-size="9.5" fill="#64748B" '+
+       'font-family="Inter,sans-serif">'+r[0]+'</text>';
+    s+='<text x="'+(mid-(px(r[1])-mid))+'" y="46" text-anchor="middle" font-size="9.5" fill="#64748B" '+
+       'font-family="Inter,sans-serif">'+r[0]+'</text>';
+  });
+  [0.2,0.6,1.2,2.0].forEach(function(v){
+    s+='<text x="'+px(v)+'" y="10" text-anchor="middle" font-size="9" fill="#94A3B8" '+
+       'font-family="Inter,sans-serif">'+String(v).replace('.',',')+'</text>';
+    s+='<text x="'+(mid-(px(v)-mid))+'" y="10" text-anchor="middle" font-size="9" fill="#94A3B8" '+
+       'font-family="Inter,sans-serif">'+String(v).replace('.',',')+'</text>';
+  });
+  s+='</svg>';
+  return '<div style="margin:4px 0 14px">'+s+
+    '<div class="lg"><span>abaixo de '+esc(LB_ANT)+'</span>'+
+    '<span style="margin-left:auto">acima de '+esc(LB_ANT)+'</span></div></div>';
 }
 
 function kpi(lab,val,un,ft,delta){
@@ -754,9 +943,20 @@ function leitura(comps){
     p+='<p class="csub" style="font-size:12px">A escala por minuto divide pela soma de minutos em campo de todos os '+
        'atletas de linha. Expulsão, substituição e acréscimo saem da conta — o que sobra é densidade de esforço.</p>';
   }
-  p+='<p class="csub" style="font-size:12px">Com 5 jogos de um lado, um desvio de poucos pontos percentuais não se '+
-     'distingue da variação normal entre partidas. A faixa dourada de cada trilho mostra o quanto a própria referência '+
-     'oscilou; leia o desvio contra ela, não contra o traço.</p>';
+  var triviais=[], relevantes=[];
+  comps.forEach(function(c,i){
+    if(!c.ef||c.ef.d===null) return;
+    (c.ef.classe.nivel===0 ? triviais : relevantes).push(METRICAS[i].lab+' ('+seloEfeito(c.ef,true)+')');
+  });
+  p+='<p class="csub" style="font-size:12.5px;color:#334155;line-height:1.9">Pelo tamanho do efeito, que pesa a '+
+     'diferença contra a variação normal entre jogos: ';
+  if(relevantes.length) p+='mudança com peso prático em '+relevantes.join(', ')+'. ';
+  if(triviais.length) p+='Efeito trivial em '+triviais.join(', ')+' — aqui o Δ% aponta uma direção, mas a diferença '+
+    'cabe dentro do que já oscilava de partida para partida.';
+  p+='</p>';
+  p+='<p class="csub" style="font-size:12px">Com 5 jogos de um lado, o intervalo de confiança de qualquer efeito sai '+
+     'largo. A tabela de tamanho do efeito mostra esse intervalo; quando ele atravessa o zero, o dado não separa '+
+     'queda de aumento.</p>';
   return p;
 }
 
@@ -798,7 +998,7 @@ function renderEquipe(){
     h+='<td class="mut">'+esc(u2)+'</td>';
     h+='<td class="num">'+fmt(c.novo,d2)+'</td>';
     h+='<td class="num">'+(c.ref?fmt(c.ref.v,d2):'—')+'</td>';
-    h+='<td class="num">'+((c.ref&&c.novo!==null)?fmt(c.novo-c.ref.v,d2):'—')+'</td>';
+    h+='<td class="num">'+((c.ref&&c.novo!==null)?fmtDelta(c.novo-c.ref.v,d2):'—')+'</td>';
     h+='<td class="num" style="color:'+corDelta(c.delta)+'">'+pct(c.delta)+'</td>';
     h+='<td class="mut">'+(c.ref?fmt(c.ref.min,d2)+' – '+fmt(c.ref.max,d2):'—')+'</td>';
     h+='<td class="mut">'+(c.ref?c.ref.n:'—')+'</td></tr>';
@@ -937,21 +1137,37 @@ function renderPosicao(){
   h+='<div class="warn info"><span>ⓘ</span><div>Goleiros ficam fora de todos os agregados. '+
      'A demanda física do goleiro não é comparável à do jogador de linha e distorceria soma e média.</div></div>';
 
-  h+='<div class="card"><div class="ctitle">Desvio por grupo posicional<span class="tag">Δ% contra a referência</span></div>';
-  h+='<p class="csub">Cada célula compara a média de '+esc(LB_NOVO)+' com o referencial de '+esc(LB_ANT)+', dentro do '+
-     'mesmo grupo. Azul: acima. Vermelho: abaixo. Cinza claro: dentro de ±3%, faixa em que a diferença não se separa '+
-     'da variação normal entre jogos.</p>';
+  h+='<div class="card"><div class="ctitle">Desvio por grupo posicional'+
+     '<div class="seg" id="seg-mat" style="margin-left:auto">'+
+     '<button data-v="delta"'+(S.matriz==='delta'?' class="on"':'')+'>Δ%</button>'+
+     '<button data-v="efeito"'+(S.matriz==='efeito'?' class="on"':'')+'>Tamanho do efeito</button></div></div>';
+  if(S.matriz==='efeito'){
+    h+='<p class="csub">Cada célula é o tamanho do efeito dentro do grupo: a diferença entre as médias dividida pela '+
+       'variação normal entre jogos. Cinza é trivial — diferença que não se separa do que oscila de partida para '+
+       'partida, mesmo quando o Δ% parece chamativo. Compara contra <b>todos</b> os jogos de '+esc(LB_ANT)+'.</p>';
+    h+=escalaEfeito();
+  } else {
+    h+='<p class="csub">Cada célula compara a média de '+esc(LB_NOVO)+' com o referencial de '+esc(LB_ANT)+', dentro '+
+       'do mesmo grupo. Azul: acima. Vermelho: abaixo. Cinza: dentro de ±3%. Para saber se a diferença tem peso '+
+       'prático, troque para <b>Tamanho do efeito</b>.</p>';
+  }
   h+='<div class="tbl-w"><table><thead><tr><th class="l">Grupo</th>';
   METRICAS.forEach(function(m){ h+='<th>'+esc(m.lab)+'</th>'; });
   h+='</tr></thead><tbody>';
   GRUPOS.forEach(function(gr){
     h+='<tr><td class="l"><span class="chip" style="background:'+COR_GRUPO[gr]+'">'+esc(gr)+'</span></td>';
     METRICAS.forEach(function(m){
-      var c = comparar(m.k, function(d){ return agGrupo(d,gr); });
-      var bg = (c.delta===null||Math.abs(c.delta)<3) ? 'transparent' :
-        (c.delta>0 ? 'rgba(43,95,191,'+Math.min(.32,Math.abs(c.delta)/70)+')'
-                   : 'rgba(232,54,10,'+Math.min(.32,Math.abs(c.delta)/70)+')');
-      h+='<td class="num" style="background:'+bg+';color:'+corDelta(c.delta)+'">'+pct(c.delta)+'</td>';
+      var fn = function(d){ return agGrupo(d,gr); };
+      if(S.matriz==='efeito'){
+        var e = efeito(m.k, fn);
+        h+='<td class="num" style="text-align:center">'+seloEfeito(e,true)+'</td>';
+      } else {
+        var c = comparar(m.k, fn);
+        var bg = (c.delta===null||Math.abs(c.delta)<3) ? 'transparent' :
+          (c.delta>0 ? 'rgba(43,95,191,'+Math.min(.32,Math.abs(c.delta)/70)+')'
+                     : 'rgba(232,54,10,'+Math.min(.32,Math.abs(c.delta)/70)+')');
+        h+='<td class="num" style="background:'+bg+';color:'+corDelta(c.delta)+'">'+pct(c.delta)+'</td>';
+      }
     });
     h+='</tr>';
   });
@@ -1041,12 +1257,15 @@ function renderIndividual(){
     var serieAD = a ? a.jogos.map(function(j){ return {data:j.data, v:valorAtleta(j.a,'dist',S.esc)}; }) : [];
     var ref = serieA.length ? referencia(serieA, S.ref, serieAD) : null;
     var novoV = vn.length ? media(vn) : null;
+    var ef = efeitoDeSeries(serieA.map(function(x){ return x.v; })
+      .filter(function(v){ return v!==null&&isFinite(v); }), vn);
     linhas.push({
       nome:n.nome, grupo:n.grupo, posicao:n.posicao,
       jNovo:n.jogos.length, minNovo:n.jogos.reduce(function(s,j){return s+j.a.min;},0),
       dNovo:novoV,
       jRef:ref?ref.n:0, jRefTot:a?a.jogos.length:0, dRef:ref?ref.v:null,
-      delta:(ref&&ref.v&&novoV!==null)?(novoV-ref.v)/ref.v*100:null
+      delta:(ref&&ref.v&&novoV!==null)?(novoV-ref.v)/ref.v*100:null,
+      ef:ef, efD:ef.d
     });
   });
 
@@ -1066,13 +1285,16 @@ function renderIndividual(){
        '<b>Por minuto</b>.</div></div>';
   }
   h+='<div class="card"><div class="ctitle">'+esc(met.lab)+' por atleta'+seletorMetrica()+'</div>';
-  h+='<p class="csub">Só entram jogos em que o atleta ficou pelo menos '+S.minMin+' minutos em campo (ajustável na '+
+  h+='<p class="csub">A coluna de efeito usa <b>todos</b> os jogos elegíveis do atleta na era '+esc(LB_ANT)+', não '+
+     'a referência do seletor. Quem tem menos de 3 jogos lá aparece sem efeito calculado.<br>'+
+     'Só entram jogos em que o atleta ficou pelo menos '+S.minMin+' minutos em campo (ajustável na '+
      'barra acima). Quem não tem jogo elegível na era '+esc(LB_ANT)+' aparece sem referência — é o caso de quem chegou '+
      'depois ou não vinha sendo escalado.</p>';
   h+=dumbbell(linhas, dp, un);
   h+='<div class="tbl-w"><table><thead><tr>'+
      th('nome','Atleta','l')+th('posicao','Posição','l')+th('jNovo','Jogos')+th('minNovo','Minutos')+
      th('dNovo',LB_NOVO)+th('jRefTot','Jogos ref.')+th('dRef','Referência '+LB_ANT)+th('delta','Δ%')+
+     th('efD','Tamanho do efeito','l')+
      '</tr></thead><tbody>';
   linhas.forEach(function(r){
     h+='<tr><td class="l"><b>'+esc(r.nome)+'</b></td>';
@@ -1082,7 +1304,8 @@ function renderIndividual(){
     h+='<td class="num">'+fmt(r.dNovo,dp)+'</td>';
     h+='<td class="num mut">'+(r.jRefTot||'—')+'</td>';
     h+='<td class="num">'+(r.dRef===null?'—':fmt(r.dRef,dp))+'</td>';
-    h+='<td class="num" style="color:'+corDelta(r.delta)+'">'+(r.dRef===null?'—':pct(r.delta))+'</td></tr>';
+    h+='<td class="num" style="color:'+corDelta(r.delta)+'">'+(r.dRef===null?'—':pct(r.delta))+'</td>';
+    h+='<td class="l">'+seloEfeito(r.ef,true)+'</td></tr>';
   });
   h+='</tbody></table></div></div>';
   el.innerHTML=h;
@@ -1140,6 +1363,24 @@ function jogosBrutos(bloco){
   return bloco.jogos.filter(function(g){ return DADOS[g.data]; })
     .sort(function(a,b){ return chaveData(a.data).localeCompare(chaveData(b.data)); });
 }
+// Minutos que a partida realmente ofereceu. 90 é nominal: com acréscimo, um
+// jogo entrega 96, 99, às vezes mais, e dividir por 90 produzia participação
+// acima de 100%. O maior 1º tempo somado ao maior 2º tempo entre TODOS os
+// atletas — goleiro incluído, que costuma jogar inteiro — reconstrói a duração
+// real sem precisar de outra fonte. Por construção, ninguém supera esse teto.
+function duracaoJogo(data){
+  var t1=0, t2=0;
+  (DADOS[data]||[]).forEach(function(a){
+    if((a.t1Min||0)>t1) t1=a.t1Min;
+    if((a.t2Min||0)>t2) t2=a.t2Min;
+  });
+  var d=t1+t2;
+  return d>0 ? d : 90;
+}
+function duracaoBloco(jogos){
+  return jogos.reduce(function(t,g){ return t+duracaoJogo(g.data); },0);
+}
+
 function minutosPorAtleta(jogos){
   var m={};
   jogos.forEach(function(g){
@@ -1206,13 +1447,14 @@ function renderMinutagem(){
   h+=conferenciaElenco(jn);
   h+='</div>';
 
+  var durNovo=duracaoBloco(jn), durU5=duracaoBloco(ju5);
   var chaves={};
   [mN,mU,mA].forEach(function(m){ Object.keys(m).forEach(function(k){ chaves[k]=1; }); });
   var linhas=Object.keys(chaves).map(function(k){
     var n=mN[k], u=mU[k], a=mA[k];
     var base=n||u||a;
-    var pN = n && jn.length ? n.min/(jn.length*90)*100 : 0;
-    var pU = u && ju5.length ? u.min/(ju5.length*90)*100 : 0;
+    var pN = n && durNovo>0 ? n.min/durNovo*100 : 0;
+    var pU = u && durU5>0 ? u.min/durU5*100 : 0;
     return {nome:base.nome, grupo:base.grupo,
       minNovo:n?n.min:0, jNovo:n?n.jogos:0, titNovo:n?n.titular:0, partNovo:pN,
       minU5:u?u.min:0, jU5:u?u.jogos:0, partU5:pU,
@@ -1228,29 +1470,37 @@ function renderMinutagem(){
   });
 
   h+='<div class="card"><div class="ctitle">Minutos por atleta<span class="tag">'+esc(LB_NOVO)+' × últimos 5 de '+esc(LB_ANT)+'</span></div>';
-  h+='<p class="csub">Participação = minutos do atleta ÷ (jogos do bloco × 90). 100% seria jogar tudo. '+
-     'A coluna Δ está em pontos percentuais, não em porcentagem relativa.</p>';
+  h+='<p class="csub">Participação = minutos do atleta ÷ minutos que os jogos do bloco realmente ofereceram '+
+     '('+fmt(durNovo,0)+' min em '+jn.length+' jogos de '+esc(LB_NOVO)+', '+fmt(durU5,0)+' min nos últimos '+
+     ju5.length+' de '+esc(LB_ANT)+'). Não é jogos × 90: com acréscimo, uma partida entrega mais que isso. '+
+     '100% é ter jogado tudo. A coluna Δ está em pontos percentuais.</p>';
   h+=barrasMinutos(linhas);
-  h+='<div class="tbl-w"><table><thead><tr>'+
+  h+='<div class="tbl-w"><table class="grp"><thead>';
+  h+='<tr><th class="gh n" colspan="2"></th>'+
+     '<th class="gh a" colspan="4">'+esc(LB_NOVO)+'<small>'+jn.length+' jogos · '+fmt(durNovo,0)+' min em campo</small></th>'+
+     '<th class="gh c" colspan="3">'+esc(LB_ANT)+' — últimos '+ju5.length+'<small>mesmo nº de jogos, para comparar de igual para igual</small></th>'+
+     '<th class="gh d" colspan="2">Comparação<small>e era '+esc(LB_ANT)+' inteira</small></th></tr>';
+  h+='<tr>'+
      thM('nome','Atleta','l')+thM('grupo','Posição','l')+
-     thM('jNovo','Jogos')+thM('minNovo','Minutos')+thM('titNovo','Como titular')+thM('partNovo','Participação')+
-     thM('jU5','Jogos')+thM('minU5','Minutos')+thM('partU5','Participação')+thM('delta','Δ p.p.')+
-     thM('minAnt','Min. na era anterior')+'</tr></thead><tbody>';
+     thM('jNovo','Jogos','cA')+thM('minNovo','Minutos','cA')+thM('titNovo','Como titular','cA')+thM('partNovo','Participação','cA')+
+     thM('jU5','Jogos','cC')+thM('minU5','Minutos','cC')+thM('partU5','Participação','cC')+
+     thM('delta','Δ p.p.','cD')+thM('minAnt','Minutos','cD')+
+     '</tr></thead><tbody>';
   linhas.forEach(function(r){
     h+='<tr><td class="l"><b>'+esc(r.nome)+'</b></td>';
     h+='<td class="l"><span class="chip" style="background:'+(COR_GRUPO[r.grupo]||'#94A3B8')+'">'+esc(r.grupo||'—')+'</span></td>';
-    h+='<td class="num">'+(r.jNovo||'—')+'</td><td class="num">'+(r.minNovo?fmt(r.minNovo,0):'—')+'</td>';
-    h+='<td class="num">'+(r.jNovo?r.titNovo:'—')+'</td><td class="num">'+(r.jNovo?fmt(r.partNovo,1)+'%':'—')+'</td>';
-    h+='<td class="num mut">'+(r.jU5||'—')+'</td><td class="num mut">'+(r.minU5?fmt(r.minU5,0):'—')+'</td>';
-    h+='<td class="num mut">'+(r.jU5?fmt(r.partU5,1)+'%':'—')+'</td>';
-    h+='<td class="num" style="color:'+corPP(r.delta)+'">'+
-       (r.delta===null?'novo':(r.delta>0?'+':r.delta<0?'−':'')+Math.abs(r.delta).toFixed(1).replace('.',','))+'</td>';
-    h+='<td class="num mut">'+(r.minAnt?fmt(r.minAnt,0)+' <span style="font-size:10px">('+r.jAnt+'j)</span>':'—')+'</td></tr>';
+    h+='<td class="num cA">'+(r.jNovo||'—')+'</td><td class="num cA">'+(r.minNovo?fmt(r.minNovo,0):'—')+'</td>';
+    h+='<td class="num cA">'+(r.jNovo?r.titNovo:'—')+'</td><td class="num cA">'+(r.jNovo?fmt(r.partNovo,1)+'%':'—')+'</td>';
+    h+='<td class="num mut cC">'+(r.jU5||'—')+'</td><td class="num mut cC">'+(r.minU5?fmt(r.minU5,0):'—')+'</td>';
+    h+='<td class="num mut cC">'+(r.jU5?fmt(r.partU5,1)+'%':'—')+'</td>';
+    h+='<td class="num cD" style="color:'+corPP(r.delta)+'">'+
+       (r.delta===null?'novo':fmtPP(r.delta))+'</td>';
+    h+='<td class="num mut cD">'+(r.minAnt?fmt(r.minAnt,0)+' <span style="font-size:10px">('+r.jAnt+'j)</span>':'—')+'</td></tr>';
   });
   h+='</tbody></table></div>';
-  h+='<div class="lg"><span>Colunas 3–6: '+esc(LB_NOVO)+' ('+jn.length+' jogos)</span>'+
-     '<span>Colunas 7–9: últimos 5 jogos de '+esc(LB_ANT)+'</span>'+
-     '<span>Última coluna: era '+esc(LB_ANT)+' inteira ('+ja.length+' jogos)</span></div></div>';
+  h+='<div class="lg"><span><i style="background:#F4F8FF;border:1px solid var(--az)"></i>'+esc(LB_NOVO)+'</span>'+
+     '<span><i style="background:#FDFAF1;border:1px solid #9C7A1D"></i>'+esc(LB_ANT)+', últimos '+ju5.length+' jogos</span>'+
+     '<span><i style="background:#F8FAFC;border:1px solid #334155"></i>Comparação e era '+esc(LB_ANT)+' inteira ('+ja.length+' jogos)</span></div></div>';
   el.innerHTML=h;
   el.querySelectorAll('th[role=button]').forEach(function(t){
     t.addEventListener('click',function(){ ordenar('ordMin',t.dataset.col); });
@@ -1532,6 +1782,17 @@ function renderMetodo(){
      'troca para os 10 maiores em distância, os últimos 5 jogos ou a média de todos. O gráfico da temporada usa sempre '+
      'os 10 maiores por variável, como régua fixa.</p>';
 
+  h+='<h4>Tamanho do efeito</h4>'+
+     '<p>Δ% diz a direção da diferença. O tamanho do efeito diz se ela tem peso prático: é a diferença entre as '+
+     'médias dividida pela variação normal entre jogos. Faixas de Hopkins: abaixo de 0,2 trivial; até 0,6 pequeno; '+
+     'até 1,2 moderado; até 2,0 grande; acima disso muito grande.</p>'+
+     '<ul><li><b>Denominador:</b> desvio padrão combinado dos dois blocos, ponderado pelo número de jogos. Com 45 de '+
+     'um lado e 5 do outro, ele fica dominado pelo bloco grande — um desvio tirado de 5 jogos é instável demais para '+
+     'servir de régua.</li>'+
+     '<li><b>Comparação:</b> sempre contra a média de <b>todos</b> os jogos de '+esc(LB_ANT)+', nunca contra os 10 '+
+     'maiores. Os 10 maiores são uma cauda: o desvio deles é artificialmente pequeno e inflaria o efeito.</li>'+
+     '<li><b>IC 90%:</b> até onde o efeito poderia ir com o número de jogos disponível. Quando atravessa o zero, '+
+     'o dado não distingue queda de aumento, e a linha é marcada como incerta.</li></ul>';
   h+='<h4>Escalas</h4>'+
      '<p>Absoluto é volume: a soma dos atletas de linha naquela partida. Por minuto é densidade: a mesma soma dividida '+
      'pelos minutos em campo. A densidade não se altera com expulsão, rodízio ou acréscimo longo, e é a escala que '+
@@ -1762,6 +2023,12 @@ function render(){
     painel.querySelectorAll('.sel-met').forEach(function(sm){
       sm.addEventListener('change',function(){ S.metricaFoco=sm.value; render(); });
     });
+    var sm2=painel.querySelector('#seg-mat');
+    if(sm2){
+      sm2.querySelectorAll('button').forEach(function(b){
+        b.addEventListener('click',function(){ S.matriz=b.dataset.v; render(); });
+      });
+    }
   }
 }
 
