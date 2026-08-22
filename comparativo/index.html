@@ -143,6 +143,50 @@ tr.tot td{border-top:2px solid var(--azn)}
 .chip{display:inline-block;font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:4px;color:#fff;letter-spacing:.03em}
 /* Selos de tamanho de efeito: matiz = direção, intensidade = magnitude.
    Trivial é cinza dos dois lados, de propósito. */
+/* Faixa de contexto: contra o que a comparação está sendo feita. Fica no topo
+   de toda aba comparativa, para a referência nunca depender de memória. */
+.fx{display:flex;flex-wrap:wrap;align-items:stretch;gap:0;background:var(--card);
+  border:1px solid var(--bdr);border-left:5px solid var(--our);border-radius:10px;
+  padding:13px 18px;margin-bottom:14px}
+.fx-l,.fx-r{display:flex;flex-direction:column;justify-content:center;min-width:0}
+.fx-r{flex:1;padding-left:20px;border-left:1px dashed var(--bdr);margin-left:20px}
+.fx-k{font-size:9.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--mt)}
+.fx-v{font-family:var(--cond);font-size:22px;font-weight:800;letter-spacing:.02em;color:var(--azn);
+  line-height:1.15;margin-top:2px}
+.fx-r .fx-v{color:#8A6614}
+.fx-s{font-size:11px;color:var(--mt);margin-top:2px}
+.fx-x{display:flex;align-items:center;font-size:10px;font-weight:700;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--mt);padding:0 4px}
+.fx-t{display:flex;flex-direction:column;justify-content:center;gap:4px;padding-left:20px;
+  margin-left:20px;border-left:1px dashed var(--bdr)}
+.fx-t span{font-size:11.5px;font-weight:600;color:var(--tx);white-space:nowrap}
+.fx-t i{display:block;font-style:normal;font-size:9px;font-weight:700;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--mt)}
+@media (max-width:760px){
+  .fx{flex-direction:column;gap:11px}
+  .fx-r,.fx-t{border-left:0;border-top:1px dashed var(--bdr);padding-left:0;margin-left:0;padding-top:11px}
+  .fx-t{flex-direction:row;gap:18px}
+  .fx-x{padding:0}
+}
+/* Régua da escala de efeito. Flex puro: as faixas dividem a largura na
+   proporção dos cortes e o texto nunca é escalado. */
+.esc{margin:6px 0 16px}
+.esc-bar{display:flex;height:26px;border-radius:5px;overflow:hidden;border:1px solid var(--bdr)}
+.esc-seg{display:flex;align-items:center;justify-content:center;min-width:0;overflow:hidden;
+  border-right:1px solid rgba(255,255,255,.55)}
+.esc-seg:last-child{border-right:0}
+.esc-seg span{font-size:9.5px;font-weight:700;letter-spacing:.03em;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;padding:0 4px}
+.esc-seg.esc-mid{border-left:2px solid var(--azn);border-right:2px solid var(--azn)}
+.esc-pes{display:flex;justify-content:space-between;align-items:baseline;gap:10px;
+  font-size:10.5px;color:var(--mt);margin-top:6px}
+.esc-pes b{color:var(--tx)}
+.esc-ct{font-size:10px;color:#94A3B8}
+@media (max-width:620px){ .esc-seg span{font-size:8.5px} }
+/* Aviso de referência divergente dentro de um cartão. */
+.fx-alt{background:#F0F5FF;border:1px solid #C3D6F7;border-radius:8px;padding:9px 13px;
+  font-size:12px;line-height:1.6;color:#1E3A6B;margin:0 0 13px}
+.fx-alt b{color:var(--az)}
 .ef{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;
   letter-spacing:.03em;white-space:nowrap;border:1px solid transparent}
 .ef b{font-family:var(--cond);font-size:12px;margin-left:3px}
@@ -806,7 +850,7 @@ function renderResumo(){
   var ptsNovo = media(jn.map(function(g){ return g.pts; }));
   var ptsRef  = media(ja.map(function(g){ return g.pts; }));
 
-  var h = avisos();
+  var h = avisos() + faixaContexto();
   h+='<div class="grid g4" style="margin-bottom:14px">';
   h+=kpi('Jogos comparados', jn.length, '', LB_NOVO+' · referência de '+ja.length+' jogos de '+LB_ANT, null);
   h+=kpi('Minutos de campo por jogo', fmt(minNovo,0), 'min', 'Referência '+fmt(minRef,0)+' min · 11 atletas × 90 min = 990',
@@ -816,8 +860,7 @@ function renderResumo(){
   h+='</div>';
 
   h+='<div class="card">';
-  h+='<div class="ctitle">Equipe · '+(S.esc==='min'?'valores por minuto':'valores absolutos')+
-     '<span class="tag">'+esc(rotuloRef())+'</span></div>';
+  h+='<div class="ctitle">Equipe · '+(S.esc==='min'?'valores por minuto':'valores absolutos')+'</div>';
   h+='<p class="csub">Barra azul: média dos '+jn.length+' jogos de '+esc(LB_NOVO)+'. Traço dourado: valor referencial '+
      'de '+esc(LB_ANT)+'. Faixa dourada: intervalo que os jogos da referência ocuparam. Losangos: cada jogo de '+
      esc(LB_NOVO)+' — hachurado em vermelho quando houve expulsão.</p>';
@@ -836,14 +879,15 @@ function renderResumo(){
 
 function cartaoEfeito(comps){
   var ja=jogosDe(BLOCOS.anterior), jn=jogosDe(BLOCOS.novo);
-  var h='<div class="card"><div class="ctitle">Tamanho do efeito'+
-    '<span class="tag">contra a média dos '+ja.length+' jogos de '+esc(LB_ANT)+'</span></div>';
+  var h='<div class="card" style="border-left:5px solid var(--az3)">';
+  h+='<div class="ctitle">Tamanho do efeito</div>';
+  h+='<div class="fx-alt"><b>Atenção: aqui a referência é outra.</b> Esta seção compara com a média de '+
+     '<b>todos os '+ja.length+' jogos de '+esc(LB_ANT)+'</b>, e não com a referência escolhida na barra de controle. '+
+     'Efeito se calcula entre distribuições; os 10 maiores são uma cauda, e o desvio deles é pequeno demais para '+
+     'servir de régua.</div>';
   h+='<p class="csub">O Δ% das barras acima diz para que lado a diferença foi. Ele não diz se ela importa: '+
      '3% numa variável que oscila 12% entre jogos é ruído; os mesmos 3% numa que oscila 2% é mudança de patamar. '+
-     'Aqui a diferença é dividida pela variação normal entre partidas, e o resultado sai numa escala única. '+
-     '<b>Esta tabela ignora o seletor de referência</b> — ela compara a média de '+esc(LB_NOVO)+' com a média de '+
-     '<b>todos</b> os jogos de '+esc(LB_ANT)+', porque efeito se calcula entre distribuições, não contra uma cauda '+
-     'de 10 jogos.</p>';
+     'Aqui a diferença é dividida pela variação normal entre partidas, e o resultado sai numa escala única.</p>';
   h+=escalaEfeito();
   h+='<div class="tbl-w"><table><thead><tr><th class="l">Variável</th>'+
      '<th>'+esc(LB_NOVO)+'</th><th>'+esc(LB_ANT)+'</th><th>Diferença</th>'+
@@ -872,38 +916,32 @@ function cartaoEfeito(comps){
 }
 
 // Régua visual da escala, para a leitura não depender de decorar os cortes.
+// Em HTML e não em SVG: o SVG anterior usava preserveAspectRatio="none" para
+// ocupar a largura do cartão, o que esticava o texto junto com o desenho. Aqui
+// as faixas crescem proporcionalmente e a tipografia fica no tamanho real.
 function escalaEfeito(){
-  var W=700,H=54, x0=10, x1=W-10, mid=(x0+x1)/2;
-  var cortes=[0,0.2,0.6,1.2,2.0,2.6];
-  function px(v){ return mid + (v/2.6)*(x1-mid); }
-  var s='<svg viewBox="0 0 '+W+' '+H+'" height="'+H+'" width="100%" preserveAspectRatio="none" role="img" '+
-        'aria-label="Escala de tamanho de efeito">';
-  var coresA=['#F1F5F9','#EEF4FF','#DCE8FF','#C3D8FF','#003087'];
-  var coresB=['#F1F5F9','#FFF1EC','#FFE0D4','#FFC9B4','#E8360A'];
-  for(var i=0;i<5;i++){
-    var a=px(cortes[i]), b=px(cortes[i+1]);
-    s+='<rect x="'+a+'" y="14" width="'+(b-a)+'" height="18" fill="'+coresA[i]+'"/>';
-    var a2=mid-(b-mid), b2=mid-(a-mid);
-    s+='<rect x="'+b2+'" y="14" width="'+(a2-b2)+'" height="18" fill="'+coresB[i]+'"/>';
-  }
-  s+='<line x1="'+mid+'" y1="10" x2="'+mid+'" y2="36" stroke="#071A3E" stroke-width="2"/>';
-  var rot=[['Trivial',0.1],['Pequeno',0.4],['Moderado',0.9],['Grande',1.6],['Muito grande',2.3]];
-  rot.forEach(function(r){
-    s+='<text x="'+px(r[1])+'" y="46" text-anchor="middle" font-size="9.5" fill="#64748B" '+
-       'font-family="Inter,sans-serif">'+r[0]+'</text>';
-    s+='<text x="'+(mid-(px(r[1])-mid))+'" y="46" text-anchor="middle" font-size="9.5" fill="#64748B" '+
-       'font-family="Inter,sans-serif">'+r[0]+'</text>';
+  var faixas=[
+    {w:0.6, cls:'efB4', lab:'Muito grande'},
+    {w:0.8, cls:'efB3', lab:'Grande'},
+    {w:0.6, cls:'efB2', lab:'Moderado'},
+    {w:0.4, cls:'efB1', lab:'Pequeno'},
+    {w:0.4, cls:'ef0',  lab:'Trivial', centro:true},
+    {w:0.4, cls:'efA1', lab:'Pequeno'},
+    {w:0.6, cls:'efA2', lab:'Moderado'},
+    {w:0.8, cls:'efA3', lab:'Grande'},
+    {w:0.6, cls:'efA4', lab:'Muito grande'}
+  ];
+  var h='<div class="esc">';
+  h+='<div class="esc-bar">';
+  faixas.forEach(function(fx){
+    h+='<div class="esc-seg '+fx.cls+(fx.centro?' esc-mid':'')+'" style="flex:'+fx.w+
+       '"><span>'+esc(fx.lab)+'</span></div>';
   });
-  [0.2,0.6,1.2,2.0].forEach(function(v){
-    s+='<text x="'+px(v)+'" y="10" text-anchor="middle" font-size="9" fill="#94A3B8" '+
-       'font-family="Inter,sans-serif">'+String(v).replace('.',',')+'</text>';
-    s+='<text x="'+(mid-(px(v)-mid))+'" y="10" text-anchor="middle" font-size="9" fill="#94A3B8" '+
-       'font-family="Inter,sans-serif">'+String(v).replace('.',',')+'</text>';
-  });
-  s+='</svg>';
-  return '<div style="margin:4px 0 14px">'+s+
-    '<div class="lg"><span>abaixo de '+esc(LB_ANT)+'</span>'+
-    '<span style="margin-left:auto">acima de '+esc(LB_ANT)+'</span></div></div>';
+  h+='</div>';
+  h+='<div class="esc-pes"><span><b>abaixo</b> de '+esc(LB_ANT)+'</span>'+
+     '<span class="esc-ct">cortes em 0,2 · 0,6 · 1,2 · 2,0</span>'+
+     '<span><b>acima</b> de '+esc(LB_ANT)+'</span></div>';
+  return h+'</div>';
 }
 
 function kpi(lab,val,un,ft,delta){
@@ -912,6 +950,40 @@ function kpi(lab,val,un,ft,delta){
     ' <span style="font-family:var(--cond);font-size:15px;color:'+corDelta(delta)+'">'+pct(delta)+'</span>';
   return '<div class="kpi '+cls+'"><div class="k-lb">'+esc(lab)+'</div><div class="k-vl">'+val+
     (un?'<span>'+esc(un)+'</span>':'')+d+'</div><div class="k-ft">'+esc(ft)+'</div></div>';
+}
+
+// Qual amostra está no denominador da comparação. Estava num selo cinza pequeno
+// ao lado do título do cartão, e passava despercebido — quem abrisse o painel
+// no meio podia ler um Δ% de "10 maiores" achando que era média de temporada.
+function rotuloRefCurto(){
+  var ja=jogosDe(BLOCOS.anterior).length;
+  return {
+    top10var: {t:'10 maiores jogos de '+LB_ANT+', variável por variável',
+               d:'de '+ja+' jogos, os 10 maiores de cada variável · é um teto, não um jogo típico'},
+    top10dist:{t:'10 maiores jogos de '+LB_ANT+' em distância',
+               d:'os mesmos 10 jogos em todas as variáveis · partidas reais'},
+    ult5:     {t:'Últimos 5 jogos de '+LB_ANT,
+               d:'mesmo nº de partidas e mesmo momento de temporada'},
+    todos:    {t:'Média de todos os '+ja+' jogos de '+LB_ANT,
+               d:'a era inteira · estável, mas dilui fases diferentes'}
+  }[S.ref];
+}
+
+// Faixa fixa no topo das abas de comparação.
+function faixaContexto(){
+  var r=rotuloRefCurto(), jn=jogosDe(BLOCOS.novo).length;
+  var h='<div class="fx">';
+  h+='<div class="fx-l"><div class="fx-k">Bloco em análise</div>'+
+     '<div class="fx-v">'+esc(LB_NOVO)+'</div><div class="fx-s">'+jn+' jogos</div></div>';
+  h+='<div class="fx-x">comparado com</div>';
+  h+='<div class="fx-r"><div class="fx-k">Referência</div>'+
+     '<div class="fx-v">'+esc(r.t)+'</div><div class="fx-s">'+esc(r.d)+'</div></div>';
+  h+='<div class="fx-t">'+
+     '<span><i>Escala</i>'+(S.esc==='min'?'por minuto':'absoluto')+'</span>'+
+     '<span><i>Expulsões</i>'+(S.exp==='excluir'?'excluídas':'marcadas')+'</span>'+
+     (S.aba==='individual'?'<span><i>Elenco</i>'+(S.elenco==='ativos'?'só ativos':'todos')+'</span>':'')+
+     '</div>';
+  return h+'</div>';
 }
 
 function rotuloRef(){
@@ -976,7 +1048,7 @@ function renderEquipe(){
   var dp = (S.esc==='min')?met.dpMin:met.dp;
   var un = (S.esc==='min')?met.unMin:met.un;
 
-  var h = avisos();
+  var h = avisos() + faixaContexto();
   h+='<div class="card"><div class="ctitle">Temporada jogo a jogo<span class="tag">'+esc(met.lab)+'</span>'+
      seletorMetrica()+'</div>';
   h+='<p class="csub">Cada barra é um jogo, na ordem da temporada, com o adversário no eixo. A cor separa os blocos; '+
@@ -1133,7 +1205,7 @@ function renderPosicao(){
   if(!CARREGADO){ el.innerHTML=vazio(); return; }
   var met = METRICAS.filter(function(m){ return m.k===S.metricaFoco; })[0] || METRICAS[0];
 
-  var h = avisos();
+  var h = avisos() + faixaContexto();
   h+='<div class="warn info"><span>ⓘ</span><div>Goleiros ficam fora de todos os agregados. '+
      'A demanda física do goleiro não é comparável à do jogador de linha e distorceria soma e média.</div></div>';
 
@@ -1142,9 +1214,12 @@ function renderPosicao(){
      '<button data-v="delta"'+(S.matriz==='delta'?' class="on"':'')+'>Δ%</button>'+
      '<button data-v="efeito"'+(S.matriz==='efeito'?' class="on"':'')+'>Tamanho do efeito</button></div></div>';
   if(S.matriz==='efeito'){
-    h+='<p class="csub">Cada célula é o tamanho do efeito dentro do grupo: a diferença entre as médias dividida pela '+
-       'variação normal entre jogos. Cinza é trivial — diferença que não se separa do que oscila de partida para '+
-       'partida, mesmo quando o Δ% parece chamativo. Compara contra <b>todos</b> os jogos de '+esc(LB_ANT)+'.</p>';
+    h+='<div class="fx-alt"><b>Atenção: aqui a referência é outra.</b> A matriz de efeito compara com a média de '+
+       '<b>todos os '+jogosDe(BLOCOS.anterior).length+' jogos de '+esc(LB_ANT)+'</b>, ignorando o seletor da barra '+
+       'de controle.</div>';
+    h+='<p class="csub">Cada célula é a diferença entre as médias do grupo dividida pela variação normal entre '+
+       'jogos. Cinza é trivial — não se separa do que já oscilava de partida para partida, mesmo quando o Δ% '+
+       'parece chamativo.</p>';
     h+=escalaEfeito();
   } else {
     h+='<p class="csub">Cada célula compara a média de '+esc(LB_NOVO)+' com o referencial de '+esc(LB_ANT)+', dentro '+
@@ -1277,7 +1352,7 @@ function renderIndividual(){
     return dir*(a-b);
   });
 
-  var h = avisos();
+  var h = avisos() + faixaContexto();
   if(S.esc==='abs'){
     h+='<div class="warn"><span>⚠</span><div><b>No individual, absoluto mede tempo em campo.</b> '+
        'Um atleta substituído aos 60 minutos acumula menos distância por ter jogado menos, não por ter rendido menos. '+

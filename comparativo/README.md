@@ -72,3 +72,37 @@ Quatro verificações automáticas:
 Nas acelerações, o painel confere se `band7plus` bate com `band7 + band8` e se `band1 + band2` — as desacelerações — têm volume comparável, o que é esperado num jogo.
 
 Há ainda uma tabela de resíduo por jogo: resíduo alto num jogo isolado costuma indicar colete com falha de sinal, não erro de banda.
+
+## Participação em minutos
+
+Participação = minutos do atleta ÷ minutos que os jogos daquele bloco realmente ofereceram.
+
+O denominador **não** é `jogos × 90`. Com acréscimo, uma partida entrega 95, 99, às vezes mais, e dividir por 90 produzia participação acima de 100%. A duração real de cada jogo é reconstruída do próprio dado: maior 1º tempo somado ao maior 2º tempo entre todos os atletas, goleiro incluído — ele costuma jogar inteiro. Por construção nenhum atleta supera esse teto, então a participação não passa de 100%.
+
+## Formatação de diferenças
+
+`fmt` nunca devolve `−0,0`: se o arredondamento zerou o número, o sinal some junto.
+
+A coluna Δ usa `fmtDelta`, que mostra **≈ 0** quando a diferença é real mas menor que a casa decimal exibida. Sem isso, uma linha podia trazer Δ de `0,0` ao lado de Δ% de `−1,0%` e parecer erro de conta — o Δ% é calculado sobre os valores cheios, antes de qualquer arredondamento. A coluna Δ p.p. da aba Minutagem segue a mesma regra via `fmtPP`.
+
+## Tamanho do efeito
+
+Δ% diz a direção da diferença. O tamanho do efeito diz se ela tem peso prático: a diferença entre as médias dividida pela variação normal entre jogos. Faixas de Hopkins — abaixo de 0,2 trivial, até 0,6 pequeno, até 1,2 moderado, até 2,0 grande, acima disso muito grande.
+
+Aparece em quatro lugares: no rodapé de cada trilho do Resumo, numa tabela dedicada logo abaixo, na matriz da aba Por Posição (alternável com Δ%) e numa coluna da aba Individual.
+
+**Denominador:** desvio padrão combinado dos dois blocos, ponderado pelos graus de liberdade (Cohen). Com 45 jogos de um lado e 5 do outro ele fica dominado pelo bloco grande, que é o desejável — um desvio tirado de 5 jogos tem erro de estimativa perto de 30% e está no denominador.
+
+**Comparação:** sempre contra a média de **todos** os jogos do bloco de referência, nunca contra os 10 maiores, e por isso esta análise ignora o seletor de referência da barra de controle. Os 10 maiores são uma cauda truncada: o desvio deles é artificialmente pequeno e inflaria o efeito.
+
+**IC 90%:** intervalo de confiança de d pelo erro padrão de Hedges & Olkin, na convenção de 90% usada em ciências do esporte. Quando o intervalo atravessa o zero, o dado não separa queda de aumento e a linha é marcada como **incerto**.
+
+No selo, o matiz indica a direção e a intensidade indica a magnitude. Trivial é cinza dos dois lados, de propósito.
+
+A régua da escala é HTML com flex, não SVG. Um SVG com `preserveAspectRatio="none"` ocupando a largura do cartão estica o texto junto com o desenho — as faixas agora crescem proporcionalmente e a tipografia fica no tamanho real em qualquer largura.
+
+## Faixa de contexto
+
+Toda aba comparativa abre com uma faixa fixa dizendo qual bloco está em análise, contra qual referência, em que escala e com que tratamento de expulsão. Antes essa informação vivia num selo cinza pequeno ao lado do título do cartão, e quem abrisse o painel no meio podia ler um Δ% calculado sobre os 10 maiores achando que era média de temporada.
+
+As duas seções que usam **outra** referência — a tabela de tamanho do efeito e a matriz de efeito por posição — trazem um aviso azul destacado dizendo que ali a comparação é contra a média de todos os jogos, ignorando o seletor da barra de controle.
