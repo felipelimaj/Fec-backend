@@ -44,6 +44,7 @@ const CHUNK_DAYS = 60;     // janela máxima por chamada /activities
 const PARAMETERS = [
   'total_distance',
   'total_duration',
+  'velocity_band4_total_distance',
   'velocity_band5_total_distance',
   'velocity_band6_total_distance',
   'velocity_band7_total_distance',
@@ -300,7 +301,7 @@ async function carregarElenco(token) {
 // ----------------------------------------------------------------------------
 function meioTempoVazio() {
   return {
-    dur: 0, dist: 0, b5: 0, b6: 0, b7: 0,
+    dur: 0, dist: 0, b4: 0, b5: 0, b6: 0, b7: 0,
     acc: 0, decB2: 0, decB3: 0, pl: 0,
     expl: 0, sprintEf: 0, hrMax: 0,
     hrSoma: 0, hrDur: 0, fmpRun: 0, fmpDyn: 0,
@@ -344,6 +345,7 @@ async function processarJogo(data, atividades, token, elenco, cadastro) {
 
     acc.dur += dur;
     acc.dist += s.total_distance || 0;
+    acc.b4 += s.velocity_band4_total_distance || 0;
     acc.b5 += s.velocity_band5_total_distance || 0;
     acc.b6 += s.velocity_band6_total_distance || 0;
     acc.b7 += s.velocity_band7_total_distance || 0;
@@ -371,10 +373,28 @@ async function processarJogo(data, atividades, token, elenco, cadastro) {
   // Todo período visto na atividade, classificado ou não. Serve para auditar
   // contagem de atletas: um substituto some da lista quando o período dele foi
   // nomeado sem o radical 1tempo/2tempo.
+  // Quanto de volume e de alta intensidade vive em CADA período da atividade,
+  // classificado ou não. É o que permite reconciliar com outro relatório: se o
+  // total de lá inclui reaquecimento de suplentes ou a sessão inteira, a
+  // diferença aparece aqui, nomeada.
   const periodosVistos = {};
   for (const s of stats || []) {
     const pn = (s.period_name || '').trim();
-    if (!(pn in periodosVistos)) periodosVistos[pn] = classificarPeriodo(pn);
+    if (!periodosVistos[pn]) {
+      periodosVistos[pn] = {
+        nome: pn, classificado: classificarPeriodo(pn),
+        dist: 0, b4: 0, altInt: 0, sprint: 0, dur: 0, atletas: new Set(),
+      };
+    }
+    const pv = periodosVistos[pn];
+    const ai = (s.velocity_band5_total_distance || 0) + (s.velocity_band6_total_distance || 0) +
+               (s.velocity_band7_total_distance || 0);
+    pv.dist += s.total_distance || 0;
+    pv.b4 += s.velocity_band4_total_distance || 0;
+    pv.altInt += ai;
+    pv.sprint += (s.velocity_band6_total_distance || 0) + (s.velocity_band7_total_distance || 0);
+    pv.dur += s.total_duration || 0;
+    pv.atletas.add(s.athlete_name);
   }
 
   const atletas = [];
@@ -409,6 +429,12 @@ async function processarJogo(data, atividades, token, elenco, cadastro) {
       t1Min: round(t1Min, 1),
       t2Min: round(t2Min, 1),
       dist: round(a.t1.dist + a.t2.dist, 0),
+      // Bandas separadas: sem elas, qualquer divergência com outro relatório
+      // vira discussão sobre qual soma cada lado fez.
+      b4: round(a.t1.b4 + a.t2.b4, 0),
+      b5: round(a.t1.b5 + a.t2.b5, 0),
+      b6: round(a.t1.b6 + a.t2.b6, 0),
+      b7: round(a.t1.b7 + a.t2.b7, 0),
       altInt: round(a.t1.b5 + a.t1.b6 + a.t1.b7 + a.t2.b5 + a.t2.b6 + a.t2.b7, 0),
       sprint: round(a.t1.b6 + a.t1.b7 + a.t2.b6 + a.t2.b7, 0),
       acc: round(a.t1.acc + a.t2.acc, 0),
@@ -450,7 +476,11 @@ async function processarJogo(data, atividades, token, elenco, cadastro) {
   atletas.sort((x, y) => y.min - x.min);
   return {
     data, id: jogo.id, nome: (jogo.name || '').trim(), atletas, ignorados, auditoria: aud,
-    periodos: Object.keys(periodosVistos).map(n => ({ nome: n, classificado: periodosVistos[n] })),
+    periodos: Object.values(periodosVistos).map(p => ({
+      nome: p.nome, classificado: p.classificado,
+      dist: round(p.dist, 0), b4: round(p.b4, 0), altInt: round(p.altInt, 0),
+      sprint: round(p.sprint, 0), min: round(p.dur / 60, 1), atletas: p.atletas.size,
+    })).sort((a, b) => b.dist - a.dist),
   };
 }
 
