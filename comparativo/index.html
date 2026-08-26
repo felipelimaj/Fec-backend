@@ -1130,7 +1130,7 @@ function linhaTempo(met, dp, un){
   // independente do seletor de referência. É a régua fixa da temporada: mudar de
   // régua no meio da leitura do gráfico temporal só confunde.
   var c = comparar(met.k, agEquipe, 'top10var');
-  var LARG = 38, W=Math.max(760, todos.length*LARG), H=296, PAD_B=132, PAD_T=26, PAD_L=8;
+  var LARG = 38, W=Math.max(760, todos.length*LARG), H=316, PAD_B=132, PAD_T=46, PAD_L=8;
   var vals = todos.map(function(g){ return valor(agEquipe(g.data),met.k,S.esc)||0; });
   var max = Math.max.apply(null, vals.concat([c.ref?c.ref.max:0]))*1.08 || 1;
   var bw = (W-2*PAD_L)/todos.length;
@@ -1165,10 +1165,18 @@ function linhaTempo(met, dp, un){
            'font-weight="700" pointer-events="none">⚠</text>';
       }
     }
-    // Rótulo acima da barra. Fonte 9 em barra de 38 px comporta "115,4k".
-    s+='<text x="'+(x0+w/2)+'" y="'+(y(v)-5)+'" text-anchor="middle" font-size="9" '+
-       'font-family="Barlow Condensed,sans-serif" font-weight="700" fill="'+(cor==='#003087'?'#071A3E':'#64748B')+
-       '" pointer-events="none">'+fmtCompacto(v,dp)+'</text>';
+    // Rótulo acima da barra. O valor cheio entra girado quando não cabe deitado:
+    // "98,3k" em duas barras vizinhas impede conferir metro a metro.
+    var rot=fmt(v,dp), corR=(cor==='#003087'?'#071A3E':'#64748B');
+    if(rot.length<=6){
+      s+='<text x="'+(x0+w/2)+'" y="'+(y(v)-5)+'" text-anchor="middle" font-size="9.5" '+
+         'font-family="Barlow Condensed,sans-serif" font-weight="700" fill="'+corR+
+         '" pointer-events="none">'+rot+'</text>';
+    } else {
+      s+='<text x="'+(x0+w/2)+'" y="'+(y(v)-6)+'" text-anchor="start" font-size="9.5" '+
+         'font-family="Barlow Condensed,sans-serif" font-weight="700" fill="'+corR+
+         '" pointer-events="none" transform="rotate(-90 '+(x0+w/2)+','+(y(v)-6)+')">'+rot+'</text>';
+    }
   });
   if(c.ref){
     s+='<line x1="0" y1="'+y(c.ref.v)+'" x2="'+W+'" y2="'+y(c.ref.v)+'" stroke="#C4952A" stroke-width="2.5" stroke-dasharray="7 4"/>';
@@ -1782,6 +1790,29 @@ function conciliacao(datas){
          '<td class="num">'+fmt(agL.altInt+agG.altInt+aiFora,0)+'</td><td class="num">—</td></tr>';
     }
     h+='</tbody></table></div>';
+
+    // Atleta por atleta, valores cheios. É aqui que uma divergência de um jogo
+    // isolado se resolve: alguém que falta, alguém a mais, ou um valor diferente.
+    h+='<div class="tbl-w" style="margin-top:10px"><table><thead><tr><th class="l">Atleta</th>'+
+       '<th class="l">Posição</th><th>Min</th><th>Distância</th><th>Corrida B4</th>'+
+       '<th>Alta Int.</th><th>Sprint</th><th>Acel.</th><th>Desacel.</th></tr></thead><tbody>';
+    linha.concat(gks).forEach(function(a){
+      var gk = a.grupo==='Goleiros';
+      h+='<tr'+(gk?' class="mut" style="opacity:.6"':'')+'><td class="l"><b>'+esc(a.nome)+'</b>'+
+         (gk?' <span style="font-size:10px">(fora do total)</span>':'')+'</td>';
+      h+='<td class="l mut">'+esc(a.grupo||a.posicao||'—')+'</td>';
+      h+='<td class="num">'+fmt(a.min,1)+'</td><td class="num">'+fmt(a.dist,0)+'</td>';
+      h+='<td class="num">'+fmt(a.b4,0)+'</td><td class="num">'+fmt(a.altInt,0)+'</td>';
+      h+='<td class="num">'+fmt(a.sprint,0)+'</td><td class="num">'+fmt(a.acc,0)+'</td>';
+      h+='<td class="num">'+fmt(a.dec,0)+'</td></tr>';
+    });
+    h+='<tr class="tot"><td class="l">Soma dos atletas de linha</td><td></td>'+
+       '<td class="num">'+fmt(agL.min,0)+'</td><td class="num">'+fmt(agL.dist,0)+'</td>'+
+       '<td class="num">'+fmt(agL.b4,0)+'</td><td class="num">'+fmt(agL.altInt,0)+'</td>'+
+       '<td class="num">'+fmt(agL.sprint,0)+'</td><td class="num">'+fmt(agL.acc,0)+'</td>'+
+       '<td class="num">'+fmt(agL.dec,0)+'</td></tr>';
+    h+='</tbody></table></div>';
+
     if(pers.length){
       h+='<p class="csub" style="margin-top:8px">Períodos da atividade: '+
          pers.map(function(p){
@@ -1795,6 +1826,57 @@ function conciliacao(datas){
     h+='</details>';
   });
   return h+'</div>';
+}
+
+// Exportação em CSV. Comparar dois relatórios olhando gráfico é lento e o
+// rótulo compacto ("98,3k") esconde justamente os metros em disputa. Com o CSV
+// a conferência vira uma coluna de diferença na planilha.
+function baixarCSV(nome, linhas){
+  var txt = linhas.map(function(l){
+    return l.map(function(c){
+      var v = (c===null||c===undefined) ? '' : String(c);
+      return /[";\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v;
+    }).join(';');
+  }).join('\r\n');
+  // BOM + ponto e vírgula: o Excel em português abre direto, sem assistente.
+  var blob = new Blob(['\ufeff'+txt], {type:'text/csv;charset=utf-8;'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = nome;
+  document.body.appendChild(a); a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+function num(v){ return String(v===null||v===undefined||!isFinite(v)?'':v).replace('.',','); }
+
+function csvEquipe(){
+  var L=[['Data','Adversario','Mando','Competicao','Tecnico','Expulsao','Atletas de linha','Minutos',
+          'Distancia total','Corrida B4','Alta intensidade','Sprint','Aceleracoes','Desaceleracoes',
+          'Player Load','FMP Running (min)','FMP Dynamic (min)','Goleiros: distancia','Goleiros: alta int.']];
+  CONTEXTO.slice().sort(function(a,b){ return chaveData(a.data).localeCompare(chaveData(b.data)); })
+   .filter(function(g){ return DADOS[g.data]; })
+   .forEach(function(g){
+     var ag=agEquipe(g.data);
+     var gk=agregar((DADOS[g.data]||[]).filter(function(a){ return a.grupo==='Goleiros'; }));
+     L.push([g.data,g.adv,g.mando,g.camp,g.tec,(g.exp||0)>0?'sim':'nao',ag.n,num(Math.round(ag.min)),
+             num(ag.dist),num(ag.b4),num(ag.altInt),num(ag.sprint),num(ag.acc),num(ag.dec),num(ag.pl),
+             num(Math.round(ag.fmpRun)),num(Math.round(ag.fmpDyn)),num(gk.dist),num(gk.altInt)]);
+   });
+  baixarCSV('fec_equipe_por_jogo.csv', L);
+}
+function csvAtletas(){
+  var L=[['Data','Adversario','Tecnico','Atleta','ID','Posicao','Grupo','Status','Minutos','Min 1T','Min 2T',
+          'Distancia','B4','B5','B6','B7','Alta intensidade','Sprint','Aceleracoes','Desaceleracoes',
+          'Player Load','FMP Running (min)','FMP Dynamic (min)']];
+  CONTEXTO.slice().sort(function(a,b){ return chaveData(a.data).localeCompare(chaveData(b.data)); })
+   .filter(function(g){ return DADOS[g.data]; })
+   .forEach(function(g){
+     (DADOS[g.data]||[]).forEach(function(a){
+       L.push([g.data,g.adv,g.tec,a.nome,a.id,a.posicao,a.grupo||'',a.status||'',num(a.min),num(a.t1Min),num(a.t2Min),
+               num(a.dist),num(a.b4),num(a.b5),num(a.b6),num(a.b7),num(a.altInt),num(a.sprint),
+               num(a.acc),num(a.dec),num(a.pl),num(a.fmpRun),num(a.fmpDyn)]);
+     });
+   });
+  baixarCSV('fec_atletas_por_jogo.csv', L);
 }
 
 function renderAuditoria(){
@@ -1881,6 +1963,12 @@ function renderAuditoria(){
      'que as primeiras são desaceleração e as últimas aceleração está correta: freada e arranque acontecem em número '+
      'semelhante ao longo de um jogo. Aqui: band1+band2 = '+fmt(decUsada,0)+', band7+band8 = '+fmt(accSoma78,0)+'.</p></div>';
 
+  h+='<div class="card"><div class="ctitle">Exportar para conferência</div>';
+  h+='<p class="csub">Valores cheios, sem arredondamento de rótulo. Abra ao lado do outro relatório e crie uma '+
+     'coluna de diferença: o jogo que destoar aparece na hora, e o arquivo por atleta diz qual linha explica.</p>';
+  h+='<div style="display:flex;gap:10px;flex-wrap:wrap">'+
+     '<button class="btn" id="csv-eq">Equipe por jogo (CSV)</button>'+
+     '<button class="btn gh" id="csv-at">Atleta por jogo (CSV)</button></div></div>';
   h+=conciliacao(datas);
 
   // ---- resíduo por jogo
@@ -1903,6 +1991,8 @@ function renderAuditoria(){
   });
   h+='</tbody></table></div></div>';
   el.innerHTML=h;
+  var b1=el.querySelector('#csv-eq'); if(b1) b1.addEventListener('click',csvEquipe);
+  var b2=el.querySelector('#csv-at'); if(b2) b2.addEventListener('click',csvAtletas);
 }
 
 // ============================================================================

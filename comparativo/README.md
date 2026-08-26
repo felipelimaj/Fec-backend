@@ -126,3 +126,16 @@ A aba Auditoria traz a tabela de conciliação, um bloco expansível por jogo, q
 5. **= atividade inteira, todos os períodos**
 
 Basta pôr o número do outro relatório ao lado e ver em qual linha ele cai. A linha em que bate é a diferença de critério.
+
+Abaixo dessa tabela vem o detalhe **atleta por atleta** do mesmo jogo — minutos, distância, B4, alta intensidade, sprint, acelerações e desacelerações, com valores cheios e o goleiro listado à parte. Quando a divergência é de um jogo isolado e não de critério, é aqui que ela se resolve: alguém que falta, alguém a mais, ou um valor diferente numa linha só.
+
+## Exportação em CSV
+
+Dois botões na aba Auditoria:
+
+- **Equipe por jogo** — uma linha por partida, com contexto, número de atletas, minutos e todas as variáveis, mais as colunas de goleiro em separado.
+- **Atleta por jogo** — uma linha por atleta por partida, com as bandas B4, B5, B6 e B7 isoladas.
+
+Separador ponto e vírgula, decimal com vírgula e BOM UTF-8: o Excel em português abre com duplo clique, sem assistente de importação. Serve para comparar com outro relatório criando uma coluna de diferença, em vez de conferir gráfico contra gráfico.
+
+Os rótulos das barras da temporada passaram a mostrar o **valor cheio**, girado na vertical quando não cabe deitado. O formato compacto anterior (`98,3k`) escondia justamente os metros em disputa numa conferência — duas partidas com 98.673 m e 99.120 m apareciam com o mesmo rótulo.
