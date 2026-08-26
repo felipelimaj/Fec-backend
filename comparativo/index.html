@@ -435,6 +435,7 @@ function normalizar(atletas){
 // ============================================================================
 var METRICAS = [
   {k:'dist',   lab:'Distância Total',  curto:'Distância',    un:'m',    unMin:'m/min',     dp:0, dpMin:1, nota:'Soma dos atletas de linha'},
+  {k:'b4',     lab:'Corrida (B4)',     curto:'Corrida B4',   un:'m',    unMin:'m/min',     dp:0, dpMin:1, nota:'14,40 – 19,80 km/h'},
   {k:'altInt', lab:'Alta Intensidade', curto:'Alta Int.',    un:'m',    unMin:'m/min',     dp:0, dpMin:1, nota:'≥ 19,80 km/h · B5+B6+B7'},
   {k:'sprint', lab:'Sprint',           curto:'Sprint',       un:'m',    unMin:'m/min',     dp:0, dpMin:1, nota:'≥ 25,20 km/h · B6+B7'},
   // Contagens por 10 minutos, e não por minuto: com uma casa decimal, "0,2/min"
@@ -580,9 +581,10 @@ function atletasLinha(data){
   return (DADOS[data]||[]).filter(function(a){ return a.grupo!=='Goleiros'; });
 }
 function agregar(lista){
-  var o = {min:0,dist:0,altInt:0,sprint:0,acc:0,dec:0,pl:0,fmpRun:0,fmpDyn:0,expl:0,sprintEf:0,n:0};
+  var o = {min:0,dist:0,b4:0,b5:0,b6:0,b7:0,altInt:0,sprint:0,acc:0,dec:0,pl:0,fmpRun:0,fmpDyn:0,expl:0,sprintEf:0,n:0};
   lista.forEach(function(a){
     o.min+=a.min; o.dist+=a.dist; o.altInt+=a.altInt; o.sprint+=a.sprint;
+    o.b4+=a.b4||0; o.b5+=a.b5||0; o.b6+=a.b6||0; o.b7+=a.b7||0;
     o.acc+=a.acc; o.dec+=a.dec; o.pl+=a.pl; o.expl+=a.expl||0; o.sprintEf+=a.sprintEf||0;
     o.fmpRun+=a.fmpRun||0; o.fmpDyn+=a.fmpDyn||0;
     o.n++;
@@ -1727,6 +1729,74 @@ function selo(ok, txtOk, txtNao){
     'background:'+bg+';color:'+cor+';border:1px solid '+cor+'33">'+(ok?'✓ ':'✕ ')+esc(ok?txtOk:txtNao)+'</span>';
 }
 
+// Conciliação com outro relatório. Um total só nunca explica uma divergência;
+// o que explica é a decomposição. Aqui cada jogo mostra o que o painel soma,
+// o que ele deixa de fora, e quanto cada exclusão vale em metros.
+function conciliacao(datas){
+  var h='<div class="card" style="border-left:5px solid var(--vm)">';
+  h+='<div class="ctitle">Conciliação com outro relatório</div>';
+  h+='<p class="csub">Divergência de total quase sempre é diferença de <b>escopo</b>, não de cálculo: qual período '+
+     'entrou e quem entrou. Para cada jogo, a tabela parte do que o painel mostra e vai somando o que ele exclui, '+
+     'até o total geral da atividade. Ponha o número do outro relatório ao lado e veja em qual linha ele cai — '+
+     'essa linha é a diferença de critério.</p>';
+
+  datas.slice().sort(function(a,b){ return chaveData(b).localeCompare(chaveData(a)); }).forEach(function(d){
+    var ctxg=CTX[d]||{}, ex=EXTRAS[d]||{};
+    var linha=atletasLinha(d), gks=(DADOS[d]||[]).filter(function(a){ return a.grupo==='Goleiros'; });
+    var agL=agregar(linha), agG=agregar(gks);
+    var pers=(ex.periodos||[]);
+    var fora=pers.filter(function(p){ return !p.classificado; });
+    var distFora=fora.reduce(function(t,p){ return t+(p.dist||0); },0);
+    var aiFora=fora.reduce(function(t,p){ return t+(p.altInt||0); },0);
+    var b4Fora=fora.reduce(function(t,p){ return t+(p.b4||0); },0);
+
+    h+='<details style="margin-top:10px"><summary>'+esc(d)+' · '+esc(ctxg.adv||'—')+
+       ' <span class="mut" style="font-weight:500">— painel: '+fmt(agL.dist,0)+' m · alta int. '+
+       fmt(agL.altInt,0)+' m</span></summary>';
+    h+='<div class="tbl-w" style="margin-top:8px"><table><thead><tr><th class="l">Escopo</th>'+
+       '<th>Atletas</th><th>Distância</th><th>Corrida B4</th><th>Alta Intensidade</th><th>Sprint</th>'+
+       '</tr></thead><tbody>';
+    h+='<tr style="background:#F0F5FF"><td class="l"><b>O que o painel mostra</b>'+
+       '<div class="mut" style="font-size:10px">atletas de linha, só 1tempo + 2tempo</div></td>'+
+       '<td class="num">'+linha.length+'</td><td class="num">'+fmt(agL.dist,0)+'</td>'+
+       '<td class="num">'+fmt(agL.b4,0)+'</td><td class="num">'+fmt(agL.altInt,0)+'</td>'+
+       '<td class="num">'+fmt(agL.sprint,0)+'</td></tr>';
+    h+='<tr><td class="l">+ goleiros</td><td class="num">'+gks.length+'</td>'+
+       '<td class="num">'+fmt(agG.dist,0)+'</td><td class="num">'+fmt(agG.b4,0)+'</td>'+
+       '<td class="num">'+fmt(agG.altInt,0)+'</td><td class="num">'+fmt(agG.sprint,0)+'</td></tr>';
+    h+='<tr class="tot"><td class="l">= elenco inteiro, 1tempo + 2tempo</td><td class="num">'+
+       (linha.length+gks.length)+'</td><td class="num">'+fmt(agL.dist+agG.dist,0)+'</td>'+
+       '<td class="num">'+fmt(agL.b4+agG.b4,0)+'</td><td class="num">'+fmt(agL.altInt+agG.altInt,0)+'</td>'+
+       '<td class="num">'+fmt(agL.sprint+agG.sprint,0)+'</td></tr>';
+    if(fora.length){
+      fora.forEach(function(p){
+        h+='<tr><td class="l">+ período <b>'+esc(p.nome||'(sem nome)')+'</b>'+
+           '<div class="mut" style="font-size:10px">não é tempo de jogo · '+fmt(p.min,0)+' min</div></td>'+
+           '<td class="num mut">'+(p.atletas||0)+'</td><td class="num">'+fmt(p.dist,0)+'</td>'+
+           '<td class="num">'+fmt(p.b4,0)+'</td><td class="num">'+fmt(p.altInt,0)+'</td>'+
+           '<td class="num">'+fmt(p.sprint,0)+'</td></tr>';
+      });
+      h+='<tr class="tot"><td class="l">= atividade inteira, todos os períodos</td><td class="num mut">—</td>'+
+         '<td class="num">'+fmt(agL.dist+agG.dist+distFora,0)+'</td>'+
+         '<td class="num">'+fmt(agL.b4+agG.b4+b4Fora,0)+'</td>'+
+         '<td class="num">'+fmt(agL.altInt+agG.altInt+aiFora,0)+'</td><td class="num">—</td></tr>';
+    }
+    h+='</tbody></table></div>';
+    if(pers.length){
+      h+='<p class="csub" style="margin-top:8px">Períodos da atividade: '+
+         pers.map(function(p){
+           return '<b>'+esc(p.nome||'(sem nome)')+'</b> '+(p.classificado?'✓':'✕')+' '+fmt(p.dist,0)+' m';
+         }).join(' · ')+'</p>';
+    }
+    if((ex.ignorados||[]).length){
+      h+='<p class="csub" style="color:var(--vm)">Não entrou em nada: '+
+         ex.ignorados.map(function(i){ return esc(i.nome)+' ('+esc(i.motivo)+')'; }).join(' · ')+'</p>';
+    }
+    h+='</details>';
+  });
+  return h+'</div>';
+}
+
 function renderAuditoria(){
   var el=document.getElementById('p-auditoria');
   if(!CARREGADO){ el.innerHTML=vazio(); return; }
@@ -1811,7 +1881,9 @@ function renderAuditoria(){
      'que as primeiras são desaceleração e as últimas aceleração está correta: freada e arranque acontecem em número '+
      'semelhante ao longo de um jogo. Aqui: band1+band2 = '+fmt(decUsada,0)+', band7+band8 = '+fmt(accSoma78,0)+'.</p></div>';
 
-  // ---- 3. por jogo
+  h+=conciliacao(datas);
+
+  // ---- resíduo por jogo
   h+='<div class="card"><div class="ctitle">Resíduo por jogo</div>';
   h+='<p class="csub">Um jogo isolado com resíduo alto costuma indicar colete com falha de sinal, não erro de banda.</p>';
   h+='<div class="tbl-w"><table><thead><tr><th class="l">Data</th><th class="l">Adversário</th><th>Distância</th>'+
@@ -2016,7 +2088,8 @@ function demo(){
         status:'ATIVO', ativo:true,
         min:+min.toFixed(1), t1Min:+(tit?Math.min(min,48):Math.max(0,min-20)).toFixed(1),
         t2Min:+Math.max(0,min-(tit?48:min-20)).toFixed(1),
-        dist:Math.round(dist), altInt:Math.round(dist*(0.045+r()*0.03)), sprint:Math.round(dist*(0.008+r()*0.012)),
+        dist:Math.round(dist), b4:Math.round(dist*(0.13+r()*0.04)),
+        altInt:Math.round(dist*(0.045+r()*0.03)), sprint:Math.round(dist*(0.008+r()*0.012)),
         acc:Math.round(min*(0.18+r()*0.12)), dec:Math.round(min*(0.25+r()*0.15)), pl:Math.round(min*(7+r()*2)),
         fmpRun:+(min*(0.16+r()*0.06)).toFixed(2), fmpDyn:+(min*(0.30+r()*0.08)).toFixed(2),
         hrMax:+(80+r()*15).toFixed(1), hrMed:+(70+r()*12).toFixed(1),
@@ -2033,7 +2106,15 @@ function demo(){
     aud.ab1=Math.round(dec*0.38); aud.ab2=Math.round(dec*0.62);
     aud.ab3=0; aud.ab4=0; aud.ab5=0; aud.ab6=0;
     aud.ab7=Math.round(aud.accBand7plus*0.72); aud.ab8=aud.accBand7plus-aud.ab7;
-    EXTRAS[g.data]={ignorados:[],periodos:[],auditoria:aud};
+    EXTRAS[g.data]={ignorados:[],auditoria:aud,periodos:[
+      {nome:'1tempo',classificado:'t1',dist:Math.round(dTot*0.52),b4:Math.round(dTot*0.075),
+       altInt:Math.round(dTot*0.028),sprint:Math.round(dTot*0.006),min:48,atletas:lst.length},
+      {nome:'2tempo',classificado:'t2',dist:Math.round(dTot*0.48),b4:Math.round(dTot*0.070),
+       altInt:Math.round(dTot*0.026),sprint:Math.round(dTot*0.005),min:50,atletas:lst.length},
+      {nome:'Reaquecimento suplentes',classificado:null,dist:Math.round(dTot*0.03),
+       b4:Math.round(dTot*0.008),altInt:Math.round(dTot*0.006),sprint:Math.round(dTot*0.002),
+       min:22,atletas:5}
+    ]};
   });
   CARREGADO=true;
   document.getElementById('demo-bar').style.display='block';

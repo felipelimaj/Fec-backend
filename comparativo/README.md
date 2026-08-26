@@ -106,3 +106,23 @@ A régua da escala é HTML com flex, não SVG. Um SVG com `preserveAspectRatio="
 Toda aba comparativa abre com uma faixa fixa dizendo qual bloco está em análise, contra qual referência, em que escala e com que tratamento de expulsão. Antes essa informação vivia num selo cinza pequeno ao lado do título do cartão, e quem abrisse o painel no meio podia ler um Δ% calculado sobre os 10 maiores achando que era média de temporada.
 
 As duas seções que usam **outra** referência — a tabela de tamanho do efeito e a matriz de efeito por posição — trazem um aviso azul destacado dizendo que ali a comparação é contra a média de todos os jogos, ignorando o seletor da barra de controle.
+
+## Banda B4
+
+`velocity_band4_total_distance`, faixa de 14,40 a 19,80 km/h, entra como variável própria com o rótulo **Corrida (B4)**. Ela fica logo abaixo da distância total e logo acima da Alta Intensidade em todas as tabelas, trilhos e recortes.
+
+O endpoint passa a devolver também `b4`, `b5`, `b6` e `b7` separados por atleta. Sem as bandas isoladas, qualquer divergência com outro relatório vira discussão sobre qual soma cada lado fez.
+
+## Conciliação com outro relatório
+
+Divergência de total entre dois relatórios quase sempre é diferença de **escopo** — qual período entrou e quem entrou — e não de cálculo. O endpoint agora devolve, por jogo, a quebra de cada período da atividade: nome, se foi classificado como tempo de jogo, distância, B4, alta intensidade, sprint, minutos e número de atletas.
+
+A aba Auditoria traz a tabela de conciliação, um bloco expansível por jogo, que parte do que o painel mostra e vai somando o que ele exclui:
+
+1. **O que o painel mostra** — atletas de linha, só 1tempo + 2tempo
+2. **+ goleiros**
+3. **= elenco inteiro, 1tempo + 2tempo**
+4. **+ cada período não classificado**, um a um e nomeado (reaquecimento de suplentes, aquecimento, etc.)
+5. **= atividade inteira, todos os períodos**
+
+Basta pôr o número do outro relatório ao lado e ver em qual linha ele cai. A linha em que bate é a diferença de critério.
