@@ -264,7 +264,7 @@ code{background:var(--lt);border:1px solid var(--bdr);border-radius:4px;padding:
       <select id="sel-ref">
         <option value="top10var">10 maiores por variável</option>
         <option value="top10dist">10 maiores em distância</option>
-        <option value="ult5">Últimos 5 jogos</option>
+        <option value="ult5">Últimos jogos</option>
         <option value="todos">Todos os jogos</option>
       </select>
     </div>
@@ -576,6 +576,15 @@ function atletaComFalha(g, nome){
   });
 }
 
+// Tamanho da amostra de referência: sempre o número de jogos que o bloco em
+// análise tem hoje. Era 5 fixo, e virou 6 quando entrou o Criciúma — com número
+// fixo, a próxima rodada já quebraria a comparação de igual para igual.
+// `brutos` = sem os filtros da barra de controle (usado na Minutagem).
+function nAmostra(brutos){
+  var n = brutos ? jogosBrutos(BLOCOS.novo).length : jogosDe(BLOCOS.novo).length;
+  return n || 1;
+}
+
 function jogosDe(bloco){
   return bloco.jogos.filter(function(g){
     if(!DADOS[g.data]) return false;
@@ -629,14 +638,15 @@ function valor(ag,k,escala){
 // REFERÊNCIA
 // ============================================================================
 // serie: [{data, v}] já na escala pedida. Devolve {v, n, min, max, datas}.
-function referencia(serie, modo, serieDist){
+function referencia(serie, modo, serieDist, nUlt){
   var val = serie.filter(function(s){ return s.v!==null && isFinite(s.v); });
   if(!val.length) return null;
   var sel;
   if(modo==='todos'){
     sel = val;
   } else if(modo==='ult5'){
-    sel = val.slice().sort(function(a,b){ return chaveData(b.data).localeCompare(chaveData(a.data)); }).slice(0,5);
+    sel = val.slice().sort(function(a,b){ return chaveData(b.data).localeCompare(chaveData(a.data)); })
+             .slice(0, nUlt || nAmostra());
   } else if(modo==='top10dist'){
     var top = (serieDist||[]).slice().sort(function(a,b){ return b.v-a.v; }).slice(0,10)
       .map(function(s){ return s.data; });
@@ -660,7 +670,7 @@ function comparar(k, fnAg, modoRef){
   var serieAnt  = ja.map(function(g){ return {data:g.data, v:valor(fnAg(g.data),k,esc0)}; });
   var serieAntD = ja.map(function(g){ return {data:g.data, v:valor(fnAg(g.data),'dist',esc0)}; });
   var vnos = serieNovo.filter(function(s){ return s.v!==null&&isFinite(s.v); }).map(function(s){ return s.v; });
-  var ref = referencia(serieAnt, modo, serieAntD);
+  var ref = referencia(serieAnt, modo, serieAntD, nAmostra());
   var novoV = vnos.length ? media(vnos) : null;
   var d = (ref && ref.v && novoV!==null) ? (novoV-ref.v)/ref.v*100 : null;
   var ef = efeitoDeSeries(
@@ -983,7 +993,7 @@ function rotuloRefCurto(){
                d:'de '+ja+' jogos, os 10 maiores de cada variável · é um teto, não um jogo típico'},
     top10dist:{t:'10 maiores jogos de '+LB_ANT+' em distância',
                d:'os mesmos 10 jogos em todas as variáveis · partidas reais'},
-    ult5:     {t:'Últimos 5 jogos de '+LB_ANT,
+    ult5:     {t:'Últimos '+nAmostra()+' jogos de '+LB_ANT,
                d:'mesmo nº de partidas e mesmo momento de temporada'},
     todos:    {t:'Média de todos os '+ja+' jogos de '+LB_ANT,
                d:'a era inteira · estável, mas dilui fases diferentes'}
@@ -1010,7 +1020,7 @@ function faixaContexto(){
 function rotuloRef(){
   return {top10var:'Referência: média dos 10 maiores por variável',
           top10dist:'Referência: média dos 10 maiores jogos em distância',
-          ult5:'Referência: últimos 5 jogos do treinador anterior',
+          ult5:'Referência: últimos '+nAmostra()+' jogos do treinador anterior',
           todos:'Referência: média de todos os jogos anteriores'}[S.ref];
 }
 
@@ -1375,7 +1385,7 @@ function renderIndividual(){
                     .filter(function(v){ return v!==null&&isFinite(v); });
     var serieA = a ? a.jogos.map(function(j){ return {data:j.data, v:valorAtleta(j.a,met.k,S.esc)}; }) : [];
     var serieAD = a ? a.jogos.map(function(j){ return {data:j.data, v:valorAtleta(j.a,'dist',S.esc)}; }) : [];
-    var ref = serieA.length ? referencia(serieA, S.ref, serieAD) : null;
+    var ref = serieA.length ? referencia(serieA, S.ref, serieAD, nAmostra()) : null;
     var novoV = vn.length ? media(vn) : null;
     var ef = efeitoDeSeries(serieA.map(function(x){ return x.v; })
       .filter(function(v){ return v!==null&&isFinite(v); }), vn);
@@ -1519,7 +1529,8 @@ function renderMinutagem(){
   var el=document.getElementById('p-minutagem');
   if(!CARREGADO){ el.innerHTML=vazio(); return; }
   var jn=jogosBrutos(BLOCOS.novo), ja=jogosBrutos(BLOCOS.anterior);
-  var ju5=ja.slice(-5);
+  var nA=nAmostra(true);
+  var ju5=ja.slice(-nA);
   var mN=minutosPorAtleta(jn), mA=minutosPorAtleta(ja), mU=minutosPorAtleta(ju5);
 
   function concentracao(m,n){
@@ -1534,14 +1545,14 @@ function renderMinutagem(){
 
   var h='<div class="warn info"><span>ⓘ</span><div>Esta aba ignora o corte de minutos e o filtro de expulsão da barra '+
     'de controle. A pergunta aqui é quantos minutos cada atleta recebeu, e nenhum jogo deve sumir dessa conta. '+
-    'A comparação natural é contra os <b>últimos 5 jogos</b> de '+esc(LB_ANT)+': mesmo número de partidas, mesmo '+
+    'A comparação natural é contra os <b>últimos '+nA+' jogos</b> de '+esc(LB_ANT)+': mesmo número de partidas, mesmo '+
     'momento de temporada, mesmo elenco disponível.</div></div>';
 
   h+='<div class="grid g4" style="margin-bottom:14px">';
-  h+=kpi('Minutos de campo por jogo', fmt(minJogoN,0),'min','Últimos 5 de '+LB_ANT+': '+fmt(minJogoU,0)+' min',
+  h+=kpi('Minutos de campo por jogo', fmt(minJogoN,0),'min','Últimos '+nA+' de '+LB_ANT+': '+fmt(minJogoU,0)+' min',
         minJogoU?(minJogoN-minJogoU)/minJogoU*100:null);
-  h+=kpi('Atletas diferentes usados', kN,'','Em '+jn.length+' jogos · últimos 5 de '+LB_ANT+': '+kU+' em '+ju5.length,null);
-  h+=kpi('Concentração nos 11 mais usados', fmt(concentracao(mN,11),1),'%','Últimos 5 de '+LB_ANT+': '+
+  h+=kpi('Atletas diferentes usados', kN,'','Em '+jn.length+' jogos · últimos '+nA+' de '+LB_ANT+': '+kU+' em '+ju5.length,null);
+  h+=kpi('Concentração nos 11 mais usados', fmt(concentracao(mN,11),1),'%','Últimos '+nA+' de '+LB_ANT+': '+
         fmt(concentracao(mU,11),1)+'%', null);
   h+='</div>';
 
@@ -1590,12 +1601,12 @@ function renderMinutagem(){
     return dir*(a-b);
   });
 
-  h+='<div class="card"><div class="ctitle">Minutos por atleta<span class="tag">'+esc(LB_NOVO)+' × últimos 5 de '+esc(LB_ANT)+'</span></div>';
+  h+='<div class="card"><div class="ctitle">Minutos por atleta<span class="tag">'+esc(LB_NOVO)+' × últimos '+nA+' de '+esc(LB_ANT)+'</span></div>';
   h+='<p class="csub">Participação = minutos do atleta ÷ minutos que os jogos do bloco realmente ofereceram '+
      '('+fmt(durNovo,0)+' min em '+jn.length+' jogos de '+esc(LB_NOVO)+', '+fmt(durU5,0)+' min nos últimos '+
      ju5.length+' de '+esc(LB_ANT)+'). Não é jogos × 90: com acréscimo, uma partida entrega mais que isso. '+
      '100% é ter jogado tudo. A coluna Δ está em pontos percentuais.</p>';
-  h+=barrasMinutos(linhas);
+  h+=barrasMinutos(linhas, ju5.length);
   h+='<div class="tbl-w"><table class="grp"><thead>';
   h+='<tr><th class="gh n" colspan="2"></th>'+
      '<th class="gh a" colspan="4">'+esc(LB_NOVO)+'<small>'+jn.length+' jogos · '+fmt(durNovo,0)+' min em campo</small></th>'+
@@ -1633,7 +1644,7 @@ function thM(col,lab,cls){
   return '<th class="'+(cls||'')+(atual?' srt':'')+'" role="button" tabindex="0" data-col="'+col+'">'+esc(lab)+
     (atual?'<span aria-hidden="true"> ↕</span>':'')+'</th>';
 }
-function barrasMinutos(linhas){
+function barrasMinutos(linhas, nUlt){
   var L=linhas.slice().sort(function(a,b){ return b.partNovo-a.partNovo; }).filter(function(r){ return r.partNovo>0||r.partU5>0; });
   if(!L.length) return '';
   var RH=19,W=700,PAD_L=118,PAD_R=10,H=L.length*RH+30;
@@ -1650,7 +1661,7 @@ function barrasMinutos(linhas){
     var tip = '<b>'+esc(r.nome)+'</b>'+
       '<span class="k">'+esc(LB_NOVO)+':</span> '+fmt(r.minNovo,0)+' min em '+r.jNovo+' jogo'+(r.jNovo===1?'':'s')+
       ' · '+fmt(r.partNovo,1)+'% <br>'+
-      '<span class="k">Últimos 5 de '+esc(LB_ANT)+':</span> '+fmt(r.minU5,0)+' min em '+r.jU5+' jogo'+(r.jU5===1?'':'s')+
+      '<span class="k">Últimos '+nUlt+' de '+esc(LB_ANT)+':</span> '+fmt(r.minU5,0)+' min em '+r.jU5+' jogo'+(r.jU5===1?'':'s')+
       ' · '+fmt(r.partU5,1)+'%<br>'+
       '<span class="k">Diferença:</span> '+dpp+
       (r.jNovo?'<br><span class="k">Como titular:</span> '+r.titNovo+' de '+r.jNovo:'');
@@ -1666,7 +1677,7 @@ function barrasMinutos(linhas){
   });
   s+='</svg>';
   return s+'<div class="lg"><span><i style="background:#003087"></i>'+esc(LB_NOVO)+'</span>'+
-    '<span><i style="background:#C4952A;opacity:.65"></i>Últimos 5 de '+esc(LB_ANT)+'</span></div>';
+    '<span><i style="background:#C4952A;opacity:.65"></i>Últimos '+nUlt+' de '+esc(LB_ANT)+'</span></div>';
 }
 
 // Conferência de elenco: quem entrou na conta de cada jogo, quem ficou de fora
@@ -2098,7 +2109,7 @@ function renderMetodo(){
 
   h+='<h4>Referência</h4>'+
      '<p>Padrão: média dos 10 maiores jogos de '+esc(LB_ANT)+', variável por variável. O seletor da barra de controle '+
-     'troca para os 10 maiores em distância, os últimos 5 jogos ou a média de todos. O gráfico da temporada usa sempre '+
+     'troca para os 10 maiores em distância, os últimos '+nAmostra()+' jogos ou a média de todos. O gráfico da temporada usa sempre '+
      'os 10 maiores por variável, como régua fixa.</p>';
 
   h+='<h4>Tamanho do efeito</h4>'+
@@ -2329,6 +2340,8 @@ function seg(id, chave){
 }
 
 function render(){
+  var optUlt=document.querySelector('#sel-ref option[value=ult5]');
+  if(optUlt) optUlt.textContent='Últimos '+nAmostra()+' jogos';
   document.getElementById('hd-ant').textContent=LB_ANT;
   document.getElementById('hd-ant-mt').textContent=BLOCOS.anterior.jogos.length+' jogos · bloco de referência';
   document.getElementById('hd-nov').textContent=LB_NOVO;

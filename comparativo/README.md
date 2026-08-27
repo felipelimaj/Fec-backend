@@ -56,6 +56,12 @@ Posição e status vêm da planilha `CADASTRO_ATLETAS_PROFISSIONAL_FEC`, publica
 
 As colunas são reconhecidas pelo texto do cabeçalho, sem acento e sem depender da ordem: ID/CADASTRO/NÚMERO, NOME, POSIÇÃO, STATUS. Confira a leitura em `/api/comparativo?cadastro=1` — a resposta traz quais colunas foram reconhecidas, o total de atletas e quantos estão ativos. Se a planilha não puder ser lida, a extração continua com a posição da Catapult e o painel avisa na tela.
 
+### Tamanho da amostra de referência
+
+A comparação de igual para igual — na Minutagem e na opção "Últimos jogos" do seletor de referência — usa sempre o **mesmo número de partidas que o bloco em análise tem hoje**, calculado por `nAmostra()`. Era 5 fixo; virou 6 quando o Criciúma entrou, e vira 7 no próximo jogo, sem edição de código. Todos os rótulos da interface, inclusive o texto da opção no seletor, são reescritos a cada render com o número corrente.
+
+Na Minutagem o cálculo ignora os filtros da barra de controle, como o resto daquela aba; nas demais abas ele respeita o filtro de expulsão, para que os dois lados da comparação tenham o mesmo tratamento.
+
 O filtro **Só ativos** vale para as abas Individual e Minutagem. Totais de equipe e recortes por posição usam todos que entraram em campo: remover de um jogo de março quem já saiu do clube faria a referência daquele jogo descrever uma partida que não aconteceu.
 
 ## Aba Auditoria
