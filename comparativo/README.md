@@ -129,6 +129,14 @@ Basta pôr o número do outro relatório ao lado e ver em qual linha ele cai. A 
 
 Abaixo dessa tabela vem o detalhe **atleta por atleta** do mesmo jogo — minutos, distância, B4, alta intensidade, sprint, acelerações e desacelerações, com valores cheios e o goleiro listado à parte. Quando a divergência é de um jogo isolado e não de critério, é aqui que ela se resolve: alguém que falta, alguém a mais, ou um valor diferente numa linha só.
 
+## Origem da distância total
+
+A distância total vem do campo `total_distance` da Catapult, somado por período (1tempo + 2tempo) — **nunca** da soma das bandas de velocidade. A soma das bandas existe só na aba Auditoria, e só para conferir a identidade das faixas.
+
+Se restar diferença contra outro relatório com a alta intensidade batendo, o candidato é o deslocamento que fica **fora** dos dois tempos: saída e volta do vestiário, tempo não atribuído a período. É andar, quase não gera alta intensidade, e um relatório que agregue por sessão o inclui.
+
+A aba Auditoria tem uma opção para buscar também o total do atleta na atividade inteira (`?sessao=1` no endpoint, um `POST /stats` agrupado só por atleta). Ela dobra o número de requisições à Catapult, então fica desligada por padrão. Quando ligada, a conciliação ganha as linhas "fora dos dois tempos" e "total do atleta na atividade inteira", e o CSV por atleta ganha a coluna correspondente.
+
 ## Exportação em CSV
 
 Dois botões na aba Auditoria:
@@ -139,3 +147,20 @@ Dois botões na aba Auditoria:
 Separador ponto e vírgula, decimal com vírgula e BOM UTF-8: o Excel em português abre com duplo clique, sem assistente de importação. Serve para comparar com outro relatório criando uma coluna de diferença, em vez de conferir gráfico contra gráfico.
 
 Os rótulos das barras da temporada passaram a mostrar o **valor cheio**, girado na vertical quando não cabe deitado. O formato compacto anterior (`98,3k`) escondia justamente os metros em disputa numa conferência — duas partidas com 98.673 m e 99.120 m apareciam com o mesmo rótulo.
+
+## Falha de coleta
+
+O array `CONTEXTO` aceita o campo `gps: ['NOME']` por jogo, listando atletas cuja coleta falhou naquela partida. Está preenchido em 28/07/2026 × Botafogo/SP com MAILTON.
+
+O jogo é **sinalizado, nunca corrigido** — ajustar o número seria inventá-lo. A marcação aparece em quatro lugares, sempre discreta e sempre distinta da marcação de expulsão:
+
+- **Gráfico da temporada:** contorno pontilhado cinza na barra e um ponto cinza sob o eixo. A hachura vermelha continua reservada para expulsão.
+- **Legenda do gráfico:** uma linha nomeando o jogo e o atleta.
+- **Tabelas jogo a jogo e aba Contexto:** o símbolo `◌` ao lado da data, com o nome do atleta no tooltip.
+- **Conciliação e conferência de elenco:** o atleta ganha a etiqueta "coleta incompleta" na própria linha.
+
+Para marcar um jogo novo, acrescente `gps:['NOME']` à linha correspondente do `CONTEXTO`. A comparação de nome é sem acento e por trecho, então o nome curto basta.
+
+## Rótulo das barras da temporada
+
+O rótulo fica **dentro da barra, na vertical**, na mesma posição em todos os jogos. A cor é escolhida contra o fundo da própria barra: branco sobre o azul escuro do bloco em análise, azul-noite sobre o azul claro do bloco de referência e sobre o dourado do interino. Barras curtas demais para comportar o texto recebem o rótulo logo acima, em azul-noite.

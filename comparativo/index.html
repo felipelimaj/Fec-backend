@@ -377,12 +377,18 @@ var CONTEXTO = [
  {n:43,data:'12/07/2026',adv:'Atlético GO', camp:'Série B',        mando:'Fora',estadio:'Antônio Accioly', viagem:5420,placar:'1x0',gf:0,gc:1,pts:0,res:'Derrota',posse:null,xg:null,xgAdv:null,esq:'',temp:27,umi:49,dias:2,fase:'17ª Rodada',exp:0,tec:'Carpini'},
  {n:44,data:'17/07/2026',adv:'Novorizontino',camp:'Série B',       mando:'Casa',estadio:'Arena Castelão',   viagem:0,   placar:'1x0',gf:1,gc:0,pts:3,res:'Vitória',posse:null,xg:null,xgAdv:null,esq:'',temp:27,umi:94,dias:0,fase:'18ª Rodada',exp:0,tec:'Carpini'},
  {n:45,data:'21/07/2026',adv:'Vila Nova',   camp:'Série B',        mando:'Fora',estadio:'Onésio Alvarenga',viagem:5420,placar:'2x1',gf:1,gc:2,pts:0,res:'Derrota',posse:null,xg:null,xgAdv:null,esq:'',temp:23,umi:55,dias:3,fase:'19ª Rodada',exp:0,tec:'Carpini'},
- {n:46,data:'28/07/2026',adv:'Botafogo/SP', camp:'Série B',        mando:'Casa',estadio:'Arena Castelão',   viagem:0,   placar:'1x0',gf:1,gc:0,pts:3,res:'Vitória',posse:null,xg:null,xgAdv:null,esq:'',temp:27,umi:85,dias:0,fase:'20ª Rodada',exp:0,tec:'Reinan'},
+ // gps: atletas cuja coleta falhou nesse jogo. O dado deles fica abaixo do real,
+ // então o jogo é sinalizado em vez de corrigido — corrigir seria inventar número.
+ {n:46,data:'28/07/2026',adv:'Botafogo/SP', camp:'Série B',        mando:'Casa',estadio:'Arena Castelão',   viagem:0,   placar:'1x0',gf:1,gc:0,pts:3,res:'Vitória',posse:null,xg:null,xgAdv:null,esq:'',temp:27,umi:85,dias:0,fase:'20ª Rodada',exp:0,tec:'Reinan',gps:['MAILTON']},
  {n:47,data:'02/08/2026',adv:'Palmeiras',   camp:'Copa do Brasil', mando:'Fora',estadio:'Nubank Parque',   viagem:null,placar:'3x0',gf:0,gc:3,pts:0,res:'Derrota',posse:null,xg:null,xgAdv:null,esq:'',temp:24,umi:53,dias:3,fase:'1/16 de Final',exp:0,tec:'Paulo Autuori'},
  {n:48,data:'05/08/2026',adv:'Palmeiras',   camp:'Copa do Brasil', mando:'Fora',estadio:'Arena Pantanal',  viagem:null,placar:'3x2',gf:3,gc:2,pts:0,res:'Vitória',posse:null,xg:null,xgAdv:null,esq:'',temp:29,umi:58,dias:3,fase:'1/16 de Final',exp:0,tec:'Paulo Autuori'},
  {n:49,data:'09/08/2026',adv:'Cuiabá',      camp:'Série B',        mando:'Fora',estadio:'Arena Pantanal',  viagem:null,placar:'1x1',gf:1,gc:1,pts:1,res:'Empate', posse:null,xg:null,xgAdv:null,esq:'',temp:35,umi:38,dias:3,fase:'21ª Rodada',exp:1,tec:'Paulo Autuori'},
  {n:50,data:'15/08/2026',adv:'Juventude',   camp:'Série B',        mando:'Fora',estadio:'Alfredo Jaconi',  viagem:null,placar:'0x0',gf:0,gc:0,pts:1,res:'Empate', posse:null,xg:null,xgAdv:null,esq:'',temp:17,umi:80,dias:4,fase:'22ª Rodada',exp:0,tec:'Paulo Autuori'},
- {n:51,data:'19/08/2026',adv:'São Bernardo',camp:'Série B',        mando:'Casa',estadio:'Arena Castelão',   viagem:0,   placar:'1x1',gf:1,gc:1,pts:1,res:'Empate', posse:null,xg:null,xgAdv:null,esq:'',temp:27,umi:90,dias:0,fase:'23ª Rodada',exp:0,tec:'Paulo Autuori'}
+ {n:51,data:'19/08/2026',adv:'São Bernardo',camp:'Série B',        mando:'Casa',estadio:'Arena Castelão',   viagem:0,   placar:'1x1',gf:1,gc:1,pts:1,res:'Empate', posse:null,xg:null,xgAdv:null,esq:'',temp:27,umi:90,dias:0,fase:'23ª Rodada',exp:0,tec:'Paulo Autuori'},
+ // Temperatura e umidade vieram da aba Jogos 2026. Viagem e dias fora estão
+ // como 0 / Fortaleza na planilha, o que não bate com um jogo em Santa Catarina
+ // — ficam nulos aqui até serem preenchidos, e nulo é ignorado nas médias.
+ {n:52,data:'23/08/2026',adv:'Criciúma',    camp:'Série B',        mando:'Fora',estadio:'Heriberto Hulse',  viagem:null,placar:'0x2',gf:2,gc:0,pts:3,res:'Vitória',posse:null,xg:null,xgAdv:null,esq:'',temp:14,umi:66,dias:null,fase:'24ª Rodada',exp:0,tec:'Paulo Autuori'}
 ];
 
 // ============================================================================
@@ -467,7 +473,8 @@ var ABAS = [
 // ============================================================================
 // ESTADO
 // ============================================================================
-var S = {ref:'top10var', exp:'marcar', esc:'abs', minMin:60, elenco:'ativos', matriz:'delta', aba:'resumo',
+var S = {ref:'top10var', exp:'marcar', esc:'abs', minMin:60, elenco:'ativos', matriz:'delta',
+         sessao:false, aba:'resumo',
          ordIndiv:{col:'dNovo',dir:-1}, ordMin:{col:'minNovo',dir:-1}, metricaFoco:'dist'};
 var DADOS = {};        // { 'DD/MM/YYYY': [atleta, ...] }
 var EXTRAS = {};       // { 'DD/MM/YYYY': {ignorados:[], periodos:[]} } — para a conferência de elenco
@@ -559,6 +566,16 @@ var CTX = {};
 CONTEXTO.forEach(function(g){ CTX[g.data] = g; });
 
 // Jogos de cada bloco que já têm dado GPS carregado, respeitando o filtro de expulsão.
+// Falha de coleta: o jogo tem dado, mas incompleto. Sinalizado, nunca corrigido.
+function falhaGps(g){ return g && g.gps && g.gps.length ? g.gps : null; }
+function atletaComFalha(g, nome){
+  var l = falhaGps(g); if(!l) return false;
+  var n = (nome||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
+  return l.some(function(x){
+    return n.indexOf(x.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase())>=0;
+  });
+}
+
 function jogosDe(bloco){
   return bloco.jogos.filter(function(g){
     if(!DADOS[g.data]) return false;
@@ -849,8 +866,10 @@ function renderResumo(){
 
   var minNovo = media(jn.map(function(g){ return agEquipe(g.data).min; }));
   var minRef  = media(ja.map(function(g){ return agEquipe(g.data).min; }));
-  var ptsNovo = media(jn.map(function(g){ return g.pts; }));
-  var ptsRef  = media(ja.map(function(g){ return g.pts; }));
+  var soPts = function(l){ return l.map(function(g){ return g.pts; })
+    .filter(function(v){ return v!==null&&v!==undefined&&isFinite(v); }); };
+  var ptsNovo = media(soPts(jn));
+  var ptsRef  = media(soPts(ja));
 
   var h = avisos() + faixaContexto();
   h+='<div class="grid g4" style="margin-bottom:14px">';
@@ -1086,7 +1105,8 @@ function renderEquipe(){
   h+='</tr></thead><tbody>';
   jogosDe(BLOCOS.novo).forEach(function(g){
     var ag=agEquipe(g.data);
-    h+='<tr><td class="l"><b>'+esc(g.data)+'</b>'+((g.exp||0)>0?' <span class="exp-flag" title="Jogo com expulsão">⚠</span>':'')+'</td>';
+    h+='<tr><td class="l"><b>'+esc(g.data)+'</b>'+((g.exp||0)>0?' <span class="exp-flag" title="Jogo com expulsão">⚠</span>':'')+
+       (falhaGps(g)?' <span class="mut" title="Coleta de GPS incompleta: '+esc(g.gps.join(', '))+'">◌</span>':'')+'</td>';
     h+='<td class="l">'+esc(g.adv)+' <span class="mut">'+esc(g.mando)+'</span></td>';
     h+='<td class="l mut">'+esc(g.camp)+'</td>';
     h+='<td class="num">'+ag.n+'</td><td class="num">'+fmt(ag.min,0)+'</td>';
@@ -1157,25 +1177,33 @@ function linhaTempo(met, dp, un){
     var alt = Math.max(0, base-y(v));
     s+='<rect x="'+x0+'" y="'+y(v)+'" width="'+w+'" height="'+alt+'" fill="'+cor+'" rx="1">'+
        '<title>'+esc(g.data)+' · '+esc(g.adv)+' ('+esc(g.mando)+', '+esc(g.camp)+') — '+esc(curto(g.tec))+': '+
-       fmt(v,dp)+' '+esc(un)+'</title></rect>';
+       fmt(v,dp)+' '+esc(un)+((g.exp||0)>0?'\nJogo com expulsão':'')+
+       (falhaGps(g)?'\nColeta de GPS incompleta: '+falhaGps(g).join(', '):'')+'</title></rect>';
     if((g.exp||0)>0){
       s+='<rect x="'+x0+'" y="'+y(v)+'" width="'+w+'" height="'+alt+'" fill="url(#hx2)" opacity=".9" pointer-events="none"/>';
-      if(alt>18){
-        s+='<text x="'+(x0+w/2)+'" y="'+(y(v)+13)+'" text-anchor="middle" font-size="11" fill="#E8360A" '+
-           'font-weight="700" pointer-events="none">⚠</text>';
-      }
     }
-    // Rótulo acima da barra. O valor cheio entra girado quando não cabe deitado:
-    // "98,3k" em duas barras vizinhas impede conferir metro a metro.
-    var rot=fmt(v,dp), corR=(cor==='#003087'?'#071A3E':'#64748B');
-    if(rot.length<=6){
-      s+='<text x="'+(x0+w/2)+'" y="'+(y(v)-5)+'" text-anchor="middle" font-size="9.5" '+
-         'font-family="Barlow Condensed,sans-serif" font-weight="700" fill="'+corR+
-         '" pointer-events="none">'+rot+'</text>';
+    if(falhaGps(g)){
+      // Contorno pontilhado claro, sem hachura: sinaliza sem competir com a
+      // marcação de expulsão nem sujar a leitura do valor.
+      s+='<rect x="'+(x0-1)+'" y="'+(y(v)-1)+'" width="'+(w+2)+'" height="'+(alt+2)+'" fill="none" '+
+         'stroke="#94A3B8" stroke-width="1.6" stroke-dasharray="3 3" pointer-events="none"/>';
+      s+='<circle cx="'+(x0+w/2)+'" cy="'+(base+9)+'" r="4" fill="#94A3B8"/>';
+    }
+    // Rótulo SEMPRE dentro da barra, na vertical: mesma posição em todos os
+    // jogos, independente da altura, e sem disputar espaço com o eixo.
+    // A cor é escolhida contra o fundo da própria barra, nunca uma cor fixa.
+    var rot=fmt(v,dp);
+    var corR = (cor==='#003087') ? '#FFFFFF' : '#071A3E';
+    if(alt>=52){
+      var yr=y(v)+9;
+      s+='<text x="'+(x0+w/2)+'" y="'+yr+'" text-anchor="end" dominant-baseline="central" font-size="10.5" '+
+         'font-family="Barlow Condensed,sans-serif" font-weight="700" fill="'+corR+'" pointer-events="none" '+
+         'transform="rotate(-90 '+(x0+w/2)+','+yr+')">'+rot+'</text>';
     } else {
-      s+='<text x="'+(x0+w/2)+'" y="'+(y(v)-6)+'" text-anchor="start" font-size="9.5" '+
-         'font-family="Barlow Condensed,sans-serif" font-weight="700" fill="'+corR+
-         '" pointer-events="none" transform="rotate(-90 '+(x0+w/2)+','+(y(v)-6)+')">'+rot+'</text>';
+      var yf=y(v)-6;
+      s+='<text x="'+(x0+w/2)+'" y="'+yf+'" text-anchor="end" dominant-baseline="central" font-size="10.5" '+
+         'font-family="Barlow Condensed,sans-serif" font-weight="700" fill="#071A3E" pointer-events="none" '+
+         'transform="rotate(-90 '+(x0+w/2)+','+yf+')">'+rot+'</text>';
     }
   });
   if(c.ref){
@@ -1203,7 +1231,14 @@ function linhaTempo(met, dp, un){
   var lg='<div class="lg">';
   Object.keys(corTec).forEach(function(t){ lg+='<span><i style="background:'+corTec[t]+'"></i>'+esc(curto(t))+'</span>'; });
   lg+='<span><i style="background:#E8360A"></i>Jogo com expulsão</span>'+
-      '<span><i style="background:#C4952A;opacity:.25"></i>Faixa dos 10 maiores de '+esc(LB_ANT)+'</span></div>';
+      '<span><i style="background:#C4952A;opacity:.25"></i>Faixa dos 10 maiores de '+esc(LB_ANT)+'</span>';
+  var comFalha=todos.filter(function(g){ return falhaGps(g); });
+  if(comFalha.length){
+    lg+='<span><i style="background:#fff;border:1.5px dashed #94A3B8"></i>Coleta de GPS incompleta — '+
+        comFalha.map(function(g){ return esc(g.data.slice(0,5))+' '+esc(g.adv)+' ('+esc(g.gps.join(', '))+')'; }).join('; ')+
+        '</span>';
+  }
+  lg+='</div>';
   return s+lg;
 }
 
@@ -1519,7 +1554,8 @@ function renderMinutagem(){
     var tit=lst.filter(function(a){ return (a.t1Min||0)>=40; });
     var ent=lst.filter(function(a){ return (a.t1Min||0)<40; });
     var ag=agEquipe(g.data);
-    h+='<tr><td class="l"><b>'+esc(g.data)+'</b>'+((g.exp||0)>0?' <span class="exp-flag" title="Jogo com expulsão">⚠</span>':'')+'</td>';
+    h+='<tr><td class="l"><b>'+esc(g.data)+'</b>'+((g.exp||0)>0?' <span class="exp-flag" title="Jogo com expulsão">⚠</span>':'')+
+       (falhaGps(g)?' <span class="mut" title="Coleta de GPS incompleta: '+esc(g.gps.join(', '))+'">◌</span>':'')+'</td>';
     h+='<td class="l">'+esc(g.adv)+' <span class="mut">'+esc(g.mando)+'</span></td>';
     h+='<td class="num">'+lst.length+'</td><td class="num">'+fmt(ag.min,0)+'</td>';
     h+='<td class="num">'+tit.length+'</td><td class="num">'+ent.length+'</td>';
@@ -1637,7 +1673,16 @@ function barrasMinutos(linhas){
 // e por quê. Existe porque divergência de contagem de atletas é o erro mais
 // difícil de perceber num painel — o número simplesmente sai menor, sem aviso.
 function conferenciaElenco(jogos){
-  var h='<details><summary>Conferência de elenco — quem entrou na conta de cada jogo</summary>';
+  var falhas=CONTEXTO.filter(function(g){ return falhaGps(g) && DADOS[g.data]; });
+  var h='';
+  if(falhas.length){
+    h+='<p class="csub" style="margin-top:10px;border-left:3px solid #94A3B8;padding-left:10px">'+
+       '<b>◌ Coleta de GPS incompleta:</b> '+
+       falhas.map(function(g){ return esc(g.data)+' × '+esc(g.adv)+' — '+esc(g.gps.join(', ')); }).join(' · ')+
+       '. O dado desses atletas ficou abaixo do real. Os jogos aparecem com contorno pontilhado nos gráficos e '+
+       'seguem no painel sem correção — ajustar o número seria inventá-lo.</p>';
+  }
+  h+='<details><summary>Conferência de elenco — quem entrou na conta de cada jogo</summary>';
   h+='<p class="csub" style="margin-top:8px">Se a contagem de atletas de linha divergir da súmula, a explicação está '+
      'aqui. As causas possíveis são três: o colete não gravou, o período do substituto foi nomeado sem o radical '+
      '<code>1tempo</code>/<code>2tempo</code>, ou o atleta está cadastrado como goleiro.</p>';
@@ -1692,7 +1737,10 @@ function renderContexto(){
     h+='<td class="l mut">'+esc(g.camp)+'</td><td class="l">'+esc(g.mando)+'</td><td class="l mut">'+esc(g.estadio)+'</td>';
     h+='<td class="num">'+esc(g.placar)+'</td><td class="l" style="color:'+cor+';font-weight:700">'+esc(g.res)+'</td>';
     h+='<td class="num">'+fmt(g.temp,0)+'°</td><td class="num">'+fmt(g.umi,0)+'%</td><td class="num">'+fmt(g.dias,0)+'</td>';
-    h+='<td class="l">'+((g.exp||0)>0?'<span class="exp-flag">⚠ expulsão</span>':'<span class="mut">—</span>')+'</td></tr>';
+    var obs=[];
+    if((g.exp||0)>0) obs.push('<span class="exp-flag">⚠ expulsão</span>');
+    if(falhaGps(g)) obs.push('<span class="mut">◌ coleta incompleta: '+esc(g.gps.join(', '))+'</span>');
+    h+='<td class="l">'+(obs.length?obs.join(' · '):'<span class="mut">—</span>')+'</td></tr>';
   });
   h+='</tbody></table></div></div>';
 
@@ -1759,6 +1807,7 @@ function conciliacao(datas){
     var b4Fora=fora.reduce(function(t,p){ return t+(p.b4||0); },0);
 
     h+='<details style="margin-top:10px"><summary>'+esc(d)+' · '+esc(ctxg.adv||'—')+
+       (falhaGps(ctxg)?' <span class="mut" style="font-weight:500">◌ coleta incompleta</span>':'')+
        ' <span class="mut" style="font-weight:500">— painel: '+fmt(agL.dist,0)+' m · alta int. '+
        fmt(agL.altInt,0)+' m</span></summary>';
     h+='<div class="tbl-w" style="margin-top:8px"><table><thead><tr><th class="l">Escopo</th>'+
@@ -1776,6 +1825,17 @@ function conciliacao(datas){
        (linha.length+gks.length)+'</td><td class="num">'+fmt(agL.dist+agG.dist,0)+'</td>'+
        '<td class="num">'+fmt(agL.b4+agG.b4,0)+'</td><td class="num">'+fmt(agL.altInt+agG.altInt,0)+'</td>'+
        '<td class="num">'+fmt(agL.sprint+agG.sprint,0)+'</td></tr>';
+    var somaSessao=linha.concat(gks).reduce(function(t,a){ return t+(a.distSessao||0); },0);
+    if(somaSessao>0){
+      var gap = somaSessao-(agL.dist+agG.dist);
+      h+='<tr><td class="l">+ fora dos dois tempos'+
+         '<div class="mut" style="font-size:10px">saída e volta do vestiário, tempo não atribuído a período</div></td>'+
+         '<td class="num mut">—</td><td class="num">'+fmt(gap,0)+'</td>'+
+         '<td class="num mut">—</td><td class="num mut">—</td><td class="num mut">—</td></tr>';
+      h+='<tr class="tot"><td class="l">= total do atleta na atividade inteira</td><td class="num mut">—</td>'+
+         '<td class="num">'+fmt(somaSessao,0)+'</td><td class="num mut">—</td><td class="num mut">—</td>'+
+         '<td class="num mut">—</td></tr>';
+    }
     if(fora.length){
       fora.forEach(function(p){
         h+='<tr><td class="l">+ período <b>'+esc(p.nome||'(sem nome)')+'</b>'+
@@ -1794,20 +1854,27 @@ function conciliacao(datas){
     // Atleta por atleta, valores cheios. É aqui que uma divergência de um jogo
     // isolado se resolve: alguém que falta, alguém a mais, ou um valor diferente.
     h+='<div class="tbl-w" style="margin-top:10px"><table><thead><tr><th class="l">Atleta</th>'+
-       '<th class="l">Posição</th><th>Min</th><th>Distância</th><th>Corrida B4</th>'+
-       '<th>Alta Int.</th><th>Sprint</th><th>Acel.</th><th>Desacel.</th></tr></thead><tbody>';
+       '<th class="l">Posição</th><th>Min</th><th>Distância</th>'+
+       (somaSessao>0?'<th>Atividade inteira</th>':'')+
+       '<th>Corrida B4</th><th>Alta Int.</th><th>Sprint</th><th>Acel.</th><th>Desacel.</th></tr></thead><tbody>';
     linha.concat(gks).forEach(function(a){
       var gk = a.grupo==='Goleiros';
-      h+='<tr'+(gk?' class="mut" style="opacity:.6"':'')+'><td class="l"><b>'+esc(a.nome)+'</b>'+
-         (gk?' <span style="font-size:10px">(fora do total)</span>':'')+'</td>';
+      var fg = atletaComFalha(ctxg, a.nome);
+      h+='<tr'+(gk?' class="mut" style="opacity:.6"':(fg?' style="background:#F8FAFC"':''))+
+         '><td class="l"><b>'+esc(a.nome)+'</b>'+
+         (gk?' <span style="font-size:10px">(fora do total)</span>':'')+
+         (fg?' <span class="mut" style="font-size:10px;border:1px dashed #94A3B8;border-radius:10px;padding:0 6px">'+
+             'coleta incompleta</span>':'')+'</td>';
       h+='<td class="l mut">'+esc(a.grupo||a.posicao||'—')+'</td>';
       h+='<td class="num">'+fmt(a.min,1)+'</td><td class="num">'+fmt(a.dist,0)+'</td>';
+      if(somaSessao>0) h+='<td class="num mut">'+(a.distSessao?fmt(a.distSessao,0):'—')+'</td>';
       h+='<td class="num">'+fmt(a.b4,0)+'</td><td class="num">'+fmt(a.altInt,0)+'</td>';
       h+='<td class="num">'+fmt(a.sprint,0)+'</td><td class="num">'+fmt(a.acc,0)+'</td>';
       h+='<td class="num">'+fmt(a.dec,0)+'</td></tr>';
     });
     h+='<tr class="tot"><td class="l">Soma dos atletas de linha</td><td></td>'+
        '<td class="num">'+fmt(agL.min,0)+'</td><td class="num">'+fmt(agL.dist,0)+'</td>'+
+       (somaSessao>0?'<td class="num mut">—</td>':'')+
        '<td class="num">'+fmt(agL.b4,0)+'</td><td class="num">'+fmt(agL.altInt,0)+'</td>'+
        '<td class="num">'+fmt(agL.sprint,0)+'</td><td class="num">'+fmt(agL.acc,0)+'</td>'+
        '<td class="num">'+fmt(agL.dec,0)+'</td></tr>';
@@ -1865,14 +1932,14 @@ function csvEquipe(){
 }
 function csvAtletas(){
   var L=[['Data','Adversario','Tecnico','Atleta','ID','Posicao','Grupo','Status','Minutos','Min 1T','Min 2T',
-          'Distancia','B4','B5','B6','B7','Alta intensidade','Sprint','Aceleracoes','Desaceleracoes',
+          'Distancia (1T+2T)','Distancia atividade inteira','B4','B5','B6','B7','Alta intensidade','Sprint','Aceleracoes','Desaceleracoes',
           'Player Load','FMP Running (min)','FMP Dynamic (min)']];
   CONTEXTO.slice().sort(function(a,b){ return chaveData(a.data).localeCompare(chaveData(b.data)); })
    .filter(function(g){ return DADOS[g.data]; })
    .forEach(function(g){
      (DADOS[g.data]||[]).forEach(function(a){
        L.push([g.data,g.adv,g.tec,a.nome,a.id,a.posicao,a.grupo||'',a.status||'',num(a.min),num(a.t1Min),num(a.t2Min),
-               num(a.dist),num(a.b4),num(a.b5),num(a.b6),num(a.b7),num(a.altInt),num(a.sprint),
+               num(a.dist),num(a.distSessao),num(a.b4),num(a.b5),num(a.b6),num(a.b7),num(a.altInt),num(a.sprint),
                num(a.acc),num(a.dec),num(a.pl),num(a.fmpRun),num(a.fmpDyn)]);
      });
    });
@@ -1963,6 +2030,19 @@ function renderAuditoria(){
      'que as primeiras são desaceleração e as últimas aceleração está correta: freada e arranque acontecem em número '+
      'semelhante ao longo de um jogo. Aqui: band1+band2 = '+fmt(decUsada,0)+', band7+band8 = '+fmt(accSoma78,0)+'.</p></div>';
 
+  h+='<div class="card"><div class="ctitle">Origem da distância total</div>';
+  h+='<p class="csub">A distância total vem do campo <code>total_distance</code> da Catapult, somado por período '+
+     '(1tempo + 2tempo). <b>Nunca</b> da soma das bandas de velocidade — a soma das bandas aparece só nesta aba, e '+
+     'só para conferir a identidade das faixas.</p>';
+  h+='<p class="csub">Se ainda restar diferença contra outro relatório com a alta intensidade batendo, o candidato é '+
+     'o deslocamento que fica <b>fora</b> dos dois tempos: saída e volta do vestiário, tempo não atribuído a período. '+
+     'É andar, quase não gera alta intensidade, e um relatório que agrega por sessão o inclui. A opção abaixo busca '+
+     'esse total para comparar — ela dobra o número de requisições à Catapult, então fica desligada por padrão.</p>';
+  h+='<label style="display:inline-flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;cursor:pointer">'+
+     '<input type="checkbox" id="chk-sessao"'+(S.sessao?' checked':'')+'> '+
+     'Buscar também o total do atleta na atividade inteira</label>';
+  h+='<p class="csub" style="margin-top:8px">Marque e clique em <b>Buscar dados</b> na barra do topo para recarregar.</p>';
+  h+='</div>';
   h+='<div class="card"><div class="ctitle">Exportar para conferência</div>';
   h+='<p class="csub">Valores cheios, sem arredondamento de rótulo. Abra ao lado do outro relatório e crie uma '+
      'coluna de diferença: o jogo que destoar aparece na hora, e o arquivo por atleta diz qual linha explica.</p>';
@@ -1991,6 +2071,8 @@ function renderAuditoria(){
   });
   h+='</tbody></table></div></div>';
   el.innerHTML=h;
+  var ck=el.querySelector('#chk-sessao');
+  if(ck) ck.addEventListener('change',function(){ S.sessao=ck.checked; });
   var b1=el.querySelector('#csv-eq'); if(b1) b1.addEventListener('click',csvEquipe);
   var b2=el.querySelector('#csv-at'); if(b2) b2.addEventListener('click',csvAtletas);
 }
@@ -2097,7 +2179,8 @@ async function carregar(){
   for(var L=0;L<lotes.length;L++){
     setStatus('load','Lote '+(L+1)+' de '+lotes.length+' · '+ok+' jogos carregados');
     try{
-      var url = BACKEND+'/api/comparativo?datas='+encodeURIComponent(lotes[L].join(','));
+      var url = BACKEND+'/api/comparativo?datas='+encodeURIComponent(lotes[L].join(','))+
+                (S.sessao?'&sessao=1':'');
       var r = await fetch(url);
       if(!r.ok){
         var e = await r.json().catch(function(){ return {error:'HTTP '+r.status}; });
@@ -2106,7 +2189,8 @@ async function carregar(){
       var data = await r.json();
       (data.jogos||[]).forEach(function(j){
         DADOS[j.data]=normalizar(j.atletas);
-        EXTRAS[j.data]={ignorados:j.ignorados||[], periodos:j.periodos||[], auditoria:j.auditoria||null};
+        EXTRAS[j.data]={ignorados:j.ignorados||[], periodos:j.periodos||[], auditoria:j.auditoria||null,
+                        sessao:j.sessao||null};
         ok++;
       });
       (data.falhas||[]).forEach(function(f){ falhas.push(f.data+' ('+f.motivo+')'); });
