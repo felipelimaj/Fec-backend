@@ -40,7 +40,12 @@ const CONFIG = {
   EXPL_CONFIRMADO: false,
   EXPL_ACC: 2.0,                     // m/s² — limiar de abertura do esforço
   EXPL_VEL_FIM_KMH: 14.4,            // km/h — velocidade que o esforço precisa atingir
-  HDOP_MAX: 3.0,                     // acima disso o ponto é descartado
+  HDOP_MAX: null,                    // filtro de qualidade DESLIGADO por padrão:
+                                     // descartar ponto ruim tira metros que
+                                     // aconteceram de verdade, e a Catapult (com
+                                     // quem comparamos) não filtra nada.
+                                     // Ligue com ?hdopMax=3 se precisar.
+  VAO_MAX_S: 2.0,                    // buraco de sinal maior que isso não é costurado
   BANCO_MMIN: 25,                    // densidade abaixo disso em bin de 60 s = banco
   TOLERANCIA_OFICIAL_S: 45,          // divergência aceita contra a duração oficial
 };
@@ -75,7 +80,7 @@ function mesclarIntervalos(intervalos) {
 /* Ordena o stream por timestamp e mantém cada instante UMA vez só.
    Necessário porque um mesmo trecho pode chegar por mais de um período. */
 function normalizarStream(pontos, hdopMax) {
-  const lim = hdopMax == null ? CONFIG.HDOP_MAX : hdopMax;
+  const lim = hdopMax === undefined ? CONFIG.HDOP_MAX : hdopMax;
   const vistos = new Set();
   const out = [];
   for (const p of pontos) {
@@ -168,7 +173,7 @@ function janelaParticipacao(stream, bloco, duracaoOficialS) {
   const bins = new Map();
   for (const p of dentro) {
     const b = Math.floor((p.ts - bloco.ini) / 60);
-    bins.set(b, (bins.get(b) || 0) + p.v * dt);   // metros no bin
+    bins.set(b, (bins.get(b) || 0) + p.v * dt);   // metros no bin (aproximação basta aqui)
   }
   let primeiro = null, ultimo = null;
   for (const [b, m] of bins) {
@@ -218,13 +223,21 @@ function binar(stream, acc, janela) {
     decel: new Float64Array(nBins),
     explosivo: new Float64Array(nBins),
   };
-  const dt = estimarDt(stream);
-  for (let i = 0; i < stream.length; i++) {
-    const p = stream[i];
+  // Distância por TRAPÉZIO sobre o intervalo real entre duas leituras.
+  // Assim um buraco de sinal (leitura sem velocidade, descartada antes) não
+  // vira um vão de distância: o tempo continua contando, com a velocidade
+  // média das pontas. Buraco maior que VAO_MAX_S não é costurado — aí é
+  // colete fora do ar, não corrida.
+  for (let i = 0; i < stream.length - 1; i++) {
+    const p = stream[i], q = stream[i + 1];
     if (p.ts < janela.ini || p.ts > janela.fim) continue;
+    let dt = q.ts - p.ts;
+    if (dt <= 0) continue;
+    if (dt > CONFIG.VAO_MAX_S) dt = CONFIG.VAO_MAX_S;
+    const vMed = (p.v + q.v) / 2;
+    const m = vMed * dt;
+    const kh = kmh(vMed);
     const k = Math.min(nBins - 1, Math.floor(p.ts - janela.ini));
-    const m = p.v * dt;
-    const kh = kmh(p.v);
     b.dist[k] += m;
     if (kh >= CONFIG.HSR_KMH) b.hsr[k] += m;
     if (kh >= CONFIG.SPRINT_KMH) b.sprint[k] += m;
@@ -374,6 +387,8 @@ function calcularAtleta(pontos, blocos, duracoesOficiais, opts) {
   const dtGlobal = estimarDt(stream);
 
   return {
+    pontosRecebidos: pontos.length,
+    pontosUsados: stream.length,
     amostragemHz: dtGlobal > 0 ? +(1 / dtGlobal).toFixed(1) : null,
     minJogados: +minJogados.toFixed(1),
     participacao: participacao,
