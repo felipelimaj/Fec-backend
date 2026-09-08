@@ -371,7 +371,10 @@ function calcularAtleta(pontos, blocos, duracoesOficiais, opts) {
     }
   }
 
+  const dtGlobal = estimarDt(stream);
+
   return {
+    amostragemHz: dtGlobal > 0 ? +(1 / dtGlobal).toFixed(1) : null,
     minJogados: +minJogados.toFixed(1),
     participacao: participacao,
     totais: {
