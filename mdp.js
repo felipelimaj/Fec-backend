@@ -1,312 +1,403 @@
-// =============================================================================
-//  Fortaleza EC — Performance API
-//  Endpoint: GET /api/mdp?date=DD/MM/YYYY
-//  Extrai os Períodos Mais Exigentes (MDP) de 1, 3 e 5 min de um jogo.
-//
-//  Parâmetros:
-//    ?date=DD/MM/YYYY   (obrigatório) data BRT do jogo
-//    ?athlete=123       (opcional) roda um atleta só — use para testar
-//    ?limite=N          (opcional) processa só os N primeiros atletas
-//    ?csv=1             (opcional) devolve CSV em vez de JSON
-//    ?conferencia=1     (opcional) MODO CONFERÊNCIA: roda 1 atleta e devolve um
-//                       resumo em português dizendo se está tudo certo
-//    ?catalogo=termo    (opcional) procura um slug no catálogo da Catapult
-//                       (ex.: ?catalogo=explos)
-//    ?explSlug=xxx      (opcional) slug dos esforços explosivos, para conferir
-//                       o nosso número contra o da Catapult
-//    ?explAcc=2.0&explVel=14.4  (opcional) ajuste fino da definição de explosivo
-//    ?debug=1           (opcional) devolve períodos, atletas e validação, sem stream
-//
-//  Regras travadas (ver claude/mdp_estudo.md):
-//    - jogo  = atividade com período contendo "1tempo" ou "2tempo"
-//    - MDP   = janela deslizante de passo 1 s, que NUNCA cruza fronteira de período
-//    - máxima de referência = do próprio atleta, naquele jogo
-//    - cada variável tem seu próprio pico
-//    - goleiros ("1goleiro"/"2goleiro") ficam FORA
-// =============================================================================
+/* ============================================================================
+ mdp.js — Núcleo de cálculo dos Períodos Mais Exigentes (MDP)
+ ----------------------------------------------------------------------------
+ Fortaleza EC · Fisiologia · Estudo MDP 1/3/5 min
 
-import MDP from '../mdp.js';
+ Sem dependência de rede: recebe o stream 10 Hz já baixado e devolve os picos
+ e a contagem de janelas independentes por faixa de intensidade.
 
-const CATAPULT_BASE = 'https://connect-us.catapultsports.com/api/v6';
-const SENSOR_PARAMETERS = 'ts,v,hdop,pq,ref';
-const CONCURRENCY = 3;   // streams 10 Hz são pesados; 3 cabe no orçamento da Vercel
+ Decisões travadas com o Felipe (08/09/2026):
+   - máxima de referência = do próprio atleta, naquele jogo;
+   - cada variável tem seu próprio pico (busca independente por variável);
+   - goleiros fora (filtrados antes, no endpoint).
 
-function setCORS(res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-}
+ Convenções herdadas do projeto:
+   - aceleração derivada da velocidade em janela FIXA DE TEMPO (0,6 s),
+     nunca o campo `a` bruto da Catapult;
+   - histerese em 70% do limiar, mesclagem < 0,4 s, esforço contado no
+     instante em que COMEÇA;
+   - janela deslizante nunca atravessa fronteira de período.
+ ============================================================================ */
 
-async function catapultGET(path, token) {
-  const r = await fetch(`${CATAPULT_BASE}${path}`, { headers: { Authorization: `Bearer ${token}` } });
-  if (!r.ok) throw new Error(`Catapult GET ${path} → HTTP ${r.status}`);
-  return r.json();
-}
+'use strict';
 
-async function catapultPOST(path, token, body) {
-  const r = await fetch(`${CATAPULT_BASE}${path}`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (!r.ok) throw new Error(`Catapult POST ${path} → HTTP ${r.status}`);
-  return r.json();
-}
+// ── Configuração travada do estudo ────────────────────────────────────────
+const CONFIG = {
+  JANELAS_S: [60, 180, 300],        // 1, 3 e 5 minutos
+  PASSO_S: 1,                        // resolução da janela deslizante
+  HSR_KMH: 19.8,                     // alta intensidade
+  SPRINT_KMH: 25.2,                  // sprint
+  ACC_LIMIAR: 3.0,                   // m/s²
+  DEC_LIMIAR: -3.0,                  // m/s²
+  JANELA_ACC_S: 0.6,                 // janela da diferença central
+  HISTERESE: 0.70,                   // continua enquanto |a| >= 70% do limiar
+  MESCLA_S: 0.4,                     // esforços do mesmo sinal mais próximos que isso viram um
+  DUR_MIN_ESFORCO_S: 0.4,            // duração mínima para valer como esforço
+  CORTES_PCT: [0.80, 0.85, 0.90],    // faixas de intensidade
+  // Esforços explosivos — definição PROVISÓRIA, ainda não confirmada contra a
+  // Catapult. Mesma cautela usada nas bandas de velocidade: só vira oficial
+  // depois de bater o total do jogo contra o número do OpenField.
+  EXPL_CONFIRMADO: false,
+  EXPL_ACC: 2.0,                     // m/s² — limiar de abertura do esforço
+  EXPL_VEL_FIM_KMH: 14.4,            // km/h — velocidade que o esforço precisa atingir
+  HDOP_MAX: 3.0,                     // acima disso o ponto é descartado
+  BANCO_MMIN: 25,                    // densidade abaixo disso em bin de 60 s = banco
+  TOLERANCIA_OFICIAL_S: 45,          // divergência aceita contra a duração oficial
+};
 
-// Janela BRT com ±6h de folga — jogo noturno termina depois da meia-noite UTC
-function brtDayWindow(dateStr) {
-  const [d, m, y] = dateStr.split('/').map(Number);
-  const meiaNoiteBRT = Math.floor(Date.UTC(y, m - 1, d, 3, 0, 0) / 1000);
-  return { start: meiaNoiteBRT - 6 * 3600, end: meiaNoiteBRT + 30 * 3600 };
-}
+const VARIAVEIS = ['dist', 'hsr', 'sprint', 'acel', 'decel', 'explosivo'];
 
-function unixToBrtDate(unixSeconds) {
-  const dt = new Date((unixSeconds - 3 * 3600) * 1000);
-  const dd = String(dt.getUTCDate()).padStart(2, '0');
-  const mm = String(dt.getUTCMonth() + 1).padStart(2, '0');
-  return `${dd}/${mm}/${dt.getUTCFullYear()}`;
-}
+// ── Utilidades ────────────────────────────────────────────────────────────
 
-// Radical do jogo — CONTÉM, não começa com (cobre "SASHA 2tempo", "2tempo3")
-function classifyPeriod(name) {
-  const n = (name || '').trim().toLowerCase();
-  if (n.includes('1tempo')) return 't1';
-  if (n.includes('2tempo')) return 't2';
-  return null;
-}
-// Radical do goleiro — isolado de propósito: nunca entra nas contas de linha
-function isGoalkeeperPeriod(name) {
-  const n = (name || '').trim().toLowerCase();
-  return n.includes('1goleiro') || n.includes('2goleiro');
-}
+function kmh(vms) { return vms * 3.6; }
 
-function parseAthleteName(athleteName) {
-  const s = (athleteName || '').trim();
-  const m = s.match(/^(F?)(\d+)\s+(.+)$/);
-  return m ? { cadastroId: parseInt(m[2], 10), name: m[3] } : { cadastroId: null, name: s };
-}
-
-function extrairDadosSensor(responseData) {
-  if (!responseData) return [];
-  if (Array.isArray(responseData)) {
-    for (const item of responseData) if (item && Array.isArray(item.data)) return item.data;
-  }
-  return [];
-}
-
-async function emLotes(itens, n, fn) {
+/* União de intervalos [ini, fim] sobrepostos ou encostados.
+   Resolve os períodos ANINHADOS da Catapult (2tempo / 2tempo2 / 2tempo3),
+   que terminam no mesmo instante e começam progressivamente mais tarde. */
+function mesclarIntervalos(intervalos) {
+  const ord = intervalos
+    .filter(function (i) { return i && i.fim > i.ini; })
+    .slice()
+    .sort(function (a, b) { return a.ini - b.ini; });
   const out = [];
-  for (let i = 0; i < itens.length; i += n) {
-    out.push(...await Promise.all(itens.slice(i, i + n).map(fn)));
+  for (const it of ord) {
+    const ult = out[out.length - 1];
+    if (ult && it.ini <= ult.fim) {
+      ult.fim = Math.max(ult.fim, it.fim);
+      if (it.dur > (ult.dur || 0)) ult.rotulo = it.rotulo; // rótulo do período mais longo
+    } else {
+      out.push({ ini: it.ini, fim: it.fim, rotulo: it.rotulo, dur: it.fim - it.ini });
+    }
   }
   return out;
 }
 
-// =============================================================================
-export default async function handler(req, res) {
-  setCORS(res);
-  if (req.method === 'OPTIONS') return res.status(200).end();
-
-  const token = process.env.CATAPULT_TOKEN;
-  if (!token) return res.status(500).json({ error: 'CATAPULT_TOKEN não configurado' });
-
-  const { date, athlete, limite, csv, debug, conferencia, catalogo, explSlug, explAcc, explVel } = req.query;
-
-  try {
-    // ── Modo catálogo: procura um slug pelo nome, sem tocar em jogo nenhum ──
-    if (catalogo) {
-      const params = await catapultGET('/parameters', token);
-      const termo = String(catalogo).toLowerCase();
-      const achados = (params || [])
-        .filter(p => (p.name || '').toLowerCase().includes(termo) || (p.slug || '').toLowerCase().includes(termo))
-        .map(p => ({ nome: p.name, slug: p.slug, unidade: p.unit_type, agregacao: p.aggregation }));
-      return res.status(200).json({ termo: catalogo, total: achados.length, parametros: achados });
-    }
-
-    if (!date) return res.status(400).json({ error: 'Parâmetro ?date=DD/MM/YYYY é obrigatório' });
-    // 1. Achar a atividade do jogo naquela data BRT
-    const { start, end } = brtDayWindow(date);
-    const atividades = await catapultGET(`/activities?start_time=${start}&end_time=${end}`, token);
-
-    const jogo = (atividades || []).find(a =>
-      unixToBrtDate(a.start_time) === date &&
-      (a.periods || []).some(p => classifyPeriod(p.name))
-    );
-    if (!jogo) return res.status(404).json({ error: `Nenhum jogo encontrado em ${date}` });
-
-    // 2. Blocos de tempo — mesclagem resolve os períodos ANINHADOS
-    const brutosT1 = [], brutosT2 = [];
-    const duracoesOficiaisPorPeriodo = {};
-    for (const p of (jogo.periods || [])) {
-      const cls = classifyPeriod(p.name);
-      if (!cls) continue;
-      const it = { ini: p.start_time, fim: p.end_time, rotulo: cls === 't1' ? '1tempo' : '2tempo', dur: p.end_time - p.start_time };
-      (cls === 't1' ? brutosT1 : brutosT2).push(it);
-    }
-    const blocos = MDP.mesclarIntervalos(brutosT1).concat(MDP.mesclarIntervalos(brutosT2));
-    if (!blocos.length) return res.status(404).json({ error: 'Atividade sem período de jogo válido' });
-
-    // 3. /stats por período × atleta: duração oficial (recorte de banco) +
-    //    distância oficial (validação do stream)
-    const paramsStats = ['total_duration', 'total_distance'];
-    if (explSlug) paramsStats.push(explSlug);
-
-    const stats = await catapultPOST('/stats', token, {
-      filters: [{ name: 'activity_id', comparison: '=', values: [jogo.id] }],
-      parameters: paramsStats,
-      group_by: ['period', 'athlete'],
-    });
-
-    const porAtleta = new Map();
-    for (const s of (stats || [])) {
-      const nome = s.athlete_name || '';
-      const id = s.athlete_id ?? s.athlete?.id ?? null;
-      const chave = String(id ?? nome);
-      if (!porAtleta.has(chave)) {
-        const pn = parseAthleteName(nome);
-        porAtleta.set(chave, {
-          athleteId: id, nome: pn.name, cadastroId: pn.cadastroId,
-          goleiro: false, duracoes: {}, distOficial: 0, minOficial: 0,
-        });
-      }
-      const a = porAtleta.get(chave);
-      if (isGoalkeeperPeriod(s.period_name)) { a.goleiro = true; continue; }
-      const cls = classifyPeriod(s.period_name);
-      if (!cls) continue;
-      const rot = cls === 't1' ? '1tempo' : '2tempo';
-      // períodos aninhados: fica a MAIOR duração do rótulo, não a soma
-      a.duracoes[rot] = Math.max(a.duracoes[rot] || 0, s.total_duration || 0);
-
-      a['dist_' + rot] = Math.max(a['dist_' + rot] || 0, s.total_distance || 0);
-      if (explSlug) a['expl_' + rot] = Math.max(a['expl_' + rot] || 0, s[explSlug] || 0);
-    }
-    for (const a of porAtleta.values()) {
-      a.minOficial = ((a.duracoes['1tempo'] || 0) + (a.duracoes['2tempo'] || 0)) / 60;
-      a.distOficial = (a['dist_1tempo'] || 0) + (a['dist_2tempo'] || 0);
-      a.explOficial = explSlug ? (a['expl_1tempo'] || 0) + (a['expl_2tempo'] || 0) : null;
-    }
-
-    let atletas = [...porAtleta.values()].filter(a => !a.goleiro && a.minOficial > 0 && a.athleteId);
-    if (athlete) atletas = atletas.filter(a => String(a.athleteId) === String(athlete) || String(a.cadastroId) === String(athlete));
-    if (limite) atletas = atletas.slice(0, parseInt(limite, 10));
-    if (conferencia && !athlete) atletas = atletas.slice(0, 1);   // conferência = 1 atleta só
-
-    if (debug) {
-      return res.status(200).json({
-        jogo: { id: jogo.id, nome: jogo.name, data: date },
-        blocos: blocos.map(b => ({ rotulo: b.rotulo, min: +((b.fim - b.ini) / 60).toFixed(1) })),
-        periodosBrutos: (jogo.periods || []).map(p => p.name),
-        atletas: atletas.map(a => ({ id: a.athleteId, nome: a.nome, minOficial: +a.minOficial.toFixed(1), distOficial: +a.distOficial.toFixed(0) })),
-        goleirosIgnorados: [...porAtleta.values()].filter(a => a.goleiro).map(a => a.nome),
-      });
-    }
-
-    // 4. Stream 10 Hz por atleta — SEM downsample (decimação destrói acel/decel)
-    const resultados = await emLotes(atletas, CONCURRENCY, async (a) => {
-      try {
-        const raw = await catapultGET(
-          `/activities/${jogo.id}/athletes/${a.athleteId}/sensor?parameters=${SENSOR_PARAMETERS}&nulls=1`,
-          token
-        );
-        const pontos = extrairDadosSensor(raw)
-          .map(p => ({ ts: p.ts, v: p.v, hdop: p.hdop }))
-          .filter(p => p.ts != null && p.v != null);
-
-        const cfg = {};
-        if (explAcc) cfg.EXPL_ACC = parseFloat(explAcc);
-        if (explVel) cfg.EXPL_VEL_FIM_KMH = parseFloat(explVel);
-
-        const calc = MDP.calcularAtleta(pontos, blocos, a.duracoes, { config: cfg });
-        if (!calc) return { atleta: a.nome, erro: 'stream insuficiente' };
-
-        const difDist = a.distOficial > 0
-          ? ((calc.totais.dist - a.distOficial) / a.distOficial) * 100
-          : null;
-
-        return {
-          athleteId: a.athleteId, cadastroId: a.cadastroId, atleta: a.nome,
-          minJogados: calc.minJogados, minOficial: +a.minOficial.toFixed(1),
-          participacao: calc.participacao,
-          totais: calc.totais,
-          validacao: {
-            distStream: calc.totais.dist,
-            distCatapult: +a.distOficial.toFixed(1),
-            difPct: difDist == null ? null : +difDist.toFixed(2),
-            ok: difDist == null ? null : Math.abs(difDist) <= 2,
-            explosivoNosso: calc.totais.explosivo,
-            explosivoCatapult: a.explOficial,
-          },
-          picos: calc.picos,
-          repeticoes: calc.repeticoes,
-        };
-      } catch (e) {
-        return { atleta: a.nome, erro: e.message };
-      }
-    });
-
-    // ── Modo conferência: 1 atleta, resposta em português simples ───────────
-    if (conferencia) {
-      const r = resultados.find(x => !x.erro);
-      if (!r) return res.status(200).json({ veredito: 'Nenhum atleta foi processado.', resultados });
-      const v = r.validacao;
-      const recados = [];
-      recados.push(`Jogo encontrado: ${jogo.name} (${date}).`);
-      recados.push(`Períodos juntados em ${blocos.length} bloco(s) — o esperado é 2 (1º e 2º tempo).`);
-      recados.push(`Goleiros fora: ${[...porAtleta.values()].filter(x => x.goleiro).length}.`);
-      recados.push(`Atleta conferido: ${r.atleta}, ${r.minJogados} min pelo nosso cálculo contra ${r.minOficial} min da Catapult.`);
-      recados.push(v.ok === true
-        ? `Distância bate com a Catapult (diferença de ${v.difPct}%). Pode rodar o jogo inteiro.`
-        : `ATENÇÃO: distância difere ${v.difPct}% da Catapult. Acima de 2% não rode a amostra ainda.`);
-      if (v.explosivoCatapult != null) {
-        const dif = v.explosivoCatapult > 0 ? ((v.explosivoNosso - v.explosivoCatapult) / v.explosivoCatapult) * 100 : null;
-        recados.push(`Esforços explosivos: ${v.explosivoNosso} pelo nosso critério contra ${v.explosivoCatapult} da Catapult` +
-          (dif == null ? '.' : ` (${dif.toFixed(1)}% de diferença). Ajuste com &explAcc= e &explVel= até ficar perto.`));
-      } else {
-        recados.push('Esforços explosivos ainda sem comparação: rode com &explSlug=<slug> para conferir contra a Catapult.');
-      }
-      return res.status(200).json({ veredito: recados, detalhe: r });
-    }
-
-    if (csv) {
-      const linhas = [[
-        'data', 'jogo', 'atleta_id', 'atleta', 'min_jogados', 'janela_min', 'variavel',
-        'pico_absoluto', 'pico_por_minuto', 'periodo_do_pico',
-        'n_janelas_80', 'n_janelas_85', 'n_janelas_90',
-        'total_jogo', 'validacao_dif_pct',
-      ].join(';')];
-      for (const r of resultados) {
-        if (r.erro) continue;
-        for (const W of [60, 180, 300]) {
-          for (const v of MDP.VARIAVEIS) {
-            const p = r.picos[W][v], rep = r.repeticoes[W][v];
-            if (!p) continue;
-            linhas.push([
-              date, jogo.name, r.cadastroId ?? r.athleteId, r.atleta, r.minJogados,
-              W / 60, v, p.absoluto, p.porMinuto, p.periodo,
-              rep[80].n, rep[85].n, rep[90].n,
-              r.totais[v], r.validacao.difPct,
-            ].join(';'));
-          }
-        }
-      }
-      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-      res.setHeader('Content-Disposition', `attachment; filename="mdp_${date.replace(/\//g, '-')}.csv"`);
-      return res.status(200).send('\uFEFF' + linhas.join('\n'));
-    }
-
-    return res.status(200).json({
-      jogo: { id: jogo.id, nome: jogo.name, data: date },
-      config: {
-        janelasMin: [1, 3, 5], passoS: MDP.CONFIG.PASSO_S,
-        hsrKmh: MDP.CONFIG.HSR_KMH, sprintKmh: MDP.CONFIG.SPRINT_KMH,
-        accLimiar: MDP.CONFIG.ACC_LIMIAR, decLimiar: MDP.CONFIG.DEC_LIMIAR,
-        cortesPct: [80, 85, 90], referencia: 'máxima do próprio atleta no jogo',
-        janelasIndependentes: true, goleiros: 'excluídos',
-      },
-      blocos: blocos.map(b => ({ rotulo: b.rotulo, min: +((b.fim - b.ini) / 60).toFixed(1) })),
-      atletas: resultados,
-    });
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
+/* Ordena o stream por timestamp e mantém cada instante UMA vez só.
+   Necessário porque um mesmo trecho pode chegar por mais de um período. */
+function normalizarStream(pontos, hdopMax) {
+  const lim = hdopMax == null ? CONFIG.HDOP_MAX : hdopMax;
+  const vistos = new Set();
+  const out = [];
+  for (const p of pontos) {
+    if (!p || p.ts == null || p.v == null) continue;
+    if (p.hdop != null && lim && p.hdop > lim) continue;   // filtro de qualidade
+    const t = +p.ts;
+    if (vistos.has(t)) continue;
+    vistos.add(t);
+    out.push({ ts: t, v: +p.v });
   }
+  out.sort(function (a, b) { return a.ts - b.ts; });
+  return out;
 }
+
+// ── 1) Detecção de acelerações e desacelerações ───────────────────────────
+/* a(t) = [v(t + J/2) − v(t − J/2)] / J, com J fixo em segundos.
+   Resposta idêntica a 2, 5 ou 10 Hz — e a diferença central já filtra ruído. */
+function derivarAceleracao(stream, janelaS) {
+  const J = janelaS || CONFIG.JANELA_ACC_S;
+  const meia = J / 2;
+  const n = stream.length;
+  const a = new Array(n).fill(0);
+  let lo = 0, hi = 0;
+  for (let i = 0; i < n; i++) {
+    const t = stream[i].ts;
+    while (lo + 1 < n && stream[lo + 1].ts <= t - meia) lo++;
+    while (hi + 1 < n && stream[hi + 1].ts <= t + meia) hi++;
+    const dt = stream[hi].ts - stream[lo].ts;
+    a[i] = dt > 0 ? (stream[hi].v - stream[lo].v) / dt : 0;
+  }
+  return a;
+}
+
+/* Esforços de um sinal (+1 acelera, −1 desacelera), com histerese e mesclagem.
+   Devolve [{ ts, dur }] — ts é o instante em que o esforço COMEÇA. */
+function detectarEsforcos(stream, acc, sinal, limiar) {
+  const abre = Math.abs(limiar);
+  const segura = abre * CONFIG.HISTERESE;
+  const brutos = [];
+  let dentro = false, ini = 0, fim = 0, atingiuAbertura = false;
+
+  for (let i = 0; i < stream.length; i++) {
+    const val = sinal > 0 ? acc[i] : -acc[i];
+    if (!dentro) {
+      if (val >= abre) { dentro = true; atingiuAbertura = true; ini = stream[i].ts; fim = stream[i].ts; }
+    } else {
+      if (val >= segura) { fim = stream[i].ts; }
+      else {
+        if (atingiuAbertura) brutos.push({ ini: ini, fim: fim });
+        dentro = false; atingiuAbertura = false;
+      }
+    }
+  }
+  if (dentro && atingiuAbertura) brutos.push({ ini: ini, fim: fim });
+
+  // mesclagem: mesmo sinal separado por menos de MESCLA_S conta como um só
+  const mesclados = [];
+  for (const e of brutos) {
+    const ult = mesclados[mesclados.length - 1];
+    if (ult && e.ini - ult.fim < CONFIG.MESCLA_S) ult.fim = Math.max(ult.fim, e.fim);
+    else mesclados.push({ ini: e.ini, fim: e.fim });
+  }
+
+  // duração com meia amostra de folga em cada ponta (correção documentada)
+  const dtMedio = estimarDt(stream);
+  return mesclados
+    .map(function (e) { return { ts: e.ini, dur: (e.fim - e.ini) + dtMedio }; })
+    .filter(function (e) { return e.dur >= CONFIG.DUR_MIN_ESFORCO_S; });
+}
+
+function estimarDt(stream) {
+  if (stream.length < 2) return 0.1;
+  const difs = [];
+  for (let i = 1; i < stream.length && i < 200; i++) difs.push(stream[i].ts - stream[i - 1].ts);
+  difs.sort(function (a, b) { return a - b; });
+  const med = difs[Math.floor(difs.length / 2)];
+  return med > 0 && med < 2 ? med : 0.1;
+}
+
+// ── 2) Janela de participação (recorte do tempo de banco) ─────────────────
+/* O colete grava o reserva sentado. Detecta pelo próprio sinal (bins de 60 s
+   com densidade perto de zero) e confere contra a duração oficial da Catapult:
+   divergiu mais que a tolerância, a oficial manda, ancorando na ponta que o
+   dado indica (entrou tarde → ancora no fim; saiu cedo → ancora no início). */
+function janelaParticipacao(stream, bloco, duracaoOficialS) {
+  const dentro = stream.filter(function (p) { return p.ts >= bloco.ini && p.ts <= bloco.fim; });
+  if (!dentro.length) return null;
+
+  const dt = estimarDt(dentro);
+  const bins = new Map();
+  for (const p of dentro) {
+    const b = Math.floor((p.ts - bloco.ini) / 60);
+    bins.set(b, (bins.get(b) || 0) + p.v * dt);   // metros no bin
+  }
+  let primeiro = null, ultimo = null;
+  for (const [b, m] of bins) {
+    if (m >= CONFIG.BANCO_MMIN) {
+      if (primeiro === null || b < primeiro) primeiro = b;
+      if (ultimo === null || b > ultimo) ultimo = b;
+    }
+  }
+  if (primeiro === null) return null;   // nunca se moveu: não jogou este bloco
+
+  let ini = bloco.ini + primeiro * 60;
+  let fim = Math.min(bloco.fim, bloco.ini + (ultimo + 1) * 60);
+
+  // refino até a primeira/última amostra em movimento (> 2 km/h)
+  for (const p of dentro) { if (p.ts >= ini && kmh(p.v) > 2) { ini = p.ts; break; } }
+  for (let i = dentro.length - 1; i >= 0; i--) {
+    const p = dentro[i];
+    if (p.ts <= fim && kmh(p.v) > 2) { fim = p.ts; break; }
+  }
+
+  let conferencia = 'sem duração oficial';
+  if (duracaoOficialS != null && duracaoOficialS > 0) {
+    const detectada = fim - ini;
+    const dif = detectada - duracaoOficialS;
+    if (Math.abs(dif) <= CONFIG.TOLERANCIA_OFICIAL_S) {
+      conferencia = 'confere';
+    } else {
+      conferencia = 'ajustado pela oficial (' + dif.toFixed(0) + ' s de diferença)';
+      const entrouTarde = (ini - bloco.ini) > (bloco.fim - fim);
+      if (entrouTarde) ini = fim - duracaoOficialS;   // ancora no fim
+      else fim = ini + duracaoOficialS;               // ancora no início
+    }
+  }
+  return { ini: ini, fim: fim, conferencia: conferencia };
+}
+
+// ── 3) Binagem em 1 s ─────────────────────────────────────────────────────
+/* Cada bin de 1 s guarda: distância, distância ≥ HSR, distância ≥ sprint,
+   esforços de aceleração e de desaceleração iniciados nele. */
+function binar(stream, acc, janela) {
+  const nBins = Math.max(1, Math.ceil(janela.fim - janela.ini));
+  const b = {
+    dist: new Float64Array(nBins),
+    hsr: new Float64Array(nBins),
+    sprint: new Float64Array(nBins),
+    acel: new Float64Array(nBins),
+    decel: new Float64Array(nBins),
+    explosivo: new Float64Array(nBins),
+  };
+  const dt = estimarDt(stream);
+  for (let i = 0; i < stream.length; i++) {
+    const p = stream[i];
+    if (p.ts < janela.ini || p.ts > janela.fim) continue;
+    const k = Math.min(nBins - 1, Math.floor(p.ts - janela.ini));
+    const m = p.v * dt;
+    const kh = kmh(p.v);
+    b.dist[k] += m;
+    if (kh >= CONFIG.HSR_KMH) b.hsr[k] += m;
+    if (kh >= CONFIG.SPRINT_KMH) b.sprint[k] += m;
+  }
+  const dentroJanela = stream.filter(function (p) { return p.ts >= janela.ini && p.ts <= janela.fim; });
+  const accDentro = [];
+  for (let i = 0; i < stream.length; i++) {
+    const p = stream[i];
+    if (p.ts >= janela.ini && p.ts <= janela.fim) accDentro.push(acc[i]);
+  }
+  for (const e of detectarEsforcos(dentroJanela, accDentro, +1, CONFIG.ACC_LIMIAR)) {
+    const k = Math.min(nBins - 1, Math.floor(e.ts - janela.ini));
+    if (k >= 0) b.acel[k] += 1;
+  }
+  for (const e of detectarEsforcos(dentroJanela, accDentro, -1, CONFIG.DEC_LIMIAR)) {
+    const k = Math.min(nBins - 1, Math.floor(e.ts - janela.ini));
+    if (k >= 0) b.decel[k] += 1;
+  }
+  // Esforços explosivos: aceleração acima de um limiar mais baixo que o de
+  // acel, PORÉM só conta se o atleta chegar a uma velocidade relevante —
+  // é o que separa "arrancada" de "ajuste de passo".
+  for (const e of detectarEsforcos(dentroJanela, accDentro, +1, CONFIG.EXPL_ACC)) {
+    let velMax = 0;
+    for (const p of dentroJanela) {
+      if (p.ts >= e.ts && p.ts <= e.ts + e.dur) velMax = Math.max(velMax, kmh(p.v));
+    }
+    if (velMax < CONFIG.EXPL_VEL_FIM_KMH) continue;
+    const k = Math.min(nBins - 1, Math.floor(e.ts - janela.ini));
+    if (k >= 0) b.explosivo[k] += 1;
+  }
+  b.nBins = nBins;
+  return b;
+}
+
+// ── 4) Janela deslizante por soma de prefixos ─────────────────────────────
+function prefixo(arr) {
+  const p = new Float64Array(arr.length + 1);
+  for (let i = 0; i < arr.length; i++) p[i + 1] = p[i] + arr[i];
+  return p;
+}
+
+/* Devolve todas as janelas de W segundos do bloco: [{ inicioS, valor }] */
+function janelasDeslizantes(bins, W, passo) {
+  const pre = prefixo(bins);
+  const n = bins.length;
+  const out = [];
+  if (n < W) return out;                       // bloco curto demais para a janela
+  for (let s = 0; s + W <= n; s += (passo || CONFIG.PASSO_S)) {
+    out.push({ inicioS: s, valor: pre[s + W] - pre[s] });
+  }
+  return out;
+}
+
+/* Contagem de janelas INDEPENDENTES acima de um corte.
+   Guloso do maior para o menor, bloqueando tudo que se sobrepõe ao aceito.
+   Sem isso, um único pico de 1 min geraria 60 janelas "acima de 90%". */
+function janelasIndependentes(janelas, corte, W) {
+  const acima = janelas.filter(function (j) { return j.valor >= corte && j.valor > 0; });
+  acima.sort(function (a, b) { return b.valor - a.valor; });
+  const aceitas = [];
+  for (const j of acima) {
+    let colide = false;
+    for (const a of aceitas) {
+      if (Math.abs(j.inicioS - a.inicioS) < W) { colide = true; break; }
+    }
+    if (!colide) aceitas.push(j);
+  }
+  aceitas.sort(function (a, b) { return a.inicioS - b.inicioS; });
+  return aceitas;
+}
+
+// ── 5) Cálculo completo de um atleta em um jogo ───────────────────────────
+/* blocos: [{ ini, fim, rotulo }] já mesclados (1tempo e 2tempo separados)
+   duracoesOficiais: { rotulo: segundos } vindo do POST /stats
+   Devolve { picos, repeticoes, minJogados, participacao, totais } */
+function calcularAtleta(pontos, blocos, duracoesOficiais, opts) {
+  opts = opts || {};
+  const stream = normalizarStream(pontos, opts.hdopMax);
+  if (stream.length < 10) return null;
+  const acc = derivarAceleracao(stream, opts.janelaAccS);
+
+  if (opts.config) Object.assign(CONFIG, opts.config);   // ajustes finos vindos da query
+
+  const participacao = [];
+  const binsPorBloco = [];
+  let minJogados = 0;
+  const totais = { dist: 0, hsr: 0, sprint: 0, acel: 0, decel: 0, explosivo: 0 };
+
+  for (const bloco of blocos) {
+    const oficial = duracoesOficiais ? duracoesOficiais[bloco.rotulo] : null;
+    const jp = janelaParticipacao(stream, bloco, oficial);
+    if (!jp) continue;
+    participacao.push({
+      periodo: bloco.rotulo,
+      janelaPeriodoMin: +((bloco.fim - bloco.ini) / 60).toFixed(1),
+      emCampoMin: +((jp.fim - jp.ini) / 60).toFixed(1),
+      oficialMin: oficial != null ? +(oficial / 60).toFixed(1) : null,
+      conferencia: jp.conferencia,
+    });
+    minJogados += (jp.fim - jp.ini) / 60;
+    const b = binar(stream, acc, jp);
+    binsPorBloco.push({ rotulo: bloco.rotulo, bins: b, offset: jp.ini });
+    for (const v of VARIAVEIS) {
+      for (let i = 0; i < b.nBins; i++) totais[v] += b[v][i];
+    }
+  }
+  if (!binsPorBloco.length) return null;
+
+  // picos e repetição, por janela × variável
+  const picos = {};
+  const repeticoes = {};
+  for (const W of CONFIG.JANELAS_S) {
+    picos[W] = {};
+    repeticoes[W] = {};
+    for (const v of VARIAVEIS) {
+      // todas as janelas de todos os blocos (a janela NUNCA cruza período)
+      let todas = [];
+      for (const blk of binsPorBloco) {
+        const js = janelasDeslizantes(blk.bins[v], W, CONFIG.PASSO_S);
+        for (const j of js) todas.push({ inicioS: blk.offset + j.inicioS, valor: j.valor, periodo: blk.rotulo });
+      }
+      if (!todas.length) { picos[W][v] = null; repeticoes[W][v] = null; continue; }
+
+      let melhor = todas[0];
+      for (const j of todas) if (j.valor > melhor.valor) melhor = j;
+
+      picos[W][v] = {
+        absoluto: +melhor.valor.toFixed(2),
+        porMinuto: +(melhor.valor / (W / 60)).toFixed(2),
+        periodo: melhor.periodo,
+        inicioUnix: melhor.inicioS,
+      };
+
+      const rep = {};
+      for (const pct of CONFIG.CORTES_PCT) {
+        const corte = melhor.valor * pct;
+        const aceitas = janelasIndependentes(todas, corte, W);
+        rep[Math.round(pct * 100)] = {
+          n: aceitas.length,
+          valores: aceitas.map(function (a) { return +a.valor.toFixed(2); }),
+        };
+      }
+      repeticoes[W][v] = rep;
+    }
+  }
+
+  return {
+    minJogados: +minJogados.toFixed(1),
+    participacao: participacao,
+    totais: {
+      dist: +totais.dist.toFixed(1),
+      hsr: +totais.hsr.toFixed(1),
+      sprint: +totais.sprint.toFixed(1),
+      acel: Math.round(totais.acel),
+      decel: Math.round(totais.decel),
+      explosivo: Math.round(totais.explosivo),
+    },
+    picos: picos,
+    repeticoes: repeticoes,
+  };
+}
+
+const API = {
+  CONFIG, VARIAVEIS,
+  mesclarIntervalos, normalizarStream, derivarAceleracao, detectarEsforcos,
+  janelaParticipacao, binar, janelasDeslizantes, janelasIndependentes,
+  calcularAtleta,
+};
+
+export {
+  CONFIG, VARIAVEIS,
+  mesclarIntervalos, normalizarStream, derivarAceleracao, detectarEsforcos,
+  janelaParticipacao, binar, janelasDeslizantes, janelasIndependentes,
+  calcularAtleta,
+};
+export default API;
