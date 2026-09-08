@@ -33,7 +33,12 @@
 import MDP from '../mdp.js';
 
 const CATAPULT_BASE = 'https://connect-us.catapultsports.com/api/v6';
-const SENSOR_PARAMETERS = 'ts,v,hdop,pq,ref';
+// ATENÇÃO ao `cs`: a Catapult manda `ts` em SEGUNDOS INTEIROS e o centésimo
+// dentro do segundo vem separado, em `cs`. Sem pedir `cs`, as dez leituras de
+// cada segundo chegam com o mesmo `ts` e a deduplicação por instante descarta
+// nove delas — o stream vira 1 Hz sem avisar. Descoberto em 08/09/2026 com a
+// sonda ?bruto=1, depois de a distância sair 5,5% curta.
+const SENSOR_PARAMETERS = 'ts,cs,v,hdop,pq,ref';
 // Slug dos esforços explosivos do tenant, confirmado em 08/09/2026 pela sonda
 // GET /parameters (?catalogo=explos). Tem cedilha e til — por isso fica gravado
 // aqui e nunca é digitado na barra de endereço, onde acento se embaralha.
@@ -282,7 +287,11 @@ export default async function handler(req, res) {
           token
         );
         const pontos = extrairDadosSensor(raw)
-          .map(p => ({ ts: p.ts, v: p.v, hdop: p.hdop }))
+          .map(p => ({
+            ts: p.cs != null ? p.ts + p.cs / 100 : p.ts,   // segundo + centésimo
+            v: p.v,
+            hdop: p.hdop,
+          }))
           .filter(p => p.ts != null && p.v != null);
 
         const cfg = {};
@@ -300,6 +309,7 @@ export default async function handler(req, res) {
           diagnostico: diag ? MDP.diagnosticoAceleracao(pontos, blocos, a.duracoes) : undefined,
           athleteId: a.athleteId, cadastroId: a.cadastroId, atleta: a.nome,
           minJogados: calc.minJogados, minOficial: +a.minOficial.toFixed(1),
+          amostragemHz: calc.amostragemHz,
           participacao: calc.participacao,
           totais: calc.totais,
           validacao: {
@@ -328,6 +338,9 @@ export default async function handler(req, res) {
       recados.push(`Períodos juntados em ${blocos.length} bloco(s) — o esperado é 2 (1º e 2º tempo).`);
       recados.push(`Goleiros fora: ${[...porAtleta.values()].filter(x => x.goleiro).length}.`);
       recados.push(`Atleta conferido: ${r.atleta}, ${r.minJogados} min pelo nosso cálculo contra ${r.minOficial} min da Catapult.`);
+      recados.push(r.amostragemHz && r.amostragemHz >= 8
+        ? `Frequência do sinal: ${r.amostragemHz} Hz — resolução cheia, como deve ser.`
+        : `ATENÇÃO: sinal chegando a ${r.amostragemHz} Hz. Abaixo de 8 Hz a contagem de esforços e a distância saem curtas.`);
       recados.push(v.ok === true
         ? `Distância bate com a Catapult (diferença de ${v.difPct}%). Pode rodar o jogo inteiro.`
         : `ATENÇÃO: distância difere ${v.difPct}% da Catapult. Acima de 2% não rode a amostra ainda.`);
