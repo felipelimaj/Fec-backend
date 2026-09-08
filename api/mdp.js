@@ -8,6 +8,8 @@
 //    ?athlete=123       (opcional) roda um atleta só — use para testar
 //    ?limite=N          (opcional) processa só os N primeiros atletas
 //    ?minMin=75         (opcional) só atletas com pelo menos N minutos de jogo
+//    ?hdopMax=3         (opcional) liga o filtro de qualidade de sinal (desligado
+//                       por padrão — descartar ponto tira metros reais)
 //    ?diag=1            (opcional) junta o raio-x da aceleração (para achar
 //                       por que uma contagem sai zerada)
 //    ?bruto=1           (opcional) SONDA: pede o stream de duas formas e conta
@@ -125,7 +127,7 @@ export default async function handler(req, res) {
   const token = process.env.CATAPULT_TOKEN;
   if (!token) return res.status(500).json({ error: 'CATAPULT_TOKEN não configurado' });
 
-  const { date, athlete, limite, csv, debug, conferencia, catalogo, explSlug, explAcc, explVel, minMin, diag, bruto } = req.query;
+  const { date, athlete, limite, csv, debug, conferencia, catalogo, explSlug, explAcc, explVel, minMin, diag, bruto, hdopMax } = req.query;
 
   try {
     // ── Modo catálogo: procura um slug pelo nome, sem tocar em jogo nenhum ──
@@ -297,6 +299,7 @@ export default async function handler(req, res) {
         const cfg = {};
         if (explAcc) cfg.EXPL_ACC = parseFloat(explAcc);
         if (explVel) cfg.EXPL_VEL_FIM_KMH = parseFloat(explVel);
+        if (hdopMax) cfg.HDOP_MAX = parseFloat(hdopMax);
 
         const calc = MDP.calcularAtleta(pontos, blocos, a.duracoes, { config: cfg });
         if (!calc) return { atleta: a.nome, erro: 'stream insuficiente' };
@@ -310,6 +313,7 @@ export default async function handler(req, res) {
           athleteId: a.athleteId, cadastroId: a.cadastroId, atleta: a.nome,
           minJogados: calc.minJogados, minOficial: +a.minOficial.toFixed(1),
           amostragemHz: calc.amostragemHz,
+          pontos: { recebidos: calc.pontosRecebidos, usados: calc.pontosUsados },
           participacao: calc.participacao,
           totais: calc.totais,
           validacao: {
