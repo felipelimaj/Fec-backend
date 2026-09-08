@@ -10,6 +10,8 @@
 //    ?minMin=75         (opcional) só atletas com pelo menos N minutos de jogo
 //    ?diag=1            (opcional) junta o raio-x da aceleração (para achar
 //                       por que uma contagem sai zerada)
+//    ?bruto=1           (opcional) SONDA: pede o stream de duas formas e conta
+//                       quantos pontos vêm em cada uma (checa a frequência)
 //    ?csv=1             (opcional) devolve CSV em vez de JSON
 //    ?conferencia=1     (opcional) MODO CONFERÊNCIA: roda 1 atleta e devolve um
 //                       resumo em português dizendo se está tudo certo
@@ -118,7 +120,7 @@ export default async function handler(req, res) {
   const token = process.env.CATAPULT_TOKEN;
   if (!token) return res.status(500).json({ error: 'CATAPULT_TOKEN não configurado' });
 
-  const { date, athlete, limite, csv, debug, conferencia, catalogo, explSlug, explAcc, explVel, minMin, diag } = req.query;
+  const { date, athlete, limite, csv, debug, conferencia, catalogo, explSlug, explAcc, explVel, minMin, diag, bruto } = req.query;
 
   try {
     // ── Modo catálogo: procura um slug pelo nome, sem tocar em jogo nenhum ──
@@ -227,6 +229,48 @@ export default async function handler(req, res) {
         periodosBrutos: (jogo.periods || []).map(p => p.name),
         atletas: atletas.map(a => ({ id: a.athleteId, nome: a.nome, minOficial: +a.minOficial.toFixed(1), distOficial: +a.distOficial.toFixed(0) })),
         goleirosIgnorados: [...porAtleta.values()].filter(a => a.goleiro).map(a => a.nome),
+      });
+    }
+
+    // ── Sonda de frequência: mesma requisição, dois conjuntos de campos ─────
+    if (bruto) {
+      const alvo = atletas.slice().sort((x, y) => y.minOficial - x.minOficial)[0];
+      if (!alvo) return res.status(200).json({ error: 'nenhum atleta elegível' });
+
+      const variantes = {
+        reduzido: 'ts,v,hdop,pq,ref',
+        completo: 'ts,lat,long,v,rv,a,hr,pl,xy,pq,hdop,ref,o,mp',
+        semParametros: null,
+      };
+      const saida = {};
+      for (const [nome, params] of Object.entries(variantes)) {
+        try {
+          const url = `/activities/${jogo.id}/athletes/${alvo.athleteId}/sensor` +
+                      (params ? `?parameters=${params}&nulls=1` : '?nulls=1');
+          const raw = await catapultGET(url, token);
+          const dados = extrairDadosSensor(raw);
+          const ts = dados.map(d => d.ts).filter(v => v != null).slice(0, 3000);
+          const difs = [];
+          for (let i = 1; i < ts.length; i++) difs.push(ts[i] - ts[i - 1]);
+          difs.sort((a, b) => a - b);
+          const mediana = difs.length ? difs[Math.floor(difs.length / 2)] : null;
+          saida[nome] = {
+            pontos: dados.length,
+            intervaloMedianoS: mediana,
+            frequenciaHz: mediana ? +(1 / mediana).toFixed(2) : null,
+            comHdop: dados.filter(d => d.hdop != null).length,
+            comVelocidade: dados.filter(d => d.v != null).length,
+            primeirosRegistros: dados.slice(0, 3),
+          };
+        } catch (e) {
+          saida[nome] = { erro: e.message };
+        }
+      }
+      return res.status(200).json({
+        atleta: alvo.nome,
+        minutosOficiais: +alvo.minOficial.toFixed(1),
+        esperadoSe10Hz: Math.round(alvo.minOficial * 60 * 10),
+        variantes: saida,
       });
     }
 
