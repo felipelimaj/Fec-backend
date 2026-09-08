@@ -376,8 +376,10 @@ export default async function handler(req, res) {
         const calc = MDP.calcularAtleta(pontos, blocos, a.duracoes, { config: cfg });
         if (!calc) return { atleta: a.nome, erro: 'stream insuficiente' };
 
+        // A Catapult calcula sobre o período inteiro; comparamos com a mesma
+        // régua. O estudo segue usando os números recortados.
         const difDist = a.distOficial > 0
-          ? ((calc.totais.dist - a.distOficial) / a.distOficial) * 100
+          ? ((calc.referenciaPeriodoInteiro.dist - a.distOficial) / a.distOficial) * 100
           : null;
 
         return {
@@ -389,12 +391,15 @@ export default async function handler(req, res) {
           participacao: calc.participacao,
           totais: calc.totais,
           validacao: {
-            distStream: calc.totais.dist,
+            distStreamNoJogo: calc.totais.dist,
             distCatapult: +a.distOficial.toFixed(1),
             difPct: difDist == null ? null : +difDist.toFixed(2),
             ok: difDist == null ? null : Math.abs(difDist) <= 2,
-            explosivoNosso: calc.totais.explosivo,
+            distStreamPeriodoInteiro: calc.referenciaPeriodoInteiro.dist,
+            explosivoNoJogo: calc.totais.explosivo,
+            explosivoNosso: calc.referenciaPeriodoInteiro.explosivo,
             explosivoCatapult: a.explOficial,
+            nota: 'a conferência usa o período inteiro, régua da Catapult; o estudo usa o tempo em jogo',
           },
           picos: calc.picos,
           repeticoes: calc.repeticoes,
@@ -418,8 +423,10 @@ export default async function handler(req, res) {
         ? `Frequência do sinal: ${r.amostragemHz} Hz — resolução cheia, como deve ser.`
         : `ATENÇÃO: sinal chegando a ${r.amostragemHz} Hz. Abaixo de 8 Hz a contagem de esforços e a distância saem curtas.`);
       recados.push(v.ok === true
-        ? `Distância bate com a Catapult (diferença de ${v.difPct}%). Pode rodar o jogo inteiro.`
+        ? `Distância bate com a Catapult na mesma régua (diferença de ${v.difPct}%). Pode rodar o jogo inteiro.`
         : `ATENÇÃO: distância difere ${v.difPct}% da Catapult. Acima de 2% não rode a amostra ainda.`);
+      recados.push(`No estudo entram ${v.distStreamNoJogo} m — só o tempo em campo. ` +
+        `Os ${v.distStreamPeriodoInteiro} m da conferência incluem o período inteiro, que é como a Catapult conta.`);
       if (v.explosivoCatapult != null) {
         const dif = v.explosivoCatapult > 0 ? ((v.explosivoNosso - v.explosivoCatapult) / v.explosivoCatapult) * 100 : null;
         recados.push(`Esforços explosivos: ${v.explosivoNosso} pelo nosso critério contra ${v.explosivoCatapult} da Catapult` +
