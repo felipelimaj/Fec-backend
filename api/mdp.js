@@ -12,6 +12,9 @@
 //                       por padrão — descartar ponto tira metros reais)
 //    ?diag=1            (opcional) junta o raio-x da aceleração (para achar
 //                       por que uma contagem sai zerada)
+//    ?dist=1            (opcional) SONDA: calcula a distância de três formas
+//                       (canal v, canal rv, deslocamento lat/long) e compara
+//                       com o número oficial da Catapult
 //    ?bruto=1           (opcional) SONDA: pede o stream de duas formas e conta
 //                       quantos pontos vêm em cada uma (checa a frequência)
 //    ?csv=1             (opcional) devolve CSV em vez de JSON
@@ -127,7 +130,7 @@ export default async function handler(req, res) {
   const token = process.env.CATAPULT_TOKEN;
   if (!token) return res.status(500).json({ error: 'CATAPULT_TOKEN não configurado' });
 
-  const { date, athlete, limite, csv, debug, conferencia, catalogo, explSlug, explAcc, explVel, minMin, diag, bruto, hdopMax } = req.query;
+  const { date, athlete, limite, csv, debug, conferencia, catalogo, explSlug, explAcc, explVel, minMin, diag, bruto, hdopMax, dist } = req.query;
 
   try {
     // ── Modo catálogo: procura um slug pelo nome, sem tocar em jogo nenhum ──
@@ -278,6 +281,65 @@ export default async function handler(req, res) {
         minutosOficiais: +alvo.minOficial.toFixed(1),
         esperadoSe10Hz: Math.round(alvo.minOficial * 60 * 10),
         variantes: saida,
+      });
+    }
+
+    // ── Sonda de distância: de onde saem os metros? ────────────────────────
+    if (dist) {
+      const alvo = atletas.slice().sort((x, y) => y.minOficial - x.minOficial)[0];
+      if (!alvo) return res.status(200).json({ error: 'nenhum atleta elegível' });
+
+      const raw = await catapultGET(
+        `/activities/${jogo.id}/athletes/${alvo.athleteId}/sensor?parameters=ts,cs,v,rv,lat,long,hdop&nulls=1`,
+        token
+      );
+      const pts = extrairDadosSensor(raw)
+        .map(p => ({ ts: p.cs != null ? p.ts + p.cs / 100 : p.ts, v: p.v, rv: p.rv, lat: p.lat, lon: p.long }))
+        .filter(p => p.ts != null)
+        .sort((a, b) => a.ts - b.ts);
+
+      // mesma janela de participação usada no cálculo real
+      const janelas = [];
+      for (const bloco of blocos) {
+        const jp = MDP.janelaParticipacao(
+          MDP.normalizarStream(pts.filter(p => p.v != null)), bloco, alvo.duracoes[bloco.rotulo]
+        );
+        if (jp) janelas.push(jp);
+      }
+      const dentro = (p) => janelas.some(j => p.ts >= j.ini && p.ts <= j.fim);
+
+      const R = 6371000;
+      const rad = (g) => (g * Math.PI) / 180;
+      let somaV = 0, somaRV = 0, somaGeo = 0, nGeo = 0, semV = 0, semRV = 0, semGeo = 0;
+
+      for (let i = 0; i < pts.length - 1; i++) {
+        const p = pts[i], q = pts[i + 1];
+        if (!dentro(p)) continue;
+        let dt = q.ts - p.ts;
+        if (dt <= 0 || dt > 2) continue;
+
+        if (p.v != null && q.v != null) somaV += ((p.v + q.v) / 2) * dt; else semV++;
+        if (p.rv != null && q.rv != null) somaRV += ((p.rv + q.rv) / 2) * dt; else semRV++;
+
+        if (p.lat != null && q.lat != null && p.lon != null && q.lon != null) {
+          const dLat = rad(q.lat - p.lat);
+          const dLon = rad(q.lon - p.lon) * Math.cos(rad((p.lat + q.lat) / 2));
+          somaGeo += R * Math.sqrt(dLat * dLat + dLon * dLon);
+          nGeo++;
+        } else semGeo++;
+      }
+
+      const of = alvo.distOficial;
+      const cmp = (x) => ({ metros: +x.toFixed(1), difPct: of > 0 ? +(((x - of) / of) * 100).toFixed(2) : null });
+
+      return res.status(200).json({
+        atleta: alvo.nome,
+        minutosOficiais: +alvo.minOficial.toFixed(1),
+        distanciaCatapult: +of.toFixed(1),
+        porCanalV: cmp(somaV),
+        porCanalRV: cmp(somaRV),
+        porDeslocamentoGeo: cmp(somaGeo),
+        amostrasSemDado: { v: semV, rv: semRV, latlong: semGeo, paresGeoUsados: nGeo },
       });
     }
 
