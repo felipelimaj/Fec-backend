@@ -12,8 +12,8 @@
 //                       resumo em português dizendo se está tudo certo
 //    ?catalogo=termo    (opcional) procura um slug no catálogo da Catapult
 //                       (ex.: ?catalogo=explos)
-//    ?explSlug=xxx      (opcional) slug dos esforços explosivos, para conferir
-//                       o nosso número contra o da Catapult
+//    ?explSlug=xxx      (opcional) troca o slug dos esforços explosivos; o padrão
+//                       já é o do tenant. ?explSlug=nenhum desliga a comparação
 //    ?explAcc=2.0&explVel=14.4  (opcional) ajuste fino da definição de explosivo
 //    ?debug=1           (opcional) devolve períodos, atletas e validação, sem stream
 //
@@ -29,6 +29,11 @@ import MDP from '../mdp.js';
 
 const CATAPULT_BASE = 'https://connect-us.catapultsports.com/api/v6';
 const SENSOR_PARAMETERS = 'ts,v,hdop,pq,ref';
+// Slug dos esforços explosivos do tenant, confirmado em 08/09/2026 pela sonda
+// GET /parameters (?catalogo=explos). Tem cedilha e til — por isso fica gravado
+// aqui e nunca é digitado na barra de endereço, onde acento se embaralha.
+const EXPL_SLUG_PADRAO = 'esforços_explosivos_2';
+
 const CONCURRENCY = 3;   // streams 10 Hz são pesados; 3 cabe no orçamento da Vercel
 
 function setCORS(res) {
@@ -148,14 +153,30 @@ export default async function handler(req, res) {
 
     // 3. /stats por período × atleta: duração oficial (recorte de banco) +
     //    distância oficial (validação do stream)
-    const paramsStats = ['total_duration', 'total_distance'];
-    if (explSlug) paramsStats.push(explSlug);
+    // slug dos explosivos: o padrão do tenant, salvo se a query pedir outro.
+    // ?explSlug=nenhum desliga a comparação de propósito.
+    let slugExpl = explSlug ? String(explSlug) : EXPL_SLUG_PADRAO;
+    if (slugExpl === 'nenhum') slugExpl = null;
 
-    const stats = await catapultPOST('/stats', token, {
+    let avisoExpl = null;
+    let stats;
+    const pedirStats = (params) => catapultPOST('/stats', token, {
       filters: [{ name: 'activity_id', comparison: '=', values: [jogo.id] }],
-      parameters: paramsStats,
+      parameters: params,
       group_by: ['period', 'athlete'],
     });
+
+    try {
+      stats = await pedirStats(slugExpl ? ['total_duration', 'total_distance', slugExpl] : ['total_duration', 'total_distance']);
+    } catch (e) {
+      // A Catapult recusou o pedido — provavelmente por causa desse parâmetro.
+      // Refaz sem ele: o estudo continua, só fica sem a comparação.
+      if (!slugExpl) throw e;
+      avisoExpl = `A Catapult não aceitou o parâmetro "${slugExpl}" no /stats (${e.message}). ` +
+                  `O MDP foi calculado normalmente; só a conferência dos esforços explosivos ficou de fora.`;
+      slugExpl = null;
+      stats = await pedirStats(['total_duration', 'total_distance']);
+    }
 
     const porAtleta = new Map();
     for (const s of (stats || [])) {
@@ -178,12 +199,12 @@ export default async function handler(req, res) {
       a.duracoes[rot] = Math.max(a.duracoes[rot] || 0, s.total_duration || 0);
 
       a['dist_' + rot] = Math.max(a['dist_' + rot] || 0, s.total_distance || 0);
-      if (explSlug) a['expl_' + rot] = Math.max(a['expl_' + rot] || 0, s[explSlug] || 0);
+      if (slugExpl) a['expl_' + rot] = Math.max(a['expl_' + rot] || 0, s[slugExpl] || 0);
     }
     for (const a of porAtleta.values()) {
       a.minOficial = ((a.duracoes['1tempo'] || 0) + (a.duracoes['2tempo'] || 0)) / 60;
       a.distOficial = (a['dist_1tempo'] || 0) + (a['dist_2tempo'] || 0);
-      a.explOficial = explSlug ? (a['expl_1tempo'] || 0) + (a['expl_2tempo'] || 0) : null;
+      a.explOficial = slugExpl ? (a['expl_1tempo'] || 0) + (a['expl_2tempo'] || 0) : null;
     }
 
     let atletas = [...porAtleta.values()].filter(a => !a.goleiro && a.minOficial > 0 && a.athleteId);
@@ -262,7 +283,7 @@ export default async function handler(req, res) {
         recados.push(`Esforços explosivos: ${v.explosivoNosso} pelo nosso critério contra ${v.explosivoCatapult} da Catapult` +
           (dif == null ? '.' : ` (${dif.toFixed(1)}% de diferença). Ajuste com &explAcc= e &explVel= até ficar perto.`));
       } else {
-        recados.push('Esforços explosivos ainda sem comparação: rode com &explSlug=<slug> para conferir contra a Catapult.');
+        recados.push(avisoExpl || 'Esforços explosivos sem comparação nesta rodada.');
       }
       return res.status(200).json({ veredito: recados, detalhe: r });
     }
@@ -301,9 +322,11 @@ export default async function handler(req, res) {
         hsrKmh: MDP.CONFIG.HSR_KMH, sprintKmh: MDP.CONFIG.SPRINT_KMH,
         accLimiar: MDP.CONFIG.ACC_LIMIAR, decLimiar: MDP.CONFIG.DEC_LIMIAR,
         cortesPct: [80, 85, 90], referencia: 'máxima do próprio atleta no jogo',
+        slugExplosivos: slugExpl, explosivoConfirmado: MDP.CONFIG.EXPL_CONFIRMADO,
         janelasIndependentes: true, goleiros: 'excluídos',
       },
       blocos: blocos.map(b => ({ rotulo: b.rotulo, min: +((b.fim - b.ini) / 60).toFixed(1) })),
+      avisoExplosivos: avisoExpl,
       atletas: resultados,
     });
   } catch (err) {
