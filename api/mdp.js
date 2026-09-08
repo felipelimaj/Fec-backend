@@ -307,16 +307,23 @@ export default async function handler(req, res) {
         if (jp) janelas.push(jp);
       }
       const dentro = (p) => janelas.some(j => p.ts >= j.ini && p.ts <= j.fim);
+      // mesma conta, sem o recorte de participação: período inteiro
+      const dentroPeriodo = (p) => blocos.some(b => p.ts >= b.ini && p.ts <= b.fim);
 
       const R = 6371000;
       const rad = (g) => (g * Math.PI) / 180;
       let somaV = 0, somaRV = 0, somaGeo = 0, nGeo = 0, semV = 0, semRV = 0, semGeo = 0;
+      let somaVPeriodo = 0;   // canal v, mas sem recortar o tempo de banco
 
       for (let i = 0; i < pts.length - 1; i++) {
         const p = pts[i], q = pts[i + 1];
-        if (!dentro(p)) continue;
         let dt = q.ts - p.ts;
         if (dt <= 0 || dt > 2) continue;
+
+        if (dentroPeriodo(p) && p.v != null && q.v != null) {
+          somaVPeriodo += ((p.v + q.v) / 2) * dt;
+        }
+        if (!dentro(p)) continue;
 
         if (p.v != null && q.v != null) somaV += ((p.v + q.v) / 2) * dt; else semV++;
         if (p.rv != null && q.rv != null) somaRV += ((p.rv + q.rv) / 2) * dt; else semRV++;
@@ -339,6 +346,9 @@ export default async function handler(req, res) {
         porCanalV: cmp(somaV),
         porCanalRV: cmp(somaRV),
         porDeslocamentoGeo: cmp(somaGeo),
+        canalV_semRecorteDeBanco: cmp(somaVPeriodo),
+        minutosDoPeriodoInteiro: +(blocos.reduce((s, b) => s + (b.fim - b.ini), 0) / 60).toFixed(1),
+        minutosRecortados: +(blocos.reduce((s, b) => s + (b.fim - b.ini), 0) / 60 - alvo.minOficial).toFixed(1),
         amostrasSemDado: { v: semV, rv: semRV, latlong: semGeo, paresGeoUsados: nGeo },
       });
     }
