@@ -7,6 +7,9 @@
 //    ?date=DD/MM/YYYY   (obrigatório) data BRT do jogo
 //    ?athlete=123       (opcional) roda um atleta só — use para testar
 //    ?limite=N          (opcional) processa só os N primeiros atletas
+//    ?minMin=75         (opcional) só atletas com pelo menos N minutos de jogo
+//    ?diag=1            (opcional) junta o raio-x da aceleração (para achar
+//                       por que uma contagem sai zerada)
 //    ?csv=1             (opcional) devolve CSV em vez de JSON
 //    ?conferencia=1     (opcional) MODO CONFERÊNCIA: roda 1 atleta e devolve um
 //                       resumo em português dizendo se está tudo certo
@@ -115,7 +118,7 @@ export default async function handler(req, res) {
   const token = process.env.CATAPULT_TOKEN;
   if (!token) return res.status(500).json({ error: 'CATAPULT_TOKEN não configurado' });
 
-  const { date, athlete, limite, csv, debug, conferencia, catalogo, explSlug, explAcc, explVel } = req.query;
+  const { date, athlete, limite, csv, debug, conferencia, catalogo, explSlug, explAcc, explVel, minMin, diag } = req.query;
 
   try {
     // ── Modo catálogo: procura um slug pelo nome, sem tocar em jogo nenhum ──
@@ -210,7 +213,12 @@ export default async function handler(req, res) {
     let atletas = [...porAtleta.values()].filter(a => !a.goleiro && a.minOficial > 0 && a.athleteId);
     if (athlete) atletas = atletas.filter(a => String(a.athleteId) === String(athlete) || String(a.cadastroId) === String(athlete));
     if (limite) atletas = atletas.slice(0, parseInt(limite, 10));
-    if (conferencia && !athlete) atletas = atletas.slice(0, 1);   // conferência = 1 atleta só
+    // corte de minutos: evita calibrar ou estudar em cima de substituto
+    if (minMin) atletas = atletas.filter(a => a.minOficial >= parseFloat(minMin));
+    // conferência sem atleta escolhido pega o que MAIS jogou, não o primeiro da lista
+    if (conferencia && !athlete) {
+      atletas = atletas.slice().sort((x, y) => y.minOficial - x.minOficial).slice(0, 1);
+    }
 
     if (debug) {
       return res.status(200).json({
@@ -245,6 +253,7 @@ export default async function handler(req, res) {
           : null;
 
         return {
+          diagnostico: diag ? MDP.diagnosticoAceleracao(pontos, blocos, a.duracoes) : undefined,
           athleteId: a.athleteId, cadastroId: a.cadastroId, atleta: a.nome,
           minJogados: calc.minJogados, minOficial: +a.minOficial.toFixed(1),
           participacao: calc.participacao,
