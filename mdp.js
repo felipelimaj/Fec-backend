@@ -34,12 +34,18 @@ const CONFIG = {
   MESCLA_S: 0.4,                     // esforços do mesmo sinal mais próximos que isso viram um
   DUR_MIN_ESFORCO_S: 0.4,            // duração mínima para valer como esforço
   CORTES_PCT: [0.80, 0.85, 0.90],    // faixas de intensidade
-  // Esforços explosivos — definição PROVISÓRIA, ainda não confirmada contra a
-  // Catapult. Mesma cautela usada nas bandas de velocidade: só vira oficial
-  // depois de bater o total do jogo contra o número do OpenField.
-  EXPL_CONFIRMADO: false,
-  EXPL_ACC: 2.0,                     // m/s² — limiar de abertura do esforço
-  EXPL_VEL_FIM_KMH: 14.4,            // km/h — velocidade que o esforço precisa atingir
+  // ── Esforços explosivos: CRITÉRIO FEC, não é o da Catapult ──────────────
+  // Varredura de 20 combinações em 4 atletas (jogo x Goiás, 08/09/2026): o
+  // melhor ajuste possível errou 17,3% por atleta, e o erro por atleta ficou
+  // MAIOR que o erro do total somado — sinal de que a diferença é de definição,
+  // não de limiar. A Catapult provavelmente usa o acelerômetro do colete, que
+  // não vem no stream de sensor. Tentar reproduzir o número dela seria ajustar
+  // um botão que não existe no nosso painel.
+  // Decisão: variável própria, limiares declarados, nunca comparada de igual
+  // para igual com "Esforços Explosivos 2" do OpenField.
+  EXPL_CRITERIO: 'FEC',
+  EXPL_ACC: 1.8,                     // m/s² — força mínima da arrancada
+  EXPL_VEL_FIM_KMH: 14.4,            // km/h — velocidade que a arrancada precisa atingir
   HDOP_MAX: null,                    // filtro de qualidade DESLIGADO por padrão:
                                      // descartar ponto ruim tira metros que
                                      // aconteceram de verdade, e a Catapult (com
