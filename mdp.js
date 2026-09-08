@@ -387,17 +387,65 @@ function calcularAtleta(pontos, blocos, duracoesOficiais, opts) {
   };
 }
 
+/* Diagnóstico: mostra a cara da aceleração derivada do sinal real.
+   Serve para descobrir por que uma contagem sai zerada, sem chutar limiar. */
+function diagnosticoAceleracao(pontos, blocos, duracoesOficiais) {
+  const stream = normalizarStream(pontos);
+  if (stream.length < 10) return null;
+  const acc = derivarAceleracao(stream);
+
+  // só as amostras dentro da janela de participação
+  const dentro = [];
+  for (const bloco of blocos) {
+    const jp = janelaParticipacao(stream, bloco, duracoesOficiais ? duracoesOficiais[bloco.rotulo] : null);
+    if (!jp) continue;
+    for (let i = 0; i < stream.length; i++) {
+      if (stream[i].ts >= jp.ini && stream[i].ts <= jp.fim) dentro.push({ p: stream[i], a: acc[i] });
+    }
+  }
+  if (!dentro.length) return null;
+
+  const vals = dentro.map(d => d.a).sort((x, y) => x - y);
+  const q = (f) => +vals[Math.min(vals.length - 1, Math.floor(f * vals.length))].toFixed(2);
+  const st = dentro.map(d => d.p);
+  const ac = dentro.map(d => d.a);
+
+  const contagens = {};
+  for (const lim of [1.5, 2.0, 2.5, 3.0, 3.5, 4.0]) {
+    contagens[lim] = {
+      acel: detectarEsforcos(st, ac, +1, lim).length,
+      decel: detectarEsforcos(st, ac, -1, lim).length,
+    };
+  }
+
+  // quanto tempo o sinal passa abaixo de -3 (sem exigir duração mínima)
+  let amostrasAbaixo3 = 0, amostrasAcima3 = 0;
+  for (const a of ac) { if (a <= -3) amostrasAbaixo3++; if (a >= 3) amostrasAcima3++; }
+
+  return {
+    amostras: dentro.length,
+    aceleracaoMin: +Math.min(...ac).toFixed(2),
+    aceleracaoMax: +Math.max(...ac).toFixed(2),
+    percentis: { p1: q(0.01), p5: q(0.05), p50: q(0.50), p95: q(0.95), p99: q(0.99) },
+    amostrasAcimaDe3: amostrasAcima3,
+    amostrasAbaixoDeMenos3: amostrasAbaixo3,
+    esforcosPorLimiar: contagens,
+    duracaoMinimaAtual: CONFIG.DUR_MIN_ESFORCO_S,
+    janelaDerivadaS: CONFIG.JANELA_ACC_S,
+  };
+}
+
 const API = {
   CONFIG, VARIAVEIS,
   mesclarIntervalos, normalizarStream, derivarAceleracao, detectarEsforcos,
   janelaParticipacao, binar, janelasDeslizantes, janelasIndependentes,
-  calcularAtleta,
+  calcularAtleta, diagnosticoAceleracao,
 };
 
 export {
   CONFIG, VARIAVEIS,
   mesclarIntervalos, normalizarStream, derivarAceleracao, detectarEsforcos,
   janelaParticipacao, binar, janelasDeslizantes, janelasIndependentes,
-  calcularAtleta,
+  calcularAtleta, diagnosticoAceleracao,
 };
 export default API;
