@@ -12,6 +12,8 @@
 //                       por padrão — descartar ponto tira metros reais)
 //    ?diag=1            (opcional) junta o raio-x da aceleração (para achar
 //                       por que uma contagem sai zerada)
+//    ?calibrar=1&n=4    (opcional) varre 20 combinações de limiar de esforço
+//                       explosivo em N atletas e diz qual bate com a Catapult
 //    ?dist=1            (opcional) SONDA: calcula a distância de três formas
 //                       (canal v, canal rv, deslocamento lat/long) e compara
 //                       com o número oficial da Catapult
@@ -130,7 +132,7 @@ export default async function handler(req, res) {
   const token = process.env.CATAPULT_TOKEN;
   if (!token) return res.status(500).json({ error: 'CATAPULT_TOKEN não configurado' });
 
-  const { date, athlete, limite, csv, debug, conferencia, catalogo, explSlug, explAcc, explVel, minMin, diag, bruto, hdopMax, dist } = req.query;
+  const { date, athlete, limite, csv, debug, conferencia, catalogo, explSlug, explAcc, explVel, minMin, diag, bruto, hdopMax, dist, calibrar, n } = req.query;
 
   try {
     // ── Modo catálogo: procura um slug pelo nome, sem tocar em jogo nenhum ──
@@ -350,6 +352,54 @@ export default async function handler(req, res) {
         minutosDoPeriodoInteiro: +(blocos.reduce((s, b) => s + (b.fim - b.ini), 0) / 60).toFixed(1),
         minutosRecortados: +(blocos.reduce((s, b) => s + (b.fim - b.ini), 0) / 60 - alvo.minOficial).toFixed(1),
         amostrasSemDado: { v: semV, rv: semRV, latlong: semGeo, paresGeoUsados: nGeo },
+      });
+    }
+
+    // ── Varredura de calibração dos esforços explosivos ────────────────────
+    if (calibrar) {
+      if (!slugExpl) return res.status(400).json({ error: 'sem slug de esforços explosivos para comparar' });
+
+      const LIMIARES_ACC = [1.2, 1.5, 1.8, 2.0, 2.5];
+      const LIMIARES_VEL = [0, 10.8, 14.4, 18.0];
+      const quantos = n ? parseInt(n, 10) : 4;
+      const alvos = atletas.slice().sort((x, y) => y.minOficial - x.minOficial).slice(0, quantos);
+
+      const porAtletaCal = await emLotes(alvos, CONCURRENCY, async (a) => {
+        try {
+          const raw = await catapultGET(
+            `/activities/${jogo.id}/athletes/${a.athleteId}/sensor?parameters=${SENSOR_PARAMETERS}&nulls=1`, token);
+          const pontos = extrairDadosSensor(raw)
+            .map(p => ({ ts: p.cs != null ? p.ts + p.cs / 100 : p.ts, v: p.v, hdop: p.hdop }))
+            .filter(p => p.ts != null && p.v != null);
+          return { atleta: a.nome, catapult: a.explOficial, tabela: MDP.varrerExplosivos(pontos, blocos, LIMIARES_ACC, LIMIARES_VEL) };
+        } catch (e) { return { atleta: a.nome, erro: e.message }; }
+      });
+
+      const validos = porAtletaCal.filter(x => x.tabela && x.catapult != null);
+      const ranking = [];
+      for (const la of LIMIARES_ACC) {
+        for (const lv of LIMIARES_VEL) {
+          let somaErro = 0, nOk = 0, nosso = 0, deles = 0;
+          for (const x of validos) {
+            const c = x.tabela[la][lv];
+            nosso += c; deles += x.catapult;
+            if (x.catapult > 0) { somaErro += Math.abs((c - x.catapult) / x.catapult) * 100; nOk++; }
+          }
+          ranking.push({
+            aceleracaoMin: la, velocidadeMin: lv,
+            nossoTotal: nosso, catapultTotal: deles,
+            erroMedioPct: nOk ? +(somaErro / nOk).toFixed(1) : null,
+          });
+        }
+      }
+      ranking.sort((x, y) => (x.erroMedioPct ?? 999) - (y.erroMedioPct ?? 999));
+
+      return res.status(200).json({
+        atletasUsados: validos.map(x => x.atleta),
+        atualNoCodigo: { aceleracaoMin: MDP.CONFIG.EXPL_ACC, velocidadeMin: MDP.CONFIG.EXPL_VEL_FIM_KMH },
+        melhores: ranking.slice(0, 5),
+        tudo: ranking,
+        comoUsar: 'a combinação de menor erroMedioPct é a que reproduz a Catapult; me mande esta resposta que eu travo no código',
       });
     }
 
