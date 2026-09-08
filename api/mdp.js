@@ -479,8 +479,10 @@ export default async function handler(req, res) {
         `Os ${v.distStreamPeriodoInteiro} m da conferência incluem o período inteiro, que é como a Catapult conta.`);
       if (v.explosivoCatapult != null) {
         const dif = v.explosivoCatapult > 0 ? ((v.explosivoNosso - v.explosivoCatapult) / v.explosivoCatapult) * 100 : null;
-        recados.push(`Esforços explosivos: ${v.explosivoNosso} pelo nosso critério contra ${v.explosivoCatapult} da Catapult` +
-          (dif == null ? '.' : ` (${dif.toFixed(1)}% de diferença). Ajuste com &explAcc= e &explVel= até ficar perto.`));
+        recados.push(`Esforços explosivos (critério FEC: arrancada ≥ ${MDP.CONFIG.EXPL_ACC} m/s² chegando a ` +
+          `${MDP.CONFIG.EXPL_VEL_FIM_KMH} km/h): ${v.explosivoNosso}. A Catapult marca ${v.explosivoCatapult} pelo critério dela` +
+          (dif == null ? '.' : ` (${dif.toFixed(1)}% de diferença).`) +
+          ' As duas contagens medem coisas diferentes e NÃO devem ser comparadas — a nossa é a que entra no estudo.');
       } else {
         recados.push(avisoExpl || 'Esforços explosivos sem comparação nesta rodada.');
       }
@@ -521,7 +523,8 @@ export default async function handler(req, res) {
         hsrKmh: MDP.CONFIG.HSR_KMH, sprintKmh: MDP.CONFIG.SPRINT_KMH,
         accLimiar: MDP.CONFIG.ACC_LIMIAR, decLimiar: MDP.CONFIG.DEC_LIMIAR,
         cortesPct: [80, 85, 90], referencia: 'máxima do próprio atleta no jogo',
-        slugExplosivos: slugExpl, explosivoConfirmado: MDP.CONFIG.EXPL_CONFIRMADO,
+        slugExplosivos: slugExpl,
+        criterioExplosivos: `FEC — arrancada ≥ ${MDP.CONFIG.EXPL_ACC} m/s² atingindo ${MDP.CONFIG.EXPL_VEL_FIM_KMH} km/h (não reproduz o da Catapult)`,
         janelasIndependentes: true, goleiros: 'excluídos',
       },
       blocos: blocos.map(b => ({ rotulo: b.rotulo, min: +((b.fim - b.ini) / 60).toFixed(1) })),
