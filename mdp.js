@@ -385,8 +385,11 @@ function calcularAtleta(pontos, blocos, duracoesOficiais, opts) {
   }
 
   const dtGlobal = estimarDt(stream);
+  const referencia = totaisNoPeriodo(stream, acc, blocos);
 
   return {
+    // números do período inteiro — só para bater com a Catapult, não entram no estudo
+    referenciaPeriodoInteiro: referencia,
     pontosRecebidos: pontos.length,
     pontosUsados: stream.length,
     amostragemHz: dtGlobal > 0 ? +(1 / dtGlobal).toFixed(1) : null,
@@ -403,6 +406,19 @@ function calcularAtleta(pontos, blocos, duracoesOficiais, opts) {
     picos: picos,
     repeticoes: repeticoes,
   };
+}
+
+/* Totais no PERÍODO INTEIRO, sem recortar o tempo de banco.
+   Não entra no estudo: serve só para comparar com o /stats da Catapult, que
+   calcula distância e contagens sobre o período todo, não sobre o tempo em
+   jogo. Comparar o nosso número recortado com o dela era erro de régua. */
+function totaisNoPeriodo(stream, acc, blocos) {
+  let dist = 0, explosivo = 0;
+  for (const bloco of blocos) {
+    const b = binar(stream, acc, { ini: bloco.ini, fim: bloco.fim });
+    for (let i = 0; i < b.nBins; i++) { dist += b.dist[i]; explosivo += b.explosivo[i]; }
+  }
+  return { dist: +dist.toFixed(1), explosivo: Math.round(explosivo) };
 }
 
 /* Diagnóstico: mostra a cara da aceleração derivada do sinal real.
@@ -457,13 +473,13 @@ const API = {
   CONFIG, VARIAVEIS,
   mesclarIntervalos, normalizarStream, derivarAceleracao, detectarEsforcos,
   janelaParticipacao, binar, janelasDeslizantes, janelasIndependentes,
-  calcularAtleta, diagnosticoAceleracao,
+  calcularAtleta, diagnosticoAceleracao, totaisNoPeriodo,
 };
 
 export {
   CONFIG, VARIAVEIS,
   mesclarIntervalos, normalizarStream, derivarAceleracao, detectarEsforcos,
   janelaParticipacao, binar, janelasDeslizantes, janelasIndependentes,
-  calcularAtleta, diagnosticoAceleracao,
+  calcularAtleta, diagnosticoAceleracao, totaisNoPeriodo,
 };
 export default API;
