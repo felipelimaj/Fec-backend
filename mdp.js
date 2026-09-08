@@ -421,6 +421,38 @@ function totaisNoPeriodo(stream, acc, blocos) {
   return { dist: +dist.toFixed(1), explosivo: Math.round(explosivo) };
 }
 
+/* Varredura de calibração dos esforços explosivos.
+   Detecta os esforços UMA vez por limiar de aceleração, guarda a velocidade
+   máxima de cada um, e depois só filtra por velocidade — assim testar 20
+   combinações custa quase o mesmo que testar uma.
+   Conta sobre o PERÍODO INTEIRO, que é a régua da Catapult. */
+function varrerExplosivos(pontos, blocos, limiaresAcc, limiaresVel) {
+  const stream = normalizarStream(pontos);
+  if (stream.length < 10) return null;
+  const acc = derivarAceleracao(stream);
+  const tabela = {};
+
+  for (const la of limiaresAcc) {
+    const velsDosEsforcos = [];
+    for (const bloco of blocos) {
+      const st = [], ac = [];
+      for (let i = 0; i < stream.length; i++) {
+        if (stream[i].ts >= bloco.ini && stream[i].ts <= bloco.fim) { st.push(stream[i]); ac.push(acc[i]); }
+      }
+      for (const e of detectarEsforcos(st, ac, +1, la)) {
+        let velMax = 0;
+        for (const p of st) if (p.ts >= e.ts && p.ts <= e.ts + e.dur) velMax = Math.max(velMax, kmh(p.v));
+        velsDosEsforcos.push(velMax);
+      }
+    }
+    tabela[la] = {};
+    for (const lv of limiaresVel) {
+      tabela[la][lv] = velsDosEsforcos.filter(v => v >= lv).length;
+    }
+  }
+  return tabela;
+}
+
 /* Diagnóstico: mostra a cara da aceleração derivada do sinal real.
    Serve para descobrir por que uma contagem sai zerada, sem chutar limiar. */
 function diagnosticoAceleracao(pontos, blocos, duracoesOficiais) {
@@ -473,13 +505,13 @@ const API = {
   CONFIG, VARIAVEIS,
   mesclarIntervalos, normalizarStream, derivarAceleracao, detectarEsforcos,
   janelaParticipacao, binar, janelasDeslizantes, janelasIndependentes,
-  calcularAtleta, diagnosticoAceleracao, totaisNoPeriodo,
+  calcularAtleta, diagnosticoAceleracao, totaisNoPeriodo, varrerExplosivos,
 };
 
 export {
   CONFIG, VARIAVEIS,
   mesclarIntervalos, normalizarStream, derivarAceleracao, detectarEsforcos,
   janelaParticipacao, binar, janelasDeslizantes, janelasIndependentes,
-  calcularAtleta, diagnosticoAceleracao, totaisNoPeriodo,
+  calcularAtleta, diagnosticoAceleracao, totaisNoPeriodo, varrerExplosivos,
 };
 export default API;
