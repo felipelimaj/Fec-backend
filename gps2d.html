@@ -549,23 +549,28 @@ h3 .btnCsv{float:right;margin-top:-4px}
         <input type="number" id="inCbMin" value="15" min="0" max="130" step="1" style="width:84px"></div>
     </div>
     <div class="linha" style="margin-top:10px">
-      <div class="grupo"><label class="mini">Jogo A</label><select id="selCbA" style="min-width:230px"></select></div>
-      <div class="grupo"><label class="mini">Jogo B</label><select id="selCbB" style="min-width:230px"></select></div>
-      <span id="cbAviso" style="font-size:12px;color:var(--txt2);align-self:center;max-width:520px"></span>
+      <div class="grupo"><label class="mini">Destacar a partir de</label>
+        <select id="selCbLim">
+          <option value="0.6">pequeno (|z| ≥ 0,6)</option>
+          <option value="1.2" selected>moderado (|z| ≥ 1,2)</option>
+          <option value="2">grande (|z| ≥ 2,0)</option>
+        </select></div>
+      <span id="cbAviso" style="font-size:12px;color:var(--txt2);align-self:center;max-width:640px"></span>
     </div>
     <div id="cbGraf" style="overflow-x:auto;margin-top:12px"></div>
     <p style="font-size:12px;color:var(--txt2);margin-top:8px">
-      Cada ponto é um jogo, em ordem cronológica; a faixa é a <b>mediana ±1 DP</b> da série exibida.
-      Clique num ponto para jogá-lo em <b>A</b>, clique noutro para <b>B</b>. Métricas de <b>volume</b>
-      dependem de quantos atletas tinham colete e de quanto tempo o jogo durou — quando A e B diferem
-      nisso, as linhas de volume vêm marcadas com ⚠ e a leitura correta é a densidade.</p>
+      Cada ponto é um jogo, em ordem cronológica; as linhas são a <b>média</b> e <b>±1</b> e <b>±2 DP</b>
+      da série exibida. O tamanho e a cor do ponto vêm do <b>z do próprio jogo</b> — quanto ele se afasta
+      da média dos <i>outros</i> jogos, em desvios-padrão. Ouro = acima, azul = abaixo.
+      Métricas de <b>volume</b> dependem de quantos atletas tinham colete e de quanto o jogo durou;
+      quando o denominador varia entre jogos, a leitura honesta é a densidade.</p>
   </div>
 
-  <div class="card"><h3>Duelo A × B <button class="btn mini btnCsv" id="btnCsvCbDuelo">⬇ CSV</button></h3>
-    <div class="tblWrap"><table id="tabCbDuelo"></table></div></div>
-
-  <div class="card"><h3>Todos os jogos do recorte <button class="btn mini btnCsv" id="btnCsvCbRank">⬇ CSV</button></h3>
-    <div class="tblWrap"><table id="tabCbRank"></table></div></div>
+  <div class="card">
+    <h3>Jogos da janela × métricas <button class="btn mini btnCsv" id="btnCsvCbTab">⬇ CSV</button></h3>
+    <div id="cbLegenda" style="font-size:12px;color:var(--txt2);margin-bottom:10px"></div>
+    <div class="tblWrap"><table id="tabCbMat"></table></div>
+  </div>
 
   <div class="card">
     <h3>Comparação entre jogos — ações por terço × posição</h3>
@@ -1821,6 +1826,11 @@ function tornarOrdenavel(tab) {
       const valor = tr => {
         const c = tr.children[ci];
         if (!c) return '';
+        // data-v guarda o número cru: "5.234" em pt-BR seria lido como 5,234
+        if (c.dataset && c.dataset.v !== undefined && c.dataset.v !== '') {
+          const nv = parseFloat(c.dataset.v);
+          if (!isNaN(nv)) return nv;
+        }
         let t = c.textContent.trim().replace('%', '');
         if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');
         const n = parseFloat(t);
@@ -3690,7 +3700,7 @@ $('btnCsvMdp').onclick = () => {
    clube; não bate, dígito a dígito, com as abas que leem sensor.
    ================================================================ */
 const CB_KEY = 'gps2d_cmpbase_v1';
-let CB = undefined, CB_SEL = { a: null, b: null };
+let CB = undefined;
 
 const CB_METRICAS = [
   { k: 'dist',      rot: 'Distância (m)',        tipo: 'volume',    dec: 0 },
@@ -3864,7 +3874,7 @@ function cbSerie() {
     else if (esc === 'grupo') linhas = linhas.filter(a => grupos[a.ai] === gsel);
     else linhas = linhas.filter(a => grupos[a.ai] !== 'GOL');
     const met = cbAgregar(linhas);
-    if (met) out.push({ ji, jogo: b.jogos[ji] || {}, met });
+    if (met) out.push({ ji, jogo: b.jogos[ji] || {}, met, linhas });
   }
   out.sort((x, y) => (x.jogo.ts || 0) - (y.jogo.ts || 0));
   return out;
@@ -3873,13 +3883,6 @@ function cbSerie() {
 function cbFmt(v, dec) {
   if (v == null || !isFinite(v)) return '—';
   return v.toLocaleString('pt-BR', { minimumFractionDigits: dec, maximumFractionDigits: dec });
-}
-function cbPercentil(valores, v) {
-  const vs = valores.filter(x => x != null && isFinite(x)).sort((a, b) => a - b);
-  if (!vs.length || v == null) return null;
-  let menores = 0, iguais = 0;
-  for (const x of vs) { if (x < v) menores++; else if (x === v) iguais++; }
-  return (menores + iguais / 2) / vs.length * 100;
 }
 function cbRotJogo(j) {
   if (!j) return '—';
@@ -3918,74 +3921,175 @@ function cbInit() {
   cbRender();
 }
 
+/* ================================================================
+   TAMANHO DE EFEITO NA COMPARAÇÃO
+
+   Duas perguntas diferentes, duas contas diferentes:
+
+   z  — "este jogo fugiu da nossa norma?" O jogo é UMA observação e a
+        referência é a distribuição dos outros jogos. Uso leave-one-out: a
+        média e o DP são calculados SEM o jogo avaliado. Incluir o próprio
+        ponto na referência que o julga encolhe justamente os extremos, e com
+        20 ou 30 jogos isso não é detalhe — é o que faz um jogo atípico
+        parecer normal.
+
+   g  — Hedges. Aqui o jogo não é um ponto, é o conjunto dos atletas dele,
+        comparado com os atletas de todos os outros jogos, com DP combinado e
+        correção de amostra pequena (J). Responde "o deslocamento é grande
+        perto da variação entre atletas?" — z pode ser alto num jogo em que
+        todo mundo andou junto, e g corrige por isso. No escopo Atleta não
+        existe g: um atleta por jogo não tem dispersão interna.
+
+   Não há p-valor, de propósito. Os mesmos atletas aparecem nos dois lados da
+   comparação (o jogo e o resto da temporada), então a independência que o
+   teste exige está quebrada. g e z entram como magnitude descritiva, que é o
+   que eles honestamente são. A escala de magnitude é a mesma do resto do app.
+   ================================================================ */
+function cbEstat(vals) {
+  const v = vals.filter(x => x != null && isFinite(x));
+  const n = v.length, S = v.reduce((s, x) => s + x, 0), SS = v.reduce((s, x) => s + x * x, 0);
+  return { n, S, SS };
+}
+/* z leave-one-out do jogo i contra os demais */
+function cbZ(tot, xi) {
+  if (xi == null || !isFinite(xi)) return null;
+  const n = tot.n - 1;
+  if (n < 3) return null;
+  const S = tot.S - xi, SS = tot.SS - xi * xi;
+  const m = S / n, va = (SS - S * S / n) / (n - 1);
+  if (!(va > 0)) return null;
+  return (xi - m) / Math.sqrt(va);
+}
+/* Hedges g: atletas do jogo i × atletas dos outros jogos */
+function cbGEfeito(tot, gi) {
+  const n1 = gi.n, n2 = tot.n - n1;
+  if (n1 < 3 || n2 < 3) return null;
+  const S2 = tot.S - gi.S, SS2 = tot.SS - gi.SS;
+  const m1 = gi.S / n1, m2 = S2 / n2;
+  const v1 = (gi.SS - gi.S * gi.S / n1) / (n1 - 1);
+  const v2 = (SS2 - S2 * S2 / n2) / (n2 - 1);
+  const sp2 = ((n1 - 1) * v1 + (n2 - 1) * v2) / (n1 + n2 - 2);
+  if (!(sp2 > 0)) return null;
+  const d = (m1 - m2) / Math.sqrt(sp2);
+  const J = 1 - 3 / (4 * (n1 + n2) - 9);        // correção de amostra pequena
+  return J * d;
+}
+/* Métrica de um atleta isolado: mesma conta do agregado, com n = 1. */
+function cbMetAtleta(a) { return cbAgregar([a]); }
+
+/* Para cada métrica: valores por jogo, z de cada jogo, e g quando há atletas
+   suficientes. Devolve { [k]: { porJogo: Map(ji → {v, z, g}), md, dp, n } } */
+function cbEfeitos(serie) {
+  const escAtleta = $('selCbEscopo').value === 'atleta';
+  const out = {};
+  // vetor por atleta, por jogo, calculado uma vez só
+  const metAt = serie.map(s => s.linhas.map(cbMetAtleta));
+  for (const m of CB_METRICAS) {
+    const vals = serie.map(s => s.met[m.k]);
+    const tot = cbEstat(vals);
+    const totAt = escAtleta ? null : cbEstat([].concat(...metAt.map(arr => arr.map(x => x[m.k]))));
+    const porJogo = new Map();
+    serie.forEach((s, i) => {
+      const v = s.met[m.k];
+      const z = cbZ(tot, v);
+      let g = null;
+      if (totAt) g = cbGEfeito(totAt, cbEstat(metAt[i].map(x => x[m.k])));
+      porJogo.set(s.ji, { v, z, g });
+    });
+    const vv = vals.filter(x => x != null && isFinite(x));
+    out[m.k] = { porJogo, md: vv.length ? media(vv) : null,
+      dp: vv.length > 1 ? desvio(vv) : null, n: vv.length };
+  }
+  return out;
+}
+
+/* Faixa visual: mesma escala de magnitude do resto do app (magD). */
+function cbBanda(z) {
+  const a = Math.abs(z == null ? 0 : z);
+  return a < 0.2 ? 0 : a < 0.6 ? 1 : a < 1.2 ? 2 : a < 2.0 ? 3 : 4;
+}
+const CB_ALFA = [0, 0.10, 0.20, 0.34, 0.50];
+function cbFundo(z) {
+  const b = cbBanda(z);
+  if (!b || z == null) return '';
+  const cor = z >= 0 ? '196,149,42' : '91,141,239';
+  return `background:rgba(${cor},${CB_ALFA[b]})`;
+}
+
 function cbRender() {
   const serie = cbSerie();
   if (!serie || !serie.length) {
     $('cbGraf').innerHTML = '<span style="font-size:12px;color:var(--txt2)">Sem jogos no recorte atual.</span>';
-    $('tabCbDuelo').innerHTML = ''; $('tabCbRank').innerHTML = ''; $('cbAviso').textContent = '';
+    $('tabCbMat').innerHTML = ''; $('cbAviso').textContent = ''; $('cbLegenda').innerHTML = '';
     return;
   }
-  // seletores A/B
-  const opts = serie.map(s => `<option value="${s.ji}">${cbRotJogo(s.jogo)}</option>`).join('');
-  for (const [id, ch] of [['selCbA', 'a'], ['selCbB', 'b']]) {
-    const atual = CB_SEL[ch];
-    $(id).innerHTML = opts;
-    if (atual != null && serie.some(s => s.ji === atual)) $(id).value = atual;
-    else CB_SEL[ch] = null;
-  }
-  if (CB_SEL.a == null) { CB_SEL.a = serie[serie.length - 1].ji; $('selCbA').value = CB_SEL.a; }
-  if (CB_SEL.b == null) {
-    const outro = serie.slice().reverse().find(s => s.ji !== CB_SEL.a);
-    CB_SEL.b = outro ? outro.ji : CB_SEL.a; $('selCbB').value = CB_SEL.b;
-  }
-  cbGrafico(serie);
-  cbDuelo(serie);
-  cbRanking(serie);
+  const ef = cbEfeitos(serie);
+  cbGrafico(serie, ef);
+  cbMatriz(serie, ef);
 }
 
-function cbGrafico(serie) {
+function cbGrafico(serie, ef) {
   const k = $('selCbMetrica').value;
   const def = CB_METRICAS.find(m => m.k === k) || CB_METRICAS[0];
+  const E = ef[k];
   const vals = serie.map(s => s.met[k]).filter(v => v != null && isFinite(v));
-  if (!vals.length) { $('cbGraf').innerHTML = '<span style="font-size:12px;color:var(--txt2)">Métrica sem dado neste recorte.</span>'; return; }
-  const md = media(vals), dp = desvio(vals);
+  if (!vals.length) { $('cbGraf').innerHTML = '<span style="font-size:12px;color:var(--txt2)">Métrica sem dado neste recorte.</span>'; $('cbAviso').textContent = ''; return; }
+  const md = E.md, dp = E.dp || 0;
+  const lim = +$('selCbLim').value;
   const passo = Math.max(11, Math.min(28, Math.round(900 / serie.length)));
   const pl = 62, pr = 16, pt = 26, pb = 74;
-  const larg = pl + pr + passo * serie.length, alt = 300;
-  const cH = alt - pt - pb;
+  const larg = pl + pr + passo * serie.length, alt = 300, cH = alt - pt - pb;
   let lo = Math.min(...vals), hi = Math.max(...vals);
-  const folga = (hi - lo) * 0.12 || Math.abs(hi) * 0.1 || 1;
+  const folga = (hi - lo) * 0.14 || Math.abs(hi) * 0.1 || 1;
   lo -= folga; hi += folga;
   const Y = v => pt + cH - (v - lo) / (hi - lo) * cH;
   const X = i => pl + passo * i + passo / 2;
+  const W = passo * serie.length;
   let g = '';
-  // faixa mediana ±1 DP
-  const yA = Y(Math.min(hi, md + dp)), yB = Y(Math.max(lo, md - dp));
-  g += `<rect x="${pl}" y="${yA}" width="${passo * serie.length}" height="${Math.max(0, yB - yA)}"
-         fill="#5B8DEF" opacity="0.10"/>`;
-  g += `<line x1="${pl}" y1="${Y(md)}" x2="${pl + passo * serie.length}" y2="${Y(md)}"
-         stroke="#5B8DEF" stroke-width="1" stroke-dasharray="5 4"/>`;
-  g += `<text x="${pl + 4}" y="${Y(md) - 4}" font-size="9.5" fill="#5B8DEF">média ${cbFmt(md, def.dec)}</text>`;
-  // eixo y
   for (let t = 0; t <= 4; t++) {
     const v = lo + (hi - lo) * t / 4;
-    g += `<line x1="${pl}" y1="${Y(v)}" x2="${pl + passo * serie.length}" y2="${Y(v)}" stroke="#1E2A44" stroke-width="0.6"/>
+    g += `<line x1="${pl}" y1="${Y(v)}" x2="${pl + W}" y2="${Y(v)}" stroke="#1E2A44" stroke-width="0.6"/>
           <text x="${pl - 6}" y="${Y(v) + 3.5}" text-anchor="end" font-size="9.5" fill="#9FB0CC">${cbFmt(v, def.dec)}</text>`;
   }
-  // linha ligando os pontos
+  if (dp > 0) {
+    const yA = Y(Math.min(hi, md + dp)), yB = Y(Math.max(lo, md - dp));
+    g += `<rect x="${pl}" y="${yA}" width="${W}" height="${Math.max(0, yB - yA)}" fill="#5B8DEF" opacity="0.09"/>`;
+    for (const s of [2, -2]) {
+      const v = md + s * dp;
+      if (v > lo && v < hi)
+        g += `<line x1="${pl}" y1="${Y(v)}" x2="${pl + W}" y2="${Y(v)}" stroke="#3A4A6B" stroke-width="0.8" stroke-dasharray="2 5"/>
+              <text x="${pl + W - 2}" y="${Y(v) - 3}" text-anchor="end" font-size="9" fill="#5F7096">${s > 0 ? '+' : '−'}2 DP</text>`;
+    }
+  }
+  g += `<line x1="${pl}" y1="${Y(md)}" x2="${pl + W}" y2="${Y(md)}" stroke="#5B8DEF" stroke-width="1" stroke-dasharray="5 4"/>
+        <text x="${pl + 4}" y="${Y(md) - 4}" font-size="9.5" fill="#5B8DEF">média ${cbFmt(md, def.dec)}</text>`;
   const pontos = serie.map((s, i) => (s.met[k] == null ? null : `${X(i)},${Y(s.met[k])}`)).filter(Boolean);
   g += `<polyline points="${pontos.join(' ')}" fill="none" stroke="#3A4A6B" stroke-width="1.2"/>`;
+  let nDestaque = 0;
   serie.forEach((s, i) => {
     const v = s.met[k];
     if (v == null) return;
-    const sel = s.ji === CB_SEL.a ? '#C4952A' : (s.ji === CB_SEL.b ? '#E8360A' : null);
-    g += `<circle class="cbPt" data-ji="${s.ji}" cx="${X(i)}" cy="${Y(v)}" r="${sel ? 6 : 3.6}"
-            fill="${sel || '#5B8DEF'}" stroke="${sel ? '#0B1424' : 'none'}" stroke-width="1.5"
+    const e = E.porJogo.get(s.ji) || {};
+    const z = e.z, b = cbBanda(z);
+    const forte = z != null && Math.abs(z) >= lim;
+    if (forte) nDestaque++;
+    const cor = z == null ? '#5B8DEF' : (z >= 0 ? '#C4952A' : '#5B8DEF');
+    const r = forte ? 4.5 + b * 1.1 : 3.4;
+    if (forte)   // halo proporcional ao efeito
+      g += `<circle cx="${X(i)}" cy="${Y(v)}" r="${r + 4.5}" fill="${cor}" opacity="0.16"/>`;
+    g += `<circle class="cbPt" data-ji="${s.ji}" cx="${X(i)}" cy="${Y(v)}" r="${r}"
+            fill="${forte ? cor : '#42557C'}" stroke="${forte ? '#0B1424' : 'none'}" stroke-width="1.4"
             style="cursor:pointer"><title>${cbRotJogo(s.jogo)}
-${def.rot}: ${cbFmt(v, def.dec)} · n=${s.met.n} atletas · ${cbFmt(s.met.min, 0)} min-atleta</title></circle>`;
+${def.rot}: ${cbFmt(v, def.dec)}
+z = ${z == null ? '—' : (z >= 0 ? '+' : '') + cbFmt(z, 2)} (${z == null ? '—' : magD(z)})${e.g == null ? '' : `
+g = ${(e.g >= 0 ? '+' : '') + cbFmt(e.g, 2)} (${magD(e.g)})`}
+n = ${s.met.n} atletas · ${cbFmt(s.met.min, 0)} min-atleta</title></circle>`;
+    if (forte)
+      g += `<text x="${X(i)}" y="${Y(v) - r - 7}" text-anchor="middle" font-size="9" font-weight="700"
+             fill="${cor}">${(z >= 0 ? '+' : '') + cbFmt(z, 1)}</text>`;
     if (serie.length <= 40 || i % 2 === 0)
       g += `<text transform="rotate(-52 ${X(i)} ${alt - pb + 12})" x="${X(i)}" y="${alt - pb + 12}"
-             text-anchor="end" font-size="9" fill="${sel || '#9FB0CC'}">${s.jogo.adv || s.jogo.data}</text>`;
+             text-anchor="end" font-size="9" fill="${forte ? cor : '#9FB0CC'}">${s.jogo.adv || s.jogo.data}</text>`;
   });
   const recRot = { tudo: 'jogo completo', '1': '1º tempo', '2': '2º tempo' }[$('selCbRecorte').value];
   const escRot = $('selCbEscopo').value === 'equipe' ? 'equipe (sem goleiros)'
@@ -3994,86 +4098,79 @@ ${def.rot}: ${cbFmt(v, def.dec)} · n=${s.met.n} atletas · ${cbFmt(s.met.min, 0
   $('cbGraf').innerHTML = `<svg width="${Math.max(larg, 520)}" height="${alt}" style="max-width:none">
     <text x="${pl}" y="14" font-size="11.5" fill="#C4952A" font-weight="700">${def.rot} — ${escRot} · ${recRot} · ${serie.length} jogos</text>
     ${g}</svg>`;
+  $('cbAviso').innerHTML = `Referência: <b>${cbFmt(md, def.dec)}</b> ± ${cbFmt(dp, def.dec)} (n=${E.n} jogos).
+    <b>${nDestaque}</b> jogo(s) acima do limiar. O z de cada jogo é calculado <b>sem ele próprio</b> na referência.`;
   $('cbGraf').querySelectorAll('.cbPt').forEach(c => c.onclick = () => {
-    const ji = +c.dataset.ji;
-    if (ji === CB_SEL.a || ji === CB_SEL.b) return;
-    CB_SEL.b = CB_SEL.a; CB_SEL.a = ji;
-    $('selCbA').value = CB_SEL.a; $('selCbB').value = CB_SEL.b;
-    cbRender();
+    const tr = $('tabCbMat').querySelector(`tr[data-ji="${c.dataset.ji}"]`);
+    if (!tr) return;
+    $('tabCbMat').querySelectorAll('tr[data-ji]').forEach(x => x.style.outline = '');
+    tr.style.outline = '2px solid var(--dourado)';
+    tr.scrollIntoView({ block: 'center', behavior: 'smooth' });
   });
 }
 
-function cbDuelo(serie) {
-  const A = serie.find(s => s.ji === CB_SEL.a), B = serie.find(s => s.ji === CB_SEL.b);
-  if (!A || !B) { $('tabCbDuelo').innerHTML = ''; return; }
-  // volume só é comparável se o denominador for parecido
-  const dn = Math.abs(A.met.n - B.met.n);
-  const dmin = A.met.min && B.met.min ? Math.abs(A.met.min - B.met.min) / Math.max(A.met.min, B.met.min) : 0;
-  const desigual = dn > 0 || dmin > 0.10;
-  $('cbAviso').innerHTML = desigual
-    ? `⚠ A tem <b>${A.met.n}</b> atletas e ${cbFmt(A.met.min, 0)} min-atleta; B tem <b>${B.met.n}</b> e ${cbFmt(B.met.min, 0)}. As linhas de volume estão marcadas — leia a densidade.`
-    : `A e B têm o mesmo denominador (${A.met.n} atletas, ~${cbFmt(A.met.min, 0)} min-atleta): volume e densidade são igualmente comparáveis.`;
-  let html = `<tr><th>Métrica</th><th class="num">A · ${cbRotJogo(A.jogo)}</th><th class="num">B · ${cbRotJogo(B.jogo)}</th>
-    <th class="num">Δ (A−B)</th><th class="num">Δ%</th><th class="num">Perc. A</th><th class="num">Perc. B</th></tr>`;
-  const linhasCsv = [];
-  for (const tipo of ['volume', 'densidade', 'pico']) {
-    html += `<tr><td colspan="7" style="background:var(--fundo);color:var(--dourado);font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.6px">${CB_TIPO_ROT[tipo]}</td></tr>`;
-    for (const m of CB_METRICAS.filter(x => x.tipo === tipo)) {
-      const va = A.met[m.k], vb = B.met[m.k];
-      const d = (va != null && vb != null) ? va - vb : null;
-      const pct = (d != null && vb) ? d / vb * 100 : null;
-      const todos = serie.map(s => s.met[m.k]);
-      const pa = cbPercentil(todos, va), pb = cbPercentil(todos, vb);
-      const marca = (tipo === 'volume' && desigual) ? ' <span title="denominador diferente entre A e B">⚠</span>' : '';
-      const cor = pct == null ? 'var(--txt2)' : (pct >= 0 ? '#38B26E' : '#E8360A');
-      html += `<tr><td>${m.rot}${marca}</td>
-        <td class="num">${cbFmt(va, m.dec)}</td><td class="num">${cbFmt(vb, m.dec)}</td>
-        <td class="num">${cbFmt(d, m.dec)}</td>
-        <td class="num" style="color:${cor};font-weight:700">${pct == null ? '—' : (pct >= 0 ? '+' : '') + cbFmt(pct, 1) + '%'}</td>
-        <td class="num">${pa == null ? '—' : cbFmt(pa, 0)}</td><td class="num">${pb == null ? '—' : cbFmt(pb, 0)}</td></tr>`;
-      linhasCsv.push([CB_TIPO_ROT[tipo], m.rot, va, vb, d, pct, pa, pb]);
+function cbMatriz(serie, ef) {
+  const kSel = $('selCbMetrica').value;
+  const lim = +$('selCbLim').value;
+  const ordem = serie.slice().sort((a, b) => (b.jogo.ts || 0) - (a.jogo.ts || 0));
+  let cab = '<tr><th>Data</th><th>Jogo</th><th class="num">n</th><th class="num">min</th>';
+  for (const tipo of ['volume', 'densidade', 'pico'])
+    for (const m of CB_METRICAS.filter(x => x.tipo === tipo))
+      cab += `<th class="num" title="${CB_TIPO_ROT[tipo]}">${m.rot}</th>`;
+  cab += `<th class="num" title="Hedges g dos atletas deste jogo contra os atletas dos demais">g · ${(CB_METRICAS.find(m => m.k === kSel) || {}).rot}</th></tr>`;
+  const csv = [];
+  const corpo = ordem.map(s => {
+    let tr = `<tr data-ji="${s.ji}"><td>${s.jogo.data || ''}</td><td>${s.jogo.adv || s.jogo.rot || ''}</td>
+      <td class="num" data-v="${s.met.n}">${s.met.n}</td><td class="num" data-v="${s.met.min}">${Math.round(s.met.min)}</td>`;
+    for (const tipo of ['volume', 'densidade', 'pico']) for (const m of CB_METRICAS.filter(x => x.tipo === tipo)) {
+      const E = ef[m.k], e = E.porJogo.get(s.ji) || {};
+      const v = e.v, z = e.z;
+      const pct = (v != null && E.md) ? (v - E.md) / E.md * 100 : null;
+      const forte = z != null && Math.abs(z) >= lim;
+      const seta = pct == null ? '' : (pct >= 0 ? '▲' : '▼');
+      tr += `<td class="num" data-v="${v == null ? '' : v}" style="${cbFundo(z)}"
+        title="${m.rot} — ${cbRotJogo(s.jogo)}
+valor ${cbFmt(v, m.dec)} · média da janela ${cbFmt(E.md, m.dec)}
+z ${z == null ? '—' : (z >= 0 ? '+' : '') + cbFmt(z, 2)} (${z == null ? '—' : magD(z)})${e.g == null ? '' : `
+g ${(e.g >= 0 ? '+' : '') + cbFmt(e.g, 2)} (${magD(e.g)})`}">
+        <span style="${forte ? 'font-weight:700' : ''}">${cbFmt(v, m.dec)}</span>
+        <br><small style="font-size:9.5px;color:${pct == null ? 'var(--txt2)' : (pct >= 0 ? '#C4952A' : '#7FA3E8')}">
+        ${pct == null ? '—' : seta + cbFmt(Math.abs(pct), 1) + '%'}</small></td>`;
+      csv.push([s.jogo.data || '', s.jogo.adv || '', CB_TIPO_ROT[tipo], m.rot,
+        v == null ? null : Math.round(v * 1000) / 1000,
+        pct == null ? null : Math.round(pct * 10) / 10,
+        z == null ? null : Math.round(z * 100) / 100,
+        z == null ? '' : magD(z),
+        e.g == null ? null : Math.round(e.g * 100) / 100,
+        e.g == null ? '' : magD(e.g)]);
     }
-  }
-  $('tabCbDuelo').innerHTML = html;
-  S._cbDuelo = { A: cbRotJogo(A.jogo), B: cbRotJogo(B.jogo), linhas: linhasCsv };
+    const gs = (ef[kSel].porJogo.get(s.ji) || {}).g;
+    tr += `<td class="num" data-v="${gs == null ? '' : gs}" style="${cbFundo(gs)}">
+      ${gs == null ? '—' : `<b>${(gs >= 0 ? '+' : '') + cbFmt(gs, 2)}</b><br><small style="font-size:9.5px;color:var(--txt2)">${magD(gs)}</small>`}</td></tr>`;
+    return tr;
+  }).join('');
+  $('tabCbMat').innerHTML = cab + corpo;
+  tornarOrdenavel($('tabCbMat'));
+  const amostra = [0.3, 0.9, 1.6, 2.4];
+  $('cbLegenda').innerHTML =
+    `Cada célula traz o valor e, embaixo, o afastamento da <b>média da janela</b> em %. O fundo é o
+     <b>z do jogo</b> (leave-one-out): ` +
+    amostra.map(z => `<span style="${cbFundo(z)};padding:2px 7px;border-radius:3px;margin-right:4px">${magD(z)}</span>`).join('') +
+    ` — ouro acima da média, azul abaixo. A última coluna é o <b>Hedges g</b> dos atletas do jogo contra
+      os atletas dos demais, para a métrica do gráfico; no escopo Atleta ele não existe, porque um único
+      atleta por jogo não tem dispersão interna. Sem p-valor: os mesmos atletas estão nos dois lados da
+      comparação, então o teste não teria independência.`;
+  S._cbMat = csv;
 }
 
-const CB_RANK_COLS = ['dist', 'dens', 'hsr', 'hsrMin', 'sprint', 'sprintMin', 'esf', 'esfMin', 'pl', 'plMin', 'pctHsr', 'vmax'];
-function cbRanking(serie) {
-  const k = $('selCbMetrica').value;
-  const def = CB_METRICAS.find(m => m.k === k) || CB_METRICAS[0];
-  const todos = serie.map(s => s.met[k]);
-  const cab = ['Data', 'Adversário', 'Mando', 'Resultado', 'n atl.', 'min-atleta',
-    ...CB_RANK_COLS.map(c => CB_METRICAS.find(m => m.k === c).rot), `Perc. ${def.rot}`];
-  const linhas = serie.slice().sort((a, b) => (b.met[k] ?? -Infinity) - (a.met[k] ?? -Infinity)).map(s => [
-    s.jogo.data || '', s.jogo.adv || s.jogo.rot || '', s.jogo.mando || '', s.jogo.res || '',
-    s.met.n, Math.round(s.met.min),
-    ...CB_RANK_COLS.map(c => {
-      const d = CB_METRICAS.find(m => m.k === c);
-      const v = s.met[c];
-      return v == null ? null : Math.round(v * Math.pow(10, d.dec)) / Math.pow(10, d.dec);
-    }),
-    (() => { const p = cbPercentil(todos, s.met[k]); return p == null ? null : Math.round(p); })(),
-  ]);
-  $('tabCbRank').innerHTML = '<tr>' + cab.map((c, i) => `<th${i >= 4 ? ' class="num"' : ''}>${c}</th>`).join('') + '</tr>' +
-    linhas.map(l => '<tr>' + l.map((v, i) =>
-      `<td${i >= 4 ? ' class="num"' : ''}>${v == null ? '—' : (typeof v === 'number' ? v.toLocaleString('pt-BR') : v)}</td>`).join('') + '</tr>').join('');
-  tornarOrdenavel($('tabCbRank'));
-  S._cbRank = { cab, linhas };
-}
-
-['selCbRecorte', 'selCbEscopo', 'selCbGrupo', 'selCbAtleta', 'selCbMetrica', 'inCbMin'].forEach(id => {
+['selCbRecorte', 'selCbEscopo', 'selCbGrupo', 'selCbAtleta', 'selCbMetrica', 'inCbMin', 'selCbLim'].forEach(id => {
   $(id).onchange = () => { cbAtualizarSelects(); cbRender(); };
 });
-$('selCbA').onchange = () => { CB_SEL.a = +$('selCbA').value; cbRender(); };
-$('selCbB').onchange = () => { CB_SEL.b = +$('selCbB').value; cbRender(); };
-$('btnCsvCbDuelo').onclick = () => {
-  if (!S._cbDuelo) return;
-  baixarCSV('duelo_jogos.csv', paraCSV(['Bloco', 'Métrica', `A · ${S._cbDuelo.A}`, `B · ${S._cbDuelo.B}`, 'Delta', 'Delta %', 'Percentil A', 'Percentil B'], S._cbDuelo.linhas));
-};
-$('btnCsvCbRank').onclick = () => {
-  if (!S._cbRank) return;
-  baixarCSV('comparacao_jogos.csv', paraCSV(S._cbRank.cab, S._cbRank.linhas));
+$('btnCsvCbTab').onclick = () => {
+  if (!S._cbMat) return;
+  baixarCSV('jogos_efeito.csv', paraCSV(
+    ['Data', 'Jogo', 'Bloco', 'Métrica', 'Valor', 'Delta % vs média', 'z', 'Magnitude z', 'Hedges g', 'Magnitude g'],
+    S._cbMat));
 };
 
 /* ---------- Comparar Jogos ---------- */
