@@ -504,6 +504,70 @@ h3 .btnCsv{float:right;margin-top:-4px}
 
 <section class="painel" id="painel-cmp">
   <div class="card">
+    <h3>Base da temporada — métricas por jogo</h3>
+    <p style="font-size:12.5px;color:var(--txt2);margin-bottom:10px">
+      Varre as estatísticas oficiais da Catapult (<code>/stats</code>) de todos os jogos e guarda
+      <b>atleta × tempo</b> — é isso que permite comparar um 1º tempo com todos os outros 1ºs tempos da
+      temporada. É a <b>mesma varredura</b> da aba Referências: gerar aqui atualiza as duas, sem nenhuma
+      chamada extra à API. Os grupos posicionais vêm do <b>cadastro do clube</b> — conecte-o na aba
+      Referências antes de gerar, senão todo mundo cai em "Outro".</p>
+    <div class="linha">
+      <div class="grupo"><label class="mini">Jogos a varrer</label>
+        <select id="selCbN">
+          <option value="20">20</option><option value="40">40</option>
+          <option value="60">60</option><option value="9999" selected>Todos (desde 2024)</option>
+        </select></div>
+      <button class="btn vm" id="btnCbGerar">Gerar / atualizar base</button>
+      <div class="progresso" style="align-self:center"><div id="barraCb"></div></div>
+      <span id="statusCb" style="font-size:12px;color:var(--txt2)"></span>
+    </div>
+    <div id="cbInfo" style="font-size:12px;color:var(--txt2);margin-top:8px"></div>
+  </div>
+
+  <div class="card">
+    <h3>Comparação entre jogos — acumulado e densidades</h3>
+    <div class="linha">
+      <div class="grupo"><label class="mini">Recorte</label>
+        <select id="selCbRecorte">
+          <option value="tudo">Jogo completo</option>
+          <option value="1">1º tempo</option>
+          <option value="2">2º tempo</option>
+        </select></div>
+      <div class="grupo"><label class="mini">Escopo</label>
+        <select id="selCbEscopo">
+          <option value="equipe">Equipe (sem goleiros)</option>
+          <option value="grupo">Grupo posicional</option>
+          <option value="atleta">Atleta</option>
+        </select></div>
+      <div class="grupo oculto" id="wrapCbGrupo"><label class="mini">Grupo</label>
+        <select id="selCbGrupo"></select></div>
+      <div class="grupo oculto" id="wrapCbAtleta"><label class="mini">Atleta</label>
+        <select id="selCbAtleta"></select></div>
+      <div class="grupo"><label class="mini">Métrica do gráfico</label>
+        <select id="selCbMetrica"></select></div>
+      <div class="grupo"><label class="mini">Mín. min. no recorte</label>
+        <input type="number" id="inCbMin" value="15" min="0" max="130" step="1" style="width:84px"></div>
+    </div>
+    <div class="linha" style="margin-top:10px">
+      <div class="grupo"><label class="mini">Jogo A</label><select id="selCbA" style="min-width:230px"></select></div>
+      <div class="grupo"><label class="mini">Jogo B</label><select id="selCbB" style="min-width:230px"></select></div>
+      <span id="cbAviso" style="font-size:12px;color:var(--txt2);align-self:center;max-width:520px"></span>
+    </div>
+    <div id="cbGraf" style="overflow-x:auto;margin-top:12px"></div>
+    <p style="font-size:12px;color:var(--txt2);margin-top:8px">
+      Cada ponto é um jogo, em ordem cronológica; a faixa é a <b>mediana ±1 DP</b> da série exibida.
+      Clique num ponto para jogá-lo em <b>A</b>, clique noutro para <b>B</b>. Métricas de <b>volume</b>
+      dependem de quantos atletas tinham colete e de quanto tempo o jogo durou — quando A e B diferem
+      nisso, as linhas de volume vêm marcadas com ⚠ e a leitura correta é a densidade.</p>
+  </div>
+
+  <div class="card"><h3>Duelo A × B <button class="btn mini btnCsv" id="btnCsvCbDuelo">⬇ CSV</button></h3>
+    <div class="tblWrap"><table id="tabCbDuelo"></table></div></div>
+
+  <div class="card"><h3>Todos os jogos do recorte <button class="btn mini btnCsv" id="btnCsvCbRank">⬇ CSV</button></h3>
+    <div class="tblWrap"><table id="tabCbRank"></table></div></div>
+
+  <div class="card">
     <h3>Comparação entre jogos — ações por terço × posição</h3>
     <p style="font-size:12.5px;color:var(--txt2);margin-bottom:10px">
       Selecione até 6 jogos. Cada jogo é carregado a 2 Hz (períodos 1tempo/2tempo, todos os atletas) e o resumo fica
@@ -2178,19 +2242,23 @@ function jogoParaMetricas(rows) {
   }
   return out;
 }
-$('btnRefGerar').onclick = async () => {
-  const nMax = +$('selRefN').value;
-  $('btnRefGerar').disabled = true;
-  $('statusRef').textContent = 'Buscando lista completa de jogos (todas as páginas da API)…';
+/* Uma varredura, duas saídas: as referências por atleta (>=85 min, jogo inteiro)
+   e a base de comparação entre jogos (atleta x tempo, sem corte). Mesmos rows,
+   agregados de duas formas — nenhuma chamada extra a Catapult. */
+async function gerarVarredura(nMax, ui) {
+  const { btn, status, barra } = ui;
+  $(btn).disabled = true;
+  $(status).textContent = 'Buscando lista completa de jogos (todas as páginas da API)…';
   try {
     await jogosCtx();   // p/ rotular o máximo com adversário/mando
     const acts = (await api('/api/gps/activities?all=1'))
       .filter(a => /jogo/i.test(a.name || '')).slice(0, nMax);
     const dados = {};   // NOME → {n, media, max}
+    const cbJogos = [], cbBruto = [];   // base de comparação (atleta × tempo)
     let feitos = 0, comDados = 0;
     for (const atv of acts) {
-      $('statusRef').textContent = `Processando ${feitos + 1}/${acts.length} — ${atv.name}`;
-      $('barraRef').style.width = `${feitos / acts.length * 100}%`;
+      $(status).textContent = `Processando ${feitos + 1}/${acts.length} — ${atv.name}`;
+      $(barra).style.width = `${feitos / acts.length * 100}%`;
       try {
         const rows = await api(`/api/gps/stats?activity=${atv.id}`);
         const jogo = jogoParaMetricas(rows);
@@ -2199,6 +2267,10 @@ $('btnRefGerar').onclick = async () => {
         const rotulo = ctx
           ? `${ctx['Adversário']} (${(ctx['Mando'] || '?')[0]}) · ${fmtData(atv.start_time)}`
           : `${fmtData(atv.start_time)} ${String(atv.name || '').trim()}`;
+        cbJogos.push({ id: atv.id, ts: atv.start_time, data: fmtData(atv.start_time), rot: rotulo,
+          adv: ctx ? (ctx['Adversário'] || '') : '', mando: ctx ? (ctx['Mando'] || '') : '',
+          res: ctx ? (ctx['Resultado'] || '') : '', placar: ctx ? (ctx['Placar (CxF)'] || '') : '' });
+        for (const reg of jogoParaBase(rows)) cbBruto.push({ ji: cbJogos.length - 1, ...reg });
         for (const [nome, met] of Object.entries(jogo)) {
           const d = dados[nome] || { n: 0, id: met._id, cont: {}, soma: {}, max: {}, maxJogo: {} };
           d.n++;
@@ -2225,14 +2297,19 @@ $('btnRefGerar').onclick = async () => {
     }
     const refs = { gerado: Date.now(), jogos: comDados, dados };
     localStorage.setItem('gps2d_refs_v3', JSON.stringify(refs));
-    $('barraRef').style.width = '100%';
-    $('statusRef').textContent = `Concluído: ${comDados} jogos com dados válidos.`;
-    renderRef(); renderPos();
+    cbSalvar(cbJogos, cbBruto);
+    $(barra).style.width = '100%';
+    $(status).textContent = `Concluído: ${comDados} jogos com dados válidos.`;
+    renderRef(); renderPos(); cbInit();
   } catch (e) {
-    $('statusRef').textContent = `Erro: ${e.message}`;
+    $(status).textContent = `Erro: ${e.message}`;
   }
-  $('btnRefGerar').disabled = false;
-};
+  $(btn).disabled = false;
+}
+$('btnRefGerar').onclick = () => gerarVarredura(+$('selRefN').value,
+  { btn: 'btnRefGerar', status: 'statusRef', barra: 'barraRef' });
+$('btnCbGerar').onclick = () => gerarVarredura(+$('selCbN').value,
+  { btn: 'btnCbGerar', status: 'statusCb', barra: 'barraCb' });
 /* ---- Cadastro de atletas (planilha do clube via backend) ---- */
 let CADASTRO = null;   // id → {ativo, nome, pos}
 function cadastroCarregado() {
@@ -3405,6 +3482,410 @@ $('btnCsvMdp').onclick = () => {
   })));
 };
 
+/* ================================================================
+   BASE DE COMPARAÇÃO ENTRE JOGOS  (09/09/2026)
+
+   O app inteiro trabalha sobre o stream 10 Hz de UMA atividade. Comparar 100
+   jogos por esse caminho seria ~1,3 milhão de amostras por jogo no navegador,
+   e a Catapult recusa tudo acima de ~70 requisições numa mesma varredura.
+   Então a comparação roda sobre AGREGADO: as mesmas linhas de POST /stats que
+   a aba Referências já busca, guardadas por atleta × tempo (1tempo/2tempo) em
+   vez de somadas no jogo inteiro. Um 1º tempo passa a ser comparável com todos
+   os outros 1ºs tempos da temporada.
+
+   O que isso NÃO é: não é o número do stream. Aqui não há janela de
+   participação detectada pelo sinal, nem máscara de HDOP, nem o detector
+   derivado de acel/desacel — os minutos são a duração oficial da Catapult
+   (que é justamente a âncora que a janela de participação usa) e acel/desacel
+   são as contagens Gen2 do tenant. Bate com o OpenField e com o Power BI do
+   clube; não bate, dígito a dígito, com as abas que leem sensor.
+   ================================================================ */
+const CB_KEY = 'gps2d_cmpbase_v1';
+let CB = undefined, CB_SEL = { a: null, b: null };
+
+const CB_METRICAS = [
+  { k: 'dist',      rot: 'Distância (m)',        tipo: 'volume',    dec: 0 },
+  { k: 'hsr',       rot: 'HSR B5–B7 (m)',        tipo: 'volume',    dec: 0 },
+  { k: 'sprint',    rot: 'Sprint B6+B7 (m)',     tipo: 'volume',    dec: 0 },
+  { k: 'acc',       rot: 'Acelerações (n)',      tipo: 'volume',    dec: 0 },
+  { k: 'dec',       rot: 'Desacelerações (n)',   tipo: 'volume',    dec: 0 },
+  { k: 'esf',       rot: 'Acel+Desacel (n)',     tipo: 'volume',    dec: 0 },
+  { k: 'pl',        rot: 'Player Load',          tipo: 'volume',    dec: 0 },
+  { k: 'min',       rot: 'Minutos em campo',     tipo: 'volume',    dec: 1 },
+  { k: 'dens',      rot: 'Densidade (m/min)',    tipo: 'densidade', dec: 1 },
+  { k: 'hsrMin',    rot: 'HSR (m/min)',          tipo: 'densidade', dec: 2 },
+  { k: 'sprintMin', rot: 'Sprint (m/min)',       tipo: 'densidade', dec: 2 },
+  { k: 'esfMin',    rot: 'Acel+Desacel (n/min)', tipo: 'densidade', dec: 2 },
+  { k: 'plMin',     rot: 'Player Load (/min)',   tipo: 'densidade', dec: 2 },
+  { k: 'pctHsr',    rot: '%AI / DT',             tipo: 'densidade', dec: 1 },
+  { k: 'pctSpr',    rot: '%SP / DT',             tipo: 'densidade', dec: 1 },
+  { k: 'vmax',      rot: 'Vel. máxima (km/h)',   tipo: 'pico',      dec: 1 },
+  { k: 'fc',        rot: 'FC média (bpm)',       tipo: 'pico',      dec: 0 },
+];
+const CB_TIPO_ROT = { volume: 'Volume', densidade: 'Densidade (por minuto em campo)', pico: 'Pico e resposta interna' };
+
+/* rows de /stats de UM jogo → uma linha por atleta × tempo, SEM corte de minutos.
+   Mesma numeração de bandas do console FEC usada em jogoParaMetricas. */
+function jogoParaBase(rows) {
+  const por = new Map(), vistos = new Set();
+  for (const r of rows) {
+    const cls = classifyPeriod(r.period_name);
+    if (!cls) continue;                                       // aquecimento, suplentes, goleiro
+    if (!r.athlete_name && !r.athlete_id) continue;
+    const dup = `${r.athlete_id || r.athlete_name}|${r.period_id || r.period_name}`;
+    if (vistos.has(dup)) continue;
+    vistos.add(dup);
+    const nome = normNome(r.athlete_name);
+    const h = cls === 't1' ? 1 : 2;
+    const ch = `${nome}|${h}`;
+    const a = por.get(ch) || { nome, h, dur: 0, dist: 0, hsr: 0, sprint: 0, acc: 0, dec: 0,
+      pl: 0, vmax: 0, fcS: 0, fcN: 0,
+      id: (String(r.athlete_name || '').match(/^(\d+)/) || [])[1] || null };
+    const dur = r.total_duration || 0;
+    a.dur += dur;
+    a.dist += r.total_distance || 0;
+    a.hsr += (r.velocity_band5_total_distance || 0) + (r.velocity_band6_total_distance || 0)
+           + (r.velocity_band7_total_distance || 0) + (r.velocity_band8_total_distance || 0);
+    a.sprint += (r.velocity_band6_total_distance || 0) + (r.velocity_band7_total_distance || 0)
+              + (r.velocity_band8_total_distance || 0);
+    a.acc += r.gen2_acceleration_band7plus_total_effort_count || 0;
+    a.dec += (r.gen2_acceleration_band1_total_effort_count || 0) + (r.gen2_acceleration_band2_total_effort_count || 0);
+    a.pl += r.total_player_load || 0;
+    const vm = fixVmax(r.max_vel) || 0;
+    if (vm > 0 && vm <= 40) a.vmax = Math.max(a.vmax, vm);
+    if (r.mean_heart_rate > 30) { a.fcS += r.mean_heart_rate * dur; a.fcN += dur; }
+    por.set(ch, a);
+  }
+  const out = [...por.values()].filter(a => a.dur > 0).map(a => ({
+    nome: a.nome, id: a.id, h: a.h,
+    min: Math.round(a.dur / 60 * 10) / 10,
+    dist: Math.round(a.dist), hsr: Math.round(a.hsr), sprint: Math.round(a.sprint),
+    acc: Math.round(a.acc), dec: Math.round(a.dec), pl: Math.round(a.pl * 10) / 10,
+    vmax: a.vmax > 0 ? Math.round(a.vmax * 10) / 10 : null,
+    fc: a.fcN > 0 ? Math.round(a.fcS / a.fcN) : null,
+  }));
+  /* Guarda anti-contaminação, a mesma de jogoParaMetricas, aplicada dentro de
+     cada tempo: se um valor idêntico (≠0) de acc/dec/vmax se repete em ≥60%
+     dos atletas, o parâmetro veio agregado pelo tenant e não é individual. */
+  for (const h of [1, 2]) {
+    const lin = out.filter(o => o.h === h);
+    if (lin.length < 4) continue;
+    for (const k of ['acc', 'dec', 'vmax']) {
+      const cont = {};
+      for (const o of lin) { const v = o[k]; if (v) cont[v] = (cont[v] || 0) + 1; }
+      for (const [v, c] of Object.entries(cont))
+        if (c / lin.length >= 0.6) for (const o of lin) if (o[k] == v) o[k] = null;
+    }
+  }
+  return out;
+}
+
+/* Formato compacto: nomes de atleta viram índice (cada um se repete ~240×). */
+function cbSalvar(jogos, bruto) {
+  const atlIdx = new Map(), atl = [];
+  const reg = bruto.map(r => {
+    const ch = r.nome;
+    if (!atlIdx.has(ch)) { atlIdx.set(ch, atl.length); atl.push({ nome: r.nome, id: r.id }); }
+    const ai = atlIdx.get(ch);
+    if (r.id && !atl[ai].id) atl[ai].id = r.id;
+    return [r.ji, ai, r.h, r.min, r.dist, r.hsr, r.sprint, r.acc, r.dec, r.pl, r.vmax, r.fc];
+  });
+  const base = { v: 1, gerado: Date.now(), jogos, atl, reg };
+  try { localStorage.setItem(CB_KEY, JSON.stringify(base)); CB = base; }
+  catch (e) { CB = base; console.warn('Base de comparação não coube no localStorage:', e.message); }
+}
+function cbBase() {
+  if (CB !== undefined) return CB;
+  try { CB = JSON.parse(localStorage.getItem(CB_KEY) || 'null'); } catch (e) { CB = null; }
+  return CB;
+}
+function cbGrupoDe(a) {
+  const cad = cadastroCarregado();
+  const c = cad && a.id ? cad[String(a.id)] : null;
+  return grupoPos(c ? c.pos : '', '');
+}
+
+/* Colapsa a base no recorte escolhido: Map jogoIdx → Map atletaIdx → linha.
+   "Jogo completo" soma os dois tempos do MESMO atleta antes de agregar — média
+   de médias e soma de densidades são as duas formas clássicas de errar aqui. */
+function cbLinhas(recorte) {
+  const b = cbBase(); if (!b) return null;
+  const porJogo = new Map();
+  for (const r of b.reg) {
+    const ji = r[0], ai = r[1], h = r[2];
+    if (recorte !== 'tudo' && h !== +recorte) continue;
+    let arr = porJogo.get(ji);
+    if (!arr) { arr = new Map(); porJogo.set(ji, arr); }
+    let a = arr.get(ai);
+    if (!a) { a = { ai, min: 0, dist: 0, hsr: 0, sprint: 0, acc: 0, dec: 0, pl: 0,
+                    vmax: null, fcS: 0, fcN: 0, nAcc: false, nDec: false, nVmax: false }; arr.set(ai, a); }
+    a.min += r[3] || 0; a.dist += r[4] || 0; a.hsr += r[5] || 0; a.sprint += r[6] || 0;
+    a.acc += r[7] || 0; a.dec += r[8] || 0; a.pl += r[9] || 0;
+    if (r[10] != null && (a.vmax == null || r[10] > a.vmax)) a.vmax = r[10];
+    if (r[11] != null && r[3] > 0) { a.fcS += r[11] * r[3]; a.fcN += r[3]; }
+    /* null aqui não é zero: é a guarda anti-contaminação tendo descartado o
+       parâmetro naquele jogo. Somar como zero devolveria um número menor com
+       cara de válido — o pior tipo de erro. Marca e propaga como "sem dado". */
+    if (r[7] == null) a.nAcc = true;
+    if (r[8] == null) a.nDec = true;
+    if (r[10] == null) a.nVmax = true;
+  }
+  return porJogo;
+}
+
+/* Volume = soma. Densidade = soma ÷ soma (nunca média de densidades).
+   Vel. máxima = máximo do recorte. FC = média ponderada pelos minutos. */
+function cbAgregar(linhas) {
+  let min = 0, dist = 0, hsr = 0, sprint = 0, acc = 0, dec = 0, pl = 0;
+  let vmax = null, fcS = 0, fcN = 0, n = 0, falta = 0, semAcc = 0, semDec = 0, semVmax = 0;
+  for (const a of linhas) {
+    min += a.min; dist += a.dist; hsr += a.hsr; sprint += a.sprint;
+    acc += a.acc; dec += a.dec; pl += a.pl; n++;
+    if (a.vmax != null && (vmax == null || a.vmax > vmax)) vmax = a.vmax;
+    fcS += a.fcS; fcN += a.fcN;
+    if (a.nAcc) semAcc++;
+    if (a.nDec) semDec++;
+    if (a.nVmax) semVmax++;
+    if (a.nAcc || a.nDec || a.nVmax) falta++;
+  }
+  if (!n) return null;
+  const pm = x => x == null || !(min > 0) ? null : x / min;
+  const vAcc = semAcc ? null : acc, vDec = semDec ? null : dec;
+  const vEsf = (vAcc == null || vDec == null) ? null : vAcc + vDec;
+  if (semVmax === n) vmax = null;
+  return { n, falta, min, dist, hsr, sprint, acc: vAcc, dec: vDec, esf: vEsf, pl,
+    dens: pm(dist), hsrMin: pm(hsr), sprintMin: pm(sprint), esfMin: pm(vEsf), plMin: pm(pl),
+    pctHsr: dist > 0 ? hsr / dist * 100 : null,
+    pctSpr: dist > 0 ? sprint / dist * 100 : null,
+    vmax, fc: fcN > 0 ? fcS / fcN : null };
+}
+
+function cbSerie() {
+  const b = cbBase(); if (!b || !b.reg.length) return null;
+  const rec = $('selCbRecorte').value, esc = $('selCbEscopo').value;
+  const gsel = $('selCbGrupo').value, asel = $('selCbAtleta').value;
+  const cut = Math.max(0, +$('inCbMin').value || 0);
+  const grupos = b.atl.map(cbGrupoDe);
+  const porJogo = cbLinhas(rec);
+  const out = [];
+  for (const [ji, arr] of porJogo) {
+    let linhas = [...arr.values()].filter(a => a.min >= cut);
+    if (esc === 'atleta') linhas = linhas.filter(a => String(a.ai) === asel);
+    else if (esc === 'grupo') linhas = linhas.filter(a => grupos[a.ai] === gsel);
+    else linhas = linhas.filter(a => grupos[a.ai] !== 'GOL');
+    const met = cbAgregar(linhas);
+    if (met) out.push({ ji, jogo: b.jogos[ji] || {}, met });
+  }
+  out.sort((x, y) => (x.jogo.ts || 0) - (y.jogo.ts || 0));
+  return out;
+}
+
+function cbFmt(v, dec) {
+  if (v == null || !isFinite(v)) return '—';
+  return v.toLocaleString('pt-BR', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+}
+function cbPercentil(valores, v) {
+  const vs = valores.filter(x => x != null && isFinite(x)).sort((a, b) => a - b);
+  if (!vs.length || v == null) return null;
+  let menores = 0, iguais = 0;
+  for (const x of vs) { if (x < v) menores++; else if (x === v) iguais++; }
+  return (menores + iguais / 2) / vs.length * 100;
+}
+function cbRotJogo(j) {
+  if (!j) return '—';
+  const adv = j.adv ? `vs ${j.adv}` : (j.rot || '');
+  const m = j.mando ? ` (${String(j.mando)[0]})` : '';
+  return `${j.data} · ${adv}${m}${j.placar ? ' ' + j.placar : ''}`;
+}
+
+function cbAtualizarSelects() {
+  const b = cbBase();
+  $('wrapCbGrupo').classList.toggle('oculto', $('selCbEscopo').value !== 'grupo');
+  $('wrapCbAtleta').classList.toggle('oculto', $('selCbEscopo').value !== 'atleta');
+  if (!$('selCbMetrica').options.length)
+    $('selCbMetrica').innerHTML = CB_METRICAS.map(m =>
+      `<option value="${m.k}"${m.k === 'dens' ? ' selected' : ''}>${m.rot}</option>`).join('');
+  if (!b) return;
+  const grupos = [...new Set(b.atl.map(cbGrupoDe))]
+    .sort((a, c) => POS_GRUPOS.findIndex(g => g.g === a) - POS_GRUPOS.findIndex(g => g.g === c));
+  const gAtual = $('selCbGrupo').value;
+  $('selCbGrupo').innerHTML = grupos.map(g => `<option value="${g}">${g}</option>`).join('');
+  if (grupos.includes(gAtual)) $('selCbGrupo').value = gAtual;
+  const aAtual = $('selCbAtleta').value;
+  const ordem = b.atl.map((a, i) => ({ i, nome: a.nome })).sort((x, y) => x.nome.localeCompare(y.nome));
+  $('selCbAtleta').innerHTML = ordem.map(a => `<option value="${a.i}">${a.nome}</option>`).join('');
+  if (aAtual && b.atl[+aAtual]) $('selCbAtleta').value = aAtual;
+}
+
+function cbInit() {
+  cbAtualizarSelects();
+  const b = cbBase();
+  $('cbInfo').innerHTML = b
+    ? `Base gerada em <b>${new Date(b.gerado).toLocaleString('pt-BR')}</b> — ${b.jogos.length} jogo(s),
+       ${b.atl.length} atleta(s), ${b.reg.length} registros atleta×tempo.
+       ${cadastroCarregado() ? '' : '<span style="color:var(--dourado)">Cadastro do clube não conectado: os grupos posicionais estão todos em "Outro".</span>'}`
+    : 'Nenhuma base gerada ainda — clique em <b>Gerar / atualizar base</b>.';
+  cbRender();
+}
+
+function cbRender() {
+  const serie = cbSerie();
+  if (!serie || !serie.length) {
+    $('cbGraf').innerHTML = '<span style="font-size:12px;color:var(--txt2)">Sem jogos no recorte atual.</span>';
+    $('tabCbDuelo').innerHTML = ''; $('tabCbRank').innerHTML = ''; $('cbAviso').textContent = '';
+    return;
+  }
+  // seletores A/B
+  const opts = serie.map(s => `<option value="${s.ji}">${cbRotJogo(s.jogo)}</option>`).join('');
+  for (const [id, ch] of [['selCbA', 'a'], ['selCbB', 'b']]) {
+    const atual = CB_SEL[ch];
+    $(id).innerHTML = opts;
+    if (atual != null && serie.some(s => s.ji === atual)) $(id).value = atual;
+    else CB_SEL[ch] = null;
+  }
+  if (CB_SEL.a == null) { CB_SEL.a = serie[serie.length - 1].ji; $('selCbA').value = CB_SEL.a; }
+  if (CB_SEL.b == null) {
+    const outro = serie.slice().reverse().find(s => s.ji !== CB_SEL.a);
+    CB_SEL.b = outro ? outro.ji : CB_SEL.a; $('selCbB').value = CB_SEL.b;
+  }
+  cbGrafico(serie);
+  cbDuelo(serie);
+  cbRanking(serie);
+}
+
+function cbGrafico(serie) {
+  const k = $('selCbMetrica').value;
+  const def = CB_METRICAS.find(m => m.k === k) || CB_METRICAS[0];
+  const vals = serie.map(s => s.met[k]).filter(v => v != null && isFinite(v));
+  if (!vals.length) { $('cbGraf').innerHTML = '<span style="font-size:12px;color:var(--txt2)">Métrica sem dado neste recorte.</span>'; return; }
+  const md = media(vals), dp = desvio(vals);
+  const passo = Math.max(11, Math.min(28, Math.round(900 / serie.length)));
+  const pl = 62, pr = 16, pt = 26, pb = 74;
+  const larg = pl + pr + passo * serie.length, alt = 300;
+  const cH = alt - pt - pb;
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  const folga = (hi - lo) * 0.12 || Math.abs(hi) * 0.1 || 1;
+  lo -= folga; hi += folga;
+  const Y = v => pt + cH - (v - lo) / (hi - lo) * cH;
+  const X = i => pl + passo * i + passo / 2;
+  let g = '';
+  // faixa mediana ±1 DP
+  const yA = Y(Math.min(hi, md + dp)), yB = Y(Math.max(lo, md - dp));
+  g += `<rect x="${pl}" y="${yA}" width="${passo * serie.length}" height="${Math.max(0, yB - yA)}"
+         fill="#5B8DEF" opacity="0.10"/>`;
+  g += `<line x1="${pl}" y1="${Y(md)}" x2="${pl + passo * serie.length}" y2="${Y(md)}"
+         stroke="#5B8DEF" stroke-width="1" stroke-dasharray="5 4"/>`;
+  g += `<text x="${pl + 4}" y="${Y(md) - 4}" font-size="9.5" fill="#5B8DEF">média ${cbFmt(md, def.dec)}</text>`;
+  // eixo y
+  for (let t = 0; t <= 4; t++) {
+    const v = lo + (hi - lo) * t / 4;
+    g += `<line x1="${pl}" y1="${Y(v)}" x2="${pl + passo * serie.length}" y2="${Y(v)}" stroke="#1E2A44" stroke-width="0.6"/>
+          <text x="${pl - 6}" y="${Y(v) + 3.5}" text-anchor="end" font-size="9.5" fill="#9FB0CC">${cbFmt(v, def.dec)}</text>`;
+  }
+  // linha ligando os pontos
+  const pontos = serie.map((s, i) => (s.met[k] == null ? null : `${X(i)},${Y(s.met[k])}`)).filter(Boolean);
+  g += `<polyline points="${pontos.join(' ')}" fill="none" stroke="#3A4A6B" stroke-width="1.2"/>`;
+  serie.forEach((s, i) => {
+    const v = s.met[k];
+    if (v == null) return;
+    const sel = s.ji === CB_SEL.a ? '#C4952A' : (s.ji === CB_SEL.b ? '#E8360A' : null);
+    g += `<circle class="cbPt" data-ji="${s.ji}" cx="${X(i)}" cy="${Y(v)}" r="${sel ? 6 : 3.6}"
+            fill="${sel || '#5B8DEF'}" stroke="${sel ? '#0B1424' : 'none'}" stroke-width="1.5"
+            style="cursor:pointer"><title>${cbRotJogo(s.jogo)}
+${def.rot}: ${cbFmt(v, def.dec)} · n=${s.met.n} atletas · ${cbFmt(s.met.min, 0)} min-atleta</title></circle>`;
+    if (serie.length <= 40 || i % 2 === 0)
+      g += `<text transform="rotate(-52 ${X(i)} ${alt - pb + 12})" x="${X(i)}" y="${alt - pb + 12}"
+             text-anchor="end" font-size="9" fill="${sel || '#9FB0CC'}">${s.jogo.adv || s.jogo.data}</text>`;
+  });
+  const recRot = { tudo: 'jogo completo', '1': '1º tempo', '2': '2º tempo' }[$('selCbRecorte').value];
+  const escRot = $('selCbEscopo').value === 'equipe' ? 'equipe (sem goleiros)'
+    : $('selCbEscopo').value === 'grupo' ? `grupo ${$('selCbGrupo').value}`
+    : ($('selCbAtleta').selectedOptions[0] || {}).textContent || 'atleta';
+  $('cbGraf').innerHTML = `<svg width="${Math.max(larg, 520)}" height="${alt}" style="max-width:none">
+    <text x="${pl}" y="14" font-size="11.5" fill="#C4952A" font-weight="700">${def.rot} — ${escRot} · ${recRot} · ${serie.length} jogos</text>
+    ${g}</svg>`;
+  $('cbGraf').querySelectorAll('.cbPt').forEach(c => c.onclick = () => {
+    const ji = +c.dataset.ji;
+    if (ji === CB_SEL.a || ji === CB_SEL.b) return;
+    CB_SEL.b = CB_SEL.a; CB_SEL.a = ji;
+    $('selCbA').value = CB_SEL.a; $('selCbB').value = CB_SEL.b;
+    cbRender();
+  });
+}
+
+function cbDuelo(serie) {
+  const A = serie.find(s => s.ji === CB_SEL.a), B = serie.find(s => s.ji === CB_SEL.b);
+  if (!A || !B) { $('tabCbDuelo').innerHTML = ''; return; }
+  // volume só é comparável se o denominador for parecido
+  const dn = Math.abs(A.met.n - B.met.n);
+  const dmin = A.met.min && B.met.min ? Math.abs(A.met.min - B.met.min) / Math.max(A.met.min, B.met.min) : 0;
+  const desigual = dn > 0 || dmin > 0.10;
+  $('cbAviso').innerHTML = desigual
+    ? `⚠ A tem <b>${A.met.n}</b> atletas e ${cbFmt(A.met.min, 0)} min-atleta; B tem <b>${B.met.n}</b> e ${cbFmt(B.met.min, 0)}. As linhas de volume estão marcadas — leia a densidade.`
+    : `A e B têm o mesmo denominador (${A.met.n} atletas, ~${cbFmt(A.met.min, 0)} min-atleta): volume e densidade são igualmente comparáveis.`;
+  let html = `<tr><th>Métrica</th><th class="num">A · ${cbRotJogo(A.jogo)}</th><th class="num">B · ${cbRotJogo(B.jogo)}</th>
+    <th class="num">Δ (A−B)</th><th class="num">Δ%</th><th class="num">Perc. A</th><th class="num">Perc. B</th></tr>`;
+  const linhasCsv = [];
+  for (const tipo of ['volume', 'densidade', 'pico']) {
+    html += `<tr><td colspan="7" style="background:var(--fundo);color:var(--dourado);font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.6px">${CB_TIPO_ROT[tipo]}</td></tr>`;
+    for (const m of CB_METRICAS.filter(x => x.tipo === tipo)) {
+      const va = A.met[m.k], vb = B.met[m.k];
+      const d = (va != null && vb != null) ? va - vb : null;
+      const pct = (d != null && vb) ? d / vb * 100 : null;
+      const todos = serie.map(s => s.met[m.k]);
+      const pa = cbPercentil(todos, va), pb = cbPercentil(todos, vb);
+      const marca = (tipo === 'volume' && desigual) ? ' <span title="denominador diferente entre A e B">⚠</span>' : '';
+      const cor = pct == null ? 'var(--txt2)' : (pct >= 0 ? '#38B26E' : '#E8360A');
+      html += `<tr><td>${m.rot}${marca}</td>
+        <td class="num">${cbFmt(va, m.dec)}</td><td class="num">${cbFmt(vb, m.dec)}</td>
+        <td class="num">${cbFmt(d, m.dec)}</td>
+        <td class="num" style="color:${cor};font-weight:700">${pct == null ? '—' : (pct >= 0 ? '+' : '') + cbFmt(pct, 1) + '%'}</td>
+        <td class="num">${pa == null ? '—' : cbFmt(pa, 0)}</td><td class="num">${pb == null ? '—' : cbFmt(pb, 0)}</td></tr>`;
+      linhasCsv.push([CB_TIPO_ROT[tipo], m.rot, va, vb, d, pct, pa, pb]);
+    }
+  }
+  $('tabCbDuelo').innerHTML = html;
+  S._cbDuelo = { A: cbRotJogo(A.jogo), B: cbRotJogo(B.jogo), linhas: linhasCsv };
+}
+
+const CB_RANK_COLS = ['dist', 'dens', 'hsr', 'hsrMin', 'sprint', 'sprintMin', 'esf', 'esfMin', 'pl', 'plMin', 'pctHsr', 'vmax'];
+function cbRanking(serie) {
+  const k = $('selCbMetrica').value;
+  const def = CB_METRICAS.find(m => m.k === k) || CB_METRICAS[0];
+  const todos = serie.map(s => s.met[k]);
+  const cab = ['Data', 'Adversário', 'Mando', 'Resultado', 'n atl.', 'min-atleta',
+    ...CB_RANK_COLS.map(c => CB_METRICAS.find(m => m.k === c).rot), `Perc. ${def.rot}`];
+  const linhas = serie.slice().sort((a, b) => (b.met[k] ?? -Infinity) - (a.met[k] ?? -Infinity)).map(s => [
+    s.jogo.data || '', s.jogo.adv || s.jogo.rot || '', s.jogo.mando || '', s.jogo.res || '',
+    s.met.n, Math.round(s.met.min),
+    ...CB_RANK_COLS.map(c => {
+      const d = CB_METRICAS.find(m => m.k === c);
+      const v = s.met[c];
+      return v == null ? null : Math.round(v * Math.pow(10, d.dec)) / Math.pow(10, d.dec);
+    }),
+    (() => { const p = cbPercentil(todos, s.met[k]); return p == null ? null : Math.round(p); })(),
+  ]);
+  $('tabCbRank').innerHTML = '<tr>' + cab.map((c, i) => `<th${i >= 4 ? ' class="num"' : ''}>${c}</th>`).join('') + '</tr>' +
+    linhas.map(l => '<tr>' + l.map((v, i) =>
+      `<td${i >= 4 ? ' class="num"' : ''}>${v == null ? '—' : (typeof v === 'number' ? v.toLocaleString('pt-BR') : v)}</td>`).join('') + '</tr>').join('');
+  tornarOrdenavel($('tabCbRank'));
+  S._cbRank = { cab, linhas };
+}
+
+['selCbRecorte', 'selCbEscopo', 'selCbGrupo', 'selCbAtleta', 'selCbMetrica', 'inCbMin'].forEach(id => {
+  $(id).onchange = () => { cbAtualizarSelects(); cbRender(); };
+});
+$('selCbA').onchange = () => { CB_SEL.a = +$('selCbA').value; cbRender(); };
+$('selCbB').onchange = () => { CB_SEL.b = +$('selCbB').value; cbRender(); };
+$('btnCsvCbDuelo').onclick = () => {
+  if (!S._cbDuelo) return;
+  baixarCSV('duelo_jogos.csv', paraCSV(['Bloco', 'Métrica', `A · ${S._cbDuelo.A}`, `B · ${S._cbDuelo.B}`, 'Delta', 'Delta %', 'Percentil A', 'Percentil B'], S._cbDuelo.linhas));
+};
+$('btnCsvCbRank').onclick = () => {
+  if (!S._cbRank) return;
+  baixarCSV('comparacao_jogos.csv', paraCSV(S._cbRank.cab, S._cbRank.linhas));
+};
+
 /* ---------- Comparar Jogos ---------- */
 const CMP = { sel: new Set(), resumos: new Map() };
 const CMP_ACOES = { hsr: 'Esforços HSR', sprint: 'Sprints', acc: 'Acelerações', dec: 'Desacelerações', dist: 'Distância (m)' };
@@ -3924,7 +4405,7 @@ document.querySelectorAll('.aba').forEach(a => a.onclick = () => {
   a.classList.add('ativa');
   $(`painel-${a.dataset.aba}`).classList.add('ativo');
   if (a.dataset.aba === 'cal') setTimeout(() => { initMapa(); mapa.invalidateSize(); }, 50);
-  if (a.dataset.aba === 'cmp') cmpInitChips();
+  if (a.dataset.aba === 'cmp') { cmpInitChips(); cbInit(); }
   renderTudo();
 });
 function renderTudo() {
