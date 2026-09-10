@@ -37,11 +37,14 @@ async function catapultGET(path, token) {
   return r.json();
 }
 
-// Identifica se um período pertence ao 1° ou 2° tempo (mesma regra do match.js)
+// Identifica se um período pertence ao 1° ou 2° tempo.
+// Regra do clube: `includes`, não `startsWith` — os nomes variam ("2tempo2",
+// "2º tempo", "SASHA 2tempo") e o startsWith deixava jogos inteiros de fora da
+// lista, que é justamente o que alimenta a varredura de referências.
 function classifyPeriod(name) {
-  const n = (name || '').trim();
-  if (n.startsWith('1tempo')) return 't1';
-  if (n.startsWith('2tempo')) return 't2';
+  const n = String(name || '').toLowerCase().replace(/[\sº°_-]/g, '');
+  if (n.includes('1tempo')) return 't1';
+  if (n.includes('2tempo')) return 't2';
   return null;
 }
 
