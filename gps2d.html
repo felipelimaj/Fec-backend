@@ -602,7 +602,8 @@ h3 .btnCsv{float:right;margin-top:-4px}
   <div class="card">
     <h3>Valores referenciais históricos — jogos oficiais</h3>
     <p style="font-size:12.5px;color:var(--txt2);margin-bottom:10px">
-      Média e máximo por atleta em jogos (atividades com "Jogo" no nome), somando períodos <b>1tempo+2tempo</b> e
+      Média e máximo por atleta em jogos — a lista vem de <code>/api/games</code>, que reconhece o jogo pelo
+      <b>período</b> (a atividade tem 1tempo/2tempo?), não pelo nome — somando períodos <b>1tempo+2tempo</b> e
       incluindo apenas participações com <b>≥ 85 min</b>. Construído via estatísticas oficiais da Catapult
       (<code>/stats</code>) — rápido, sem baixar sensor. Depois de gerado, as tabelas de métricas passam a mostrar
       o Δ% de cada atleta vs. a própria média histórica.</p>
@@ -624,6 +625,25 @@ h3 .btnCsv{float:right;margin-top:-4px}
         </div></div>
     </div>
     <p id="cadastroInfo" style="font-size:12px;color:var(--txt2);margin-top:6px"></p>
+  </div>
+  <div class="card">
+    <h3>Diagnóstico da varredura <button class="btn mini btnCsv" id="btnCsvDiag">⬇ CSV</button></h3>
+    <p style="font-size:12.5px;color:var(--txt2);margin-bottom:10px">
+      Quando um atleta aparece com menos jogos do que você sabe que ele fez, a resposta está aqui:
+      ou o jogo não entrou na varredura, ou entrou e ele ficou abaixo dos 85 min, ou a chamada à
+      Catapult falhou naquele jogo. <b>Jogos deste atleta</b> lista partida a partida os minutos dele
+      (essa visão usa a base de comparação, que guarda todo mundo, sem corte de minutos).</p>
+    <div class="linha">
+      <div class="grupo"><label class="mini">Mostrar</label>
+        <select id="selDiagModo">
+          <option value="atleta">Jogos de um atleta</option>
+          <option value="jogos">Todos os jogos varridos</option>
+        </select></div>
+      <div class="grupo" id="wrapDiagAtleta"><label class="mini">Atleta</label>
+        <select id="selDiagAtleta" style="min-width:200px"></select></div>
+    </div>
+    <p id="diagInfo" style="font-size:12px;color:var(--dourado);margin-top:8px"></p>
+    <div class="tblWrap"><table id="tabDiag"></table></div>
   </div>
   <div class="card"><h3>Médias históricas <button class="btn mini btnCsv" id="btnCsvRefMed">⬇ CSV</button></h3>
     <div class="tblWrap"><table id="tabRefMed"></table></div></div>
@@ -2176,7 +2196,10 @@ function refsSalvas() {
 }
 function refDoAtleta(nome) {
   const refs = refsSalvas();
-  return refs && refs.dados ? refs.dados[normNome(nome)] : null;
+  if (!refs || !refs.dados) return null;
+  const n = normNome(nome);
+  const ch = refs.porNome ? refs.porNome[n] : null;   // resolve variantes do nome
+  return refs.dados[ch] || refs.dados[n] || null;
 }
 function deltaHtml(valor, ref) {
   if (valor == null || ref == null || !ref) return '';
@@ -2185,8 +2208,19 @@ function deltaHtml(valor, ref) {
   const cls = pct >= 0 ? 'deltaUp' : 'deltaDown';
   return ` <span class="delta ${cls}" title="vs média histórica ${Math.round(ref * 10) / 10}">${pct >= 0 ? '▲' : '▼'}${Math.abs(pct).toFixed(0)}%</span>`;
 }
+/* Chave canônica do atleta. O nome muda entre temporadas ("L.GAZAL",
+   "LUCAS GAZAL", "GAZAL") e o mesmo jogador virava duas linhas com metade dos
+   jogos cada. A Catapult guarda o ID do cadastro do clube no início do
+   athlete_name ("99 L.GAZAL") — esse é o identificador estável; o athlete_id
+   da API é o segundo recurso, e só então o nome. */
+function chaveAtleta(r) {
+  const cid = (String(r.athlete_name || '').match(/^(\d+)/) || [])[1];
+  if (cid) return `#${cid}`;
+  if (r.athlete_id) return `a:${r.athlete_id}`;
+  return `n:${normNome(r.athlete_name)}`;
+}
 function jogoParaMetricas(rows) {
-  // rows de /stats de UM jogo → {NOME: métricas t1+t2} (só ≥85 min)
+  // rows de /stats de UM jogo → {chave: métricas t1+t2} (só ≥85 min)
   const por = new Map(), vistos = new Set();
   for (const r of rows) {
     if (!classifyPeriod(r.period_name)) continue;
@@ -2194,8 +2228,9 @@ function jogoParaMetricas(rows) {
     const dup = `${r.athlete_id || r.athlete_name}|${r.period_id || r.period_name}`;
     if (vistos.has(dup)) continue;                            // linha duplicada
     vistos.add(dup);
-    const ch = normNome(r.athlete_name);
+    const ch = chaveAtleta(r);
     const a = por.get(ch) || { dur: 0, dist: 0, hsr: 0, sprint: 0, acc: 0, dec: 0, vmax: 0, dyn: 0, run: 0, ex2: 0,
+      nome: normNome(r.athlete_name),
       id: (String(r.athlete_name || '').match(/^(\d+)/) || [])[1] || null };
     a.dur += r.total_duration || 0;
     a.dist += r.total_distance || 0;
@@ -2214,11 +2249,11 @@ function jogoParaMetricas(rows) {
     por.set(ch, a);
   }
   const out = {};
-  for (const [nome, a] of por) {
+  for (const [ch, a] of por) {
     const min = a.dur / 60;
     if (min < 85) continue;
-    out[nome] = {
-      _id: a.id,
+    out[ch] = {
+      _id: a.id, _nome: a.nome,
       minutos: Math.round(min * 10) / 10, dist: Math.round(a.dist),
       hsr: Math.round(a.hsr), sprint: Math.round(a.sprint),
       dens: Math.round(a.dist / min * 10) / 10,
@@ -2242,19 +2277,42 @@ function jogoParaMetricas(rows) {
   }
   return out;
 }
+/* A lista de jogos vem de /api/games, que classifica pelo PERÍODO (a atividade
+   tem 1tempo/2tempo?) e varre a temporada em blocos de 60 dias por start_time.
+   O caminho antigo — /api/gps/activities?all=1 filtrado por /jogo/i no nome —
+   perdia jogos por dois motivos independentes: atividade cujo nome não contém
+   "Jogo" ("x Sport", "Activity 2024…", "26 out 08:14 PM"), e o teto de
+   paginação, que devolve as ~500 atividades mais recentes e corta 2024 fora
+   quando há treino quase todo dia. */
+async function listaDeJogos(nMax) {
+  try {
+    const j = await api('/api/games?from=01/01/2024');
+    const gs = (j && j.games) || [];
+    if (gs.length) return {
+      fonte: 'periodos',
+      acts: gs.map(g => ({ id: g.id, name: g.name || g.adv || '', start_time: g.start_time }))
+             .sort((a, b) => (b.start_time || 0) - (a.start_time || 0)).slice(0, nMax),
+    };
+  } catch (e) { /* cai no caminho antigo */ }
+  const acts = (await api('/api/gps/activities?all=1'))
+    .filter(a => /jogo/i.test(a.name || '')).slice(0, nMax);
+  return { fonte: 'nome', acts };
+}
+
 /* Uma varredura, duas saídas: as referências por atleta (>=85 min, jogo inteiro)
    e a base de comparação entre jogos (atleta x tempo, sem corte). Mesmos rows,
    agregados de duas formas — nenhuma chamada extra a Catapult. */
 async function gerarVarredura(nMax, ui) {
   const { btn, status, barra } = ui;
   $(btn).disabled = true;
-  $(status).textContent = 'Buscando lista completa de jogos (todas as páginas da API)…';
+  $(status).textContent = 'Buscando a lista de jogos…';
   try {
     await jogosCtx();   // p/ rotular o máximo com adversário/mando
-    const acts = (await api('/api/gps/activities?all=1'))
-      .filter(a => /jogo/i.test(a.name || '')).slice(0, nMax);
-    const dados = {};   // NOME → {n, media, max}
+    const { acts, fonte } = await listaDeJogos(nMax);
+    if (!acts.length) throw new Error('nenhum jogo encontrado na varredura');
+    const dados = {};   // chave do atleta → {nome, n, media, max}
     const cbJogos = [], cbBruto = [];   // base de comparação (atleta × tempo)
+    const diag = [], falhas = [];
     let feitos = 0, comDados = 0;
     for (const atv of acts) {
       $(status).textContent = `Processando ${feitos + 1}/${acts.length} — ${atv.name}`;
@@ -2263,6 +2321,14 @@ async function gerarVarredura(nMax, ui) {
         const rows = await api(`/api/gps/stats?activity=${atv.id}`);
         const jogo = jogoParaMetricas(rows);
         if (Object.keys(jogo).length) comDados++;
+        const comTempo = rows.filter(r => classifyPeriod(r.period_name));
+        diag.push({ data: fmtData(atv.start_time), nome: atv.name || '',
+          linhas: rows.length, linhasTempo: comTempo.length,
+          atletas: new Set(comTempo.map(r => chaveAtleta(r))).size,
+          contados: Object.keys(jogo).length,
+          situacao: !rows.length ? 'sem retorno de /stats'
+            : !comTempo.length ? 'sem período 1tempo/2tempo'
+            : !Object.keys(jogo).length ? 'nenhum atleta chegou a 85 min' : 'ok' });
         const ctx = ctxDe(atv);
         const rotulo = ctx
           ? `${ctx['Adversário']} (${(ctx['Mando'] || '?')[0]}) · ${fmtData(atv.start_time)}`
@@ -2271,21 +2337,67 @@ async function gerarVarredura(nMax, ui) {
           adv: ctx ? (ctx['Adversário'] || '') : '', mando: ctx ? (ctx['Mando'] || '') : '',
           res: ctx ? (ctx['Resultado'] || '') : '', placar: ctx ? (ctx['Placar (CxF)'] || '') : '' });
         for (const reg of jogoParaBase(rows)) cbBruto.push({ ji: cbJogos.length - 1, ...reg });
-        for (const [nome, met] of Object.entries(jogo)) {
-          const d = dados[nome] || { n: 0, id: met._id, cont: {}, soma: {}, max: {}, maxJogo: {} };
+        for (const [ch, met] of Object.entries(jogo)) {
+          const d = dados[ch] || { nome: met._nome, n: 0, id: met._id, cont: {}, soma: {}, max: {}, maxJogo: {} };
           d.n++;
           if (!d.id && met._id) d.id = met._id;
+          if (!d.nome && met._nome) d.nome = met._nome;
           for (const { k } of REF_KEYS) {
             if (met[k] == null) continue;
             d.soma[k] = (d.soma[k] || 0) + met[k];       // média só com jogos onde o dado existe
             d.cont[k] = (d.cont[k] || 0) + 1;
             if (met[k] > (d.max[k] ?? -Infinity)) { d.max[k] = met[k]; d.maxJogo[k] = rotulo; }
           }
-          dados[nome] = d;
+          dados[ch] = d;
         }
-      } catch (e) { /* jogo sem stats — segue */ }
+      } catch (e) {
+        /* Antes isso era engolido em silêncio e o jogo simplesmente sumia da
+           média. Agora fica registrado, é tentado de novo no fim e, se ainda
+           falhar, aparece no diagnóstico. */
+        falhas.push({ atv, erro: String(e.message || e) });
+      }
       feitos++;
     }
+    // segunda tentativa das falhas (429 da Catapult é o caso comum)
+    for (let i = 0; i < falhas.length; i++) {
+      const f = falhas[i];
+      $(status).textContent = `Repetindo ${i + 1}/${falhas.length} — ${f.atv.name || ''}`;
+      await new Promise(s => setTimeout(s, 900));
+      try {
+        const rows = await api(`/api/gps/stats?activity=${f.atv.id}`);
+        const jogo = jogoParaMetricas(rows);
+        const ctx = ctxDe(f.atv);
+        const rotulo = ctx
+          ? `${ctx['Adversário']} (${(ctx['Mando'] || '?')[0]}) · ${fmtData(f.atv.start_time)}`
+          : `${fmtData(f.atv.start_time)} ${String(f.atv.name || '').trim()}`;
+        if (Object.keys(jogo).length) comDados++;
+        cbJogos.push({ id: f.atv.id, ts: f.atv.start_time, data: fmtData(f.atv.start_time), rot: rotulo,
+          adv: ctx ? (ctx['Adversário'] || '') : '', mando: ctx ? (ctx['Mando'] || '') : '',
+          res: ctx ? (ctx['Resultado'] || '') : '', placar: ctx ? (ctx['Placar (CxF)'] || '') : '' });
+        for (const reg of jogoParaBase(rows)) cbBruto.push({ ji: cbJogos.length - 1, ...reg });
+        for (const [ch, met] of Object.entries(jogo)) {
+          const d = dados[ch] || { nome: met._nome, n: 0, id: met._id, cont: {}, soma: {}, max: {}, maxJogo: {} };
+          d.n++;
+          if (!d.id && met._id) d.id = met._id;
+          if (!d.nome && met._nome) d.nome = met._nome;
+          for (const { k } of REF_KEYS) {
+            if (met[k] == null) continue;
+            d.soma[k] = (d.soma[k] || 0) + met[k];
+            d.cont[k] = (d.cont[k] || 0) + 1;
+            if (met[k] > (d.max[k] ?? -Infinity)) { d.max[k] = met[k]; d.maxJogo[k] = rotulo; }
+          }
+          dados[ch] = d;
+        }
+        diag.push({ data: fmtData(f.atv.start_time), nome: f.atv.name || '', linhas: rows.length,
+          linhasTempo: rows.filter(r => classifyPeriod(r.period_name)).length,
+          atletas: 0, contados: Object.keys(jogo).length, situacao: 'ok (2ª tentativa)' });
+        falhas[i] = null;
+      } catch (e) {
+        diag.push({ data: fmtData(f.atv.start_time), nome: f.atv.name || '', linhas: 0, linhasTempo: 0,
+          atletas: 0, contados: 0, situacao: `FALHOU: ${f.erro}` });
+      }
+    }
+    const nFalhas = falhas.filter(Boolean).length;
     for (const d of Object.values(dados)) {
       d.media = {};
       for (const k of Object.keys(d.soma)) {
@@ -2295,12 +2407,18 @@ async function gerarVarredura(nMax, ui) {
       }
       delete d.soma;
     }
-    const refs = { gerado: Date.now(), jogos: comDados, dados };
+    const porNome = {};
+    for (const [ch, d] of Object.entries(dados)) {
+      if (d.nome) porNome[d.nome] = ch;
+      if (d.id) porNome[`#${d.id}`] = ch;
+    }
+    const refs = { gerado: Date.now(), jogos: comDados, varridos: acts.length, fonte, dados, porNome, diag };
     localStorage.setItem('gps2d_refs_v3', JSON.stringify(refs));
     cbSalvar(cbJogos, cbBruto);
     $(barra).style.width = '100%';
-    $(status).textContent = `Concluído: ${comDados} jogos com dados válidos.`;
-    renderRef(); renderPos(); cbInit();
+    $(status).textContent = `Concluído: ${comDados} de ${acts.length} jogos com dados válidos`
+      + (nFalhas ? ` · ${nFalhas} falharam mesmo na 2ª tentativa (ver diagnóstico)` : '') + '.';
+    renderRef(); renderPos(); cbInit(); renderDiag();
   } catch (e) {
     $(status).textContent = `Erro: ${e.message}`;
   }
@@ -2394,14 +2512,17 @@ function renderRef() {
     $('tabRefMed').innerHTML = ''; $('tabRefMax').innerHTML = '';
     return;
   }
-  $('refInfo').textContent = `Histórico de ${refs.jogos} jogos · ${Object.keys(refs.dados).length} atletas · gerado em ${new Date(refs.gerado).toLocaleDateString('pt-BR')} (critério: 1tempo+2tempo ≥ 85 min · acc/dec/vmáx descartados quando o jogo devolve valor agregado idêntico p/ todos).`;
+  $('refInfo').textContent = `Histórico de ${refs.jogos} jogos com dados`
+    + (refs.varridos ? ` (de ${refs.varridos} varridos${refs.fonte === 'nome' ? ', lista pelo nome da atividade — /api/games indisponível' : ''})` : '')
+    + ` · ${Object.keys(refs.dados).length} atletas · gerado em ${new Date(refs.gerado).toLocaleDateString('pt-BR')}`
+    + ` (critério: 1tempo+2tempo ≥ 85 min · acc/dec/vmáx descartados quando o jogo devolve valor agregado idêntico p/ todos).`;
   const cab = '<tr><th>Atleta</th><th class="num">Jogos</th>' + REF_KEYS.map(r => `<th class="num">${r.label}</th>`).join('') + '</tr>';
   const ord = Object.entries(refs.dados).filter(([, d]) => passaFiltro(d)).sort((a, b) => b[1].n - a[1].n);
-  $('tabRefMed').innerHTML = cab + ord.map(([nome, d]) =>
-    `<tr><td>${nome}</td><td class="num">${d.n}</td>` +
+  $('tabRefMed').innerHTML = cab + ord.map(([ch, d]) =>
+    `<tr><td>${d.nome || ch}</td><td class="num">${d.n}</td>` +
     REF_KEYS.map(r => `<td class="num">${d.media[r.k] ?? '—'}</td>`).join('') + '</tr>').join('');
-  $('tabRefMax').innerHTML = cab + ord.map(([nome, d]) =>
-    `<tr><td>${nome}</td><td class="num">${d.n}</td>` +
+  $('tabRefMax').innerHTML = cab + ord.map(([ch, d]) =>
+    `<tr><td>${d.nome || ch}</td><td class="num">${d.n}</td>` +
     REF_KEYS.map(r => {
       const v = d.max[r.k];
       const j = (d.maxJogo || {})[r.k];
@@ -2410,14 +2531,82 @@ function renderRef() {
   tornarOrdenavel($('tabRefMed'));
   tornarOrdenavel($('tabRefMax'));
 }
+/* ---------- Diagnóstico da varredura ---------- */
+function renderDiag() {
+  const modo = $('selDiagModo').value;
+  $('wrapDiagAtleta').classList.toggle('oculto', modo !== 'atleta');
+  const refs = refsSalvas(), b = cbBase();
+  if (b && b.atl && b.atl.length) {
+    const atual = $('selDiagAtleta').value;
+    const ordem = b.atl.map((a, i) => ({ i, nome: a.nome })).sort((x, y) => x.nome.localeCompare(y.nome));
+    $('selDiagAtleta').innerHTML = ordem.map(a => `<option value="${a.i}">${a.nome}</option>`).join('');
+    if (atual && b.atl[+atual]) $('selDiagAtleta').value = atual;
+  }
+  if (modo === 'jogos') {
+    const d = (refs && refs.diag) || [];
+    if (!d.length) { $('diagInfo').textContent = 'Gere o histórico para ver o diagnóstico.'; $('tabDiag').innerHTML = ''; return; }
+    const probl = d.filter(x => x.situacao !== 'ok').length;
+    $('diagInfo').textContent = `${d.length} jogos varridos · ${d.length - probl} entraram sem ressalva · ${probl} com alguma pendência.`;
+    $('tabDiag').innerHTML = '<tr><th>Data</th><th>Atividade</th><th class="num">Linhas /stats</th>'
+      + '<th class="num">Linhas 1T/2T</th><th class="num">Atletas</th><th class="num">≥85 min</th><th>Situação</th></tr>'
+      + d.slice().sort((x, y) => (x.situacao === 'ok') - (y.situacao === 'ok')).map(x =>
+        `<tr><td>${x.data}</td><td>${x.nome}</td><td class="num">${x.linhas}</td>
+         <td class="num">${x.linhasTempo}</td><td class="num">${x.atletas || '—'}</td>
+         <td class="num">${x.contados}</td>
+         <td style="color:${x.situacao === 'ok' ? 'var(--txt2)' : 'var(--dourado)'}">${x.situacao}</td></tr>`).join('');
+    tornarOrdenavel($('tabDiag'));
+    S._diagCsv = { cab: ['Data', 'Atividade', 'Linhas /stats', 'Linhas 1T/2T', 'Atletas', '>=85 min', 'Situação'],
+      linhas: d.map(x => [x.data, x.nome, x.linhas, x.linhasTempo, x.atletas, x.contados, x.situacao]) };
+    return;
+  }
+  if (!b || !b.reg.length) { $('diagInfo').textContent = 'Gere o histórico para ver o diagnóstico.'; $('tabDiag').innerHTML = ''; return; }
+  const ai = +$('selDiagAtleta').value;
+  if (!b.atl[ai]) { $('tabDiag').innerHTML = ''; return; }
+  const porJogo = new Map();
+  for (const r of b.reg) {
+    if (r[1] !== ai) continue;
+    let g = porJogo.get(r[0]);
+    if (!g) { g = { t1: 0, t2: 0 }; porJogo.set(r[0], g); }
+    g[r[2] === 1 ? 't1' : 't2'] += r[3] || 0;
+  }
+  const linhas = [...porJogo.entries()].map(([ji, g]) => {
+    const j = b.jogos[ji] || {};
+    return { ts: j.ts || 0, data: j.data || '', adv: j.adv || j.rot || j.id || '',
+      t1: g.t1, t2: g.t2, tot: g.t1 + g.t2 };
+  }).sort((x, y) => y.ts - x.ts);
+  const conta = linhas.filter(l => l.tot >= 85).length;
+  const nRef = refs && refs.dados && refs.porNome
+    ? (refs.dados[refs.porNome[b.atl[ai].nome]] || refs.dados[refs.porNome[`#${b.atl[ai].id}`]] || {}).n
+    : null;
+  $('diagInfo').innerHTML = `<b>${b.atl[ai].nome}</b>${b.atl[ai].id ? ` (cadastro ${b.atl[ai].id})` : ''}
+    — aparece em <b>${linhas.length}</b> jogos da base, <b>${conta}</b> deles com 1T+2T ≥ 85 min.
+    A média histórica conta <b>${nRef == null ? '—' : nRef}</b>.
+    ${nRef != null && nRef !== conta ? '<span style="color:var(--vermelho)"> Os dois números deveriam bater: se não batem, regere o histórico.</span>' : ''}`;
+  $('tabDiag').innerHTML = '<tr><th>Data</th><th>Jogo</th><th class="num">1º tempo</th><th class="num">2º tempo</th>'
+    + '<th class="num">Total (min)</th><th>Entra na média?</th></tr>'
+    + linhas.map(l => `<tr><td>${l.data}</td><td>${l.adv}</td>
+        <td class="num">${l.t1.toFixed(1)}</td><td class="num">${l.t2.toFixed(1)}</td>
+        <td class="num"><b>${l.tot.toFixed(1)}</b></td>
+        <td style="color:${l.tot >= 85 ? '#38B26E' : 'var(--txt2)'}">${l.tot >= 85 ? 'sim' : 'não — abaixo de 85 min'}</td></tr>`).join('');
+  tornarOrdenavel($('tabDiag'));
+  S._diagCsv = { cab: ['Data', 'Jogo', '1o tempo', '2o tempo', 'Total (min)', 'Entra na media'],
+    linhas: linhas.map(l => [l.data, l.adv, l.t1, l.t2, l.tot, l.tot >= 85 ? 'sim' : 'nao']) };
+}
+$('selDiagModo').onchange = renderDiag;
+$('selDiagAtleta').onchange = renderDiag;
+$('btnCsvDiag').onclick = () => {
+  if (!S._diagCsv) return;
+  baixarCSV('diagnostico_varredura.csv', paraCSV(S._diagCsv.cab, S._diagCsv.linhas));
+};
+
 const csvRef = campo => () => {
   const refs = refsSalvas();
   if (!refs) return;
   const cab = ['Atleta', 'ID', 'Jogos', ...REF_KEYS.map(r => r.label)];
   if (campo === 'max') cab.push(...REF_KEYS.map(r => `Jogo do máx — ${r.label}`));
   baixarCSV(`referencias_${campo}.csv`, paraCSV(cab,
-    Object.entries(refs.dados).filter(([, d]) => passaFiltro(d)).map(([nome, d]) => {
-      const l = [nome, d.id || '', d.n, ...REF_KEYS.map(r => d[campo][r.k])];
+    Object.entries(refs.dados).filter(([, d]) => passaFiltro(d)).map(([ch, d]) => {
+      const l = [d.nome || ch, d.id || '', d.n, ...REF_KEYS.map(r => d[campo][r.k])];
       if (campo === 'max') l.push(...REF_KEYS.map(r => (d.maxJogo || {})[r.k] || ''));
       return l;
     })));
@@ -3537,8 +3726,9 @@ function jogoParaBase(rows) {
     vistos.add(dup);
     const nome = normNome(r.athlete_name);
     const h = cls === 't1' ? 1 : 2;
-    const ch = `${nome}|${h}`;
-    const a = por.get(ch) || { nome, h, dur: 0, dist: 0, hsr: 0, sprint: 0, acc: 0, dec: 0,
+    const chave = chaveAtleta(r);
+    const ch = `${chave}|${h}`;
+    const a = por.get(ch) || { nome, chave, h, dur: 0, dist: 0, hsr: 0, sprint: 0, acc: 0, dec: 0,
       pl: 0, vmax: 0, fcS: 0, fcN: 0,
       id: (String(r.athlete_name || '').match(/^(\d+)/) || [])[1] || null };
     const dur = r.total_duration || 0;
@@ -3557,7 +3747,7 @@ function jogoParaBase(rows) {
     por.set(ch, a);
   }
   const out = [...por.values()].filter(a => a.dur > 0).map(a => ({
-    nome: a.nome, id: a.id, h: a.h,
+    nome: a.nome, chave: a.chave, id: a.id, h: a.h,
     min: Math.round(a.dur / 60 * 10) / 10,
     dist: Math.round(a.dist), hsr: Math.round(a.hsr), sprint: Math.round(a.sprint),
     acc: Math.round(a.acc), dec: Math.round(a.dec), pl: Math.round(a.pl * 10) / 10,
@@ -3584,7 +3774,7 @@ function jogoParaBase(rows) {
 function cbSalvar(jogos, bruto) {
   const atlIdx = new Map(), atl = [];
   const reg = bruto.map(r => {
-    const ch = r.nome;
+    const ch = r.chave || r.nome;
     if (!atlIdx.has(ch)) { atlIdx.set(ch, atl.length); atl.push({ nome: r.nome, id: r.id }); }
     const ai = atlIdx.get(ch);
     if (r.id && !atl[ai].id) atl[ai].id = r.id;
@@ -4406,6 +4596,7 @@ document.querySelectorAll('.aba').forEach(a => a.onclick = () => {
   $(`painel-${a.dataset.aba}`).classList.add('ativo');
   if (a.dataset.aba === 'cal') setTimeout(() => { initMapa(); mapa.invalidateSize(); }, 50);
   if (a.dataset.aba === 'cmp') { cmpInitChips(); cbInit(); }
+  if (a.dataset.aba === 'ref') renderDiag();
   renderTudo();
 });
 function renderTudo() {
