@@ -26,12 +26,14 @@
    - Minuto a minuto SÓ existe no stream 10 Hz — o /stats da Catapult devolve
      o bloco inteiro. As métricas por minuto são calculadas aqui, com as mesmas
      regras do projeto (bandas confirmadas em 19/08, aceleração derivada em
-     janela fixa de 0,6 s, explosivo pelo critério FEC).
+     janela fixa de 0,6 s).
+     Esforços explosivos NÃO entram: o critério próprio usado no MDP não é
+     métrica do tenant e não foi aprovado (decisão do Felipe, 26/09/2026).
    - Âncora no FIM do bloco: minuto −1 = os 60 s imediatamente antes do fim
      (momento da lesão), −5 = de 5 a 4 min antes. O que sobra no começo
      (blocos têm ~300–311 s) sai numa linha própria, "sobra", e não é
      misturado em nenhum minuto.
-   - Esforços (acel/desacel/explosivo/HSR/sprint) são detectados no bloco
+   - Esforços (acel/desacel/HSR/sprint) são detectados no bloco
      inteiro e atribuídos ao minuto em que COMEÇAM — um esforço que cruza a
      virada do minuto não é cortado em dois.
    - Validação: soma do stream no bloco × /stats oficial do mesmo bloco
@@ -294,7 +296,7 @@ function janelasMinuto(bloco, ancora) {
 
 function metricasVazias() {
   const m = { amostras: 0, dist: 0, hsr: 0, sprint: 0, vmax: 0, pl: 0, hrSoma: 0, hrN: 0, hrMax: 0, mpSoma: 0, mpN: 0,
-    acel3: 0, decel3: 0, acel2: 0, decel2: 0, explosivos: 0, esfHsr: 0, esfSprint: 0 };
+    acel3: 0, decel3: 0, acel2: 0, decel2: 0, esfHsr: 0, esfSprint: 0 };
   for (const b of BANDAS) m['dist' + b.nome] = 0;
   return m;
 }
@@ -344,12 +346,6 @@ function calcularBloco(pontosBrutos, bloco, ancora) {
   conta(MDP.detectarEsforcos(stream, acc, -1, -3).map(e => e.ts), 'decel3');
   conta(MDP.detectarEsforcos(stream, acc, +1, 2).map(e => e.ts), 'acel2');
   conta(MDP.detectarEsforcos(stream, acc, -1, -2).map(e => e.ts), 'decel2');
-  const expl = MDP.detectarEsforcos(stream, acc, +1, MDP.CONFIG.EXPL_ACC).filter(e => {
-    let vmax = 0;
-    for (const p of stream) if (p.ts >= e.ts && p.ts <= e.ts + e.dur) vmax = Math.max(vmax, p.v * 3.6);
-    return vmax >= MDP.CONFIG.EXPL_VEL_FIM_KMH;
-  });
-  conta(expl.map(e => e.ts), 'explosivos');
   conta(esforcosCorrida(stream, HSR_KMH), 'esfHsr');
   conta(esforcosCorrida(stream, SPRINT_KMH), 'esfSprint');
 
@@ -371,7 +367,6 @@ function calcularBloco(pontosBrutos, bloco, ancora) {
       hsr_m: r1(m.hsr), sprint_m: r1(m.sprint),
       esforcos_hsr: m.esfHsr, esforcos_sprint: m.esfSprint,
       acel_3: m.acel3, desacel_3: m.decel3, acel_2: m.acel2, desacel_2: m.decel2,
-      explosivos_fec: m.explosivos,
       vmax_kmh: r1(m.vmax),
       player_load: pl.inc ? r1(m.pl) : null,
       fc_media: m.hrN ? Math.round(m.hrSoma / m.hrN) : null,
@@ -528,7 +523,6 @@ export default async function handlerLesoes(req, res, token) {
     config: {
       ancora, bandasKmh: BANDAS.map(b => `${b.nome} ${b.de}–${b.ate === Infinity ? '…' : b.ate}`),
       hsrKmh: HSR_KMH, sprintKmh: SPRINT_KMH, acelLimiares: [2, 3], janelaAcelS: MDP.CONFIG.JANELA_ACC_S,
-      explosivo: `FEC: aceleração ≥ ${MDP.CONFIG.EXPL_ACC} m/s² chegando a ≥ ${MDP.CONFIG.EXPL_VEL_FIM_KMH} km/h`,
     },
     atividadesVarridas: varredura.nAtividades,
     blocosEncontrados: blocos.length,
