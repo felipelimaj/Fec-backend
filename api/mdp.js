@@ -28,6 +28,8 @@
 //                       já é o do tenant. ?explSlug=nenhum desliga a comparação
 //    ?explAcc=2.0&explVel=14.4  (opcional) ajuste fino da definição de explosivo
 //    ?debug=1           (opcional) devolve períodos, atletas e validação, sem stream
+//    ?lesoes=lista      MODO LESÕES: lista os blocos "Lesão" da nuvem (ver lesoes.js)
+//    ?lesoes=1[&csv=1]  MODO LESÕES: extração minuto a minuto dos blocos "Lesão"
 //
 //  Regras travadas (ver claude/mdp_estudo.md):
 //    - jogo  = atividade com período contendo "1tempo" ou "2tempo"
@@ -38,6 +40,7 @@
 // =============================================================================
 
 import MDP from '../mdp.js';
+import handlerLesoes from '../lesoes.js';
 
 const CATAPULT_BASE = 'https://connect-us.catapultsports.com/api/v6';
 // ATENÇÃO ao `cs`: a Catapult manda `ts` em SEGUNDOS INTEIROS e o centésimo
@@ -135,6 +138,10 @@ export default async function handler(req, res) {
   const { date, athlete, limite, csv, debug, conferencia, catalogo, explSlug, explAcc, explVel, minMin, diag, bruto, hdopMax, dist, calibrar, n } = req.query;
 
   try {
+    // ── Modo lesões: blocos "Lesão" minuto a minuto (lógica em ../lesoes.js).
+    //    Mora aqui porque o projeto está no limite de 12 funções da Vercel.
+    if (req.query.lesoes) return await handlerLesoes(req, res, token);
+
     // ── Modo catálogo: procura um slug pelo nome, sem tocar em jogo nenhum ──
     if (catalogo) {
       const params = await catapultGET('/parameters', token);
