@@ -27,15 +27,18 @@
      o bloco inteiro. As métricas por minuto são calculadas aqui, com as mesmas
      regras do projeto (bandas confirmadas em 19/08, aceleração derivada em
      janela fixa de 0,6 s).
-     Esforços explosivos NÃO entram: o critério próprio usado no MDP não é
-     métrica do tenant e não foi aprovado (decisão do Felipe, 26/09/2026).
+   - Colunas por minuto (26/09/2026, após revisão com o Felipe): distância
+     total, B5–B7, HSR, sprint, acel ≥ 3, desacel ≤ −3 (duração mínima 0,6 s),
+     vmax, Player Load. B1–B4 removidas pelo Felipe.
+     Removidas por não terem sido aprovadas: explosivos_fec, cobertura_pct,
+     esforços de HSR/sprint, acel/desacel ±2, FC, potência metabólica,
+     ancora, ini/fim/duração da janela, colunas de validação no CSV e a
+     linha "sobra". NÃO acrescentar coluna sem aprovação do Felipe.
    - Âncora no FIM do bloco: minuto −1 = os 60 s imediatamente antes do fim
-     (momento da lesão), −5 = de 5 a 4 min antes. O que sobra no começo
-     (blocos têm ~300–311 s) sai numa linha própria, "sobra", e não é
-     misturado em nenhum minuto.
-   - Esforços (acel/desacel/HSR/sprint) são detectados no bloco
-     inteiro e atribuídos ao minuto em que COMEÇAM — um esforço que cruza a
-     virada do minuto não é cortado em dois.
+     (momento da lesão), −5 = de 5 a 4 min antes. Os segundos iniciais que
+     não fecham 1 min entram só no total da validação, não viram linha.
+   - Acel/desacel são detectadas no bloco inteiro e atribuídas ao minuto em
+     que COMEÇAM — um esforço que cruza a virada do minuto não é cortado.
    - Validação: soma do stream no bloco × /stats oficial do mesmo bloco
      (distância, Player Load, alta intensidade, sprint, vmax).
  ============================================================================ */
@@ -57,7 +60,8 @@ const BANDAS = [
   { nome: 'B7', de: 30.0,  ate: Infinity },
 ];
 const HSR_KMH = 19.8, SPRINT_KMH = 25.2;
-const DUR_MIN_CORRIDA_S = 1.0;   // esforço de HSR/sprint precisa durar ≥ 1 s
+const BANDAS_SAIDA = ['B5', 'B6', 'B7'];
+const DUR_MIN_ACEL_S = 0.6;   // aprovado pelo Felipe em 26/09/2026
 
 // Lesões já catalogadas na extração anterior (Lesoes_Catapult_Weberton.xlsx).
 // Garante o atleta certo sem depender do nome do período e traz o contexto
@@ -193,7 +197,7 @@ function atribuirAtleta(bloco, linhasStats, forcados) {
 // Tenta com FC, Player Load e potência metabólica; se a Catapult recusar
 // algum campo, cai para conjuntos menores. `cs` é obrigatório (sem ele o
 // stream vira 1 Hz — achado de 08/09/2026).
-const CONJUNTOS_SENSOR = ['ts,cs,v,hr,pl,mp', 'ts,cs,v,hr,pl', 'ts,cs,v,hr', 'ts,cs,v'];
+const CONJUNTOS_SENSOR = ['ts,cs,v,pl', 'ts,cs,v'];
 
 function extrairPontos(raw) {
   if (Array.isArray(raw)) {
@@ -215,7 +219,7 @@ async function baixarStream(bloco, athleteId, token) {
         const pts = extrairPontos(raw)
           .map(p => ({
             ts: p.cs != null ? p.ts + p.cs / 100 : p.ts,
-            v: p.v, hr: p.hr, pl: p.pl, mp: p.mp,
+            v: p.v, pl: p.pl,
           }))
           .filter(p => p.ts != null && p.ts >= bloco.ini - 1 && p.ts <= bloco.fim + 1);
         if (pts.length) return { pontos: pts, campos, rota: rota.split('/')[1] };
@@ -233,7 +237,7 @@ function normalizar(pontos) {
     const k = Math.round(p.ts * 100);
     if (vistos.has(k)) continue;
     vistos.add(k);
-    out.push({ ts: +p.ts, v: +p.v, hr: p.hr, pl: p.pl, mp: p.mp });
+    out.push({ ts: +p.ts, v: +p.v, pl: p.pl });
   }
   return out;
 }
@@ -263,23 +267,6 @@ function incrementosPL(stream) {
   return { modo: acumulado ? 'acumulado' : 'por amostra', inc };
 }
 
-/* Esforços de corrida: entradas acima de um limiar de velocidade que duram
-   pelo menos DUR_MIN_CORRIDA_S. Devolve os instantes de início. */
-function esforcosCorrida(stream, limiarKmh) {
-  const out = [];
-  let ini = null;
-  for (let i = 0; i < stream.length; i++) {
-    const acima = stream[i].v * 3.6 >= limiarKmh;
-    if (acima && ini === null) ini = stream[i].ts;
-    if ((!acima || i === stream.length - 1) && ini !== null) {
-      const fim = acima ? stream[i].ts : stream[i - 1].ts;
-      if (fim - ini >= DUR_MIN_CORRIDA_S - 1e-6) out.push(ini);
-      ini = null;
-    }
-  }
-  return out;
-}
-
 // ── 4) Minuto a minuto ───────────────────────────────────────────────────
 function janelasMinuto(bloco, ancora) {
   const n = Math.floor(bloco.durS / 60 + 1e-6);
@@ -295,8 +282,7 @@ function janelasMinuto(bloco, ancora) {
 }
 
 function metricasVazias() {
-  const m = { amostras: 0, dist: 0, hsr: 0, sprint: 0, vmax: 0, pl: 0, hrSoma: 0, hrN: 0, hrMax: 0, mpSoma: 0, mpN: 0,
-    acel3: 0, decel3: 0, acel2: 0, decel2: 0, esfHsr: 0, esfSprint: 0 };
+  const m = { dist: 0, hsr: 0, sprint: 0, vmax: 0, pl: 0, acel3: 0, decel3: 0 };
   for (const b of BANDAS) m['dist' + b.nome] = 0;
   return m;
 }
@@ -320,11 +306,8 @@ function calcularBloco(pontosBrutos, bloco, ancora) {
     const j = qual(p.ts);
     if (!j) continue;
     const m = j.m;
-    m.amostras++;
     const kh = p.v * 3.6;
     if (kh > m.vmax) m.vmax = kh;
-    if (p.hr != null && p.hr > 30) { m.hrSoma += +p.hr; m.hrN++; if (p.hr > m.hrMax) m.hrMax = +p.hr; }
-    if (p.mp != null && isFinite(p.mp)) { m.mpSoma += +p.mp; m.mpN++; }
     if (pl.inc) m.pl += pl.inc[i];
 
     const q = stream[i + 1];
@@ -342,36 +325,32 @@ function calcularBloco(pontosBrutos, bloco, ancora) {
   // esforços: detectados no bloco inteiro, contados no minuto em que começam
   const acc = MDP.derivarAceleracao(stream);
   const conta = (lista, campo) => { for (const ts of lista) { const j = qual(ts); if (j) j.m[campo]++; } };
-  conta(MDP.detectarEsforcos(stream, acc, +1, 3).map(e => e.ts), 'acel3');
-  conta(MDP.detectarEsforcos(stream, acc, -1, -3).map(e => e.ts), 'decel3');
-  conta(MDP.detectarEsforcos(stream, acc, +1, 2).map(e => e.ts), 'acel2');
-  conta(MDP.detectarEsforcos(stream, acc, -1, -2).map(e => e.ts), 'decel2');
-  conta(esforcosCorrida(stream, HSR_KMH), 'esfHsr');
-  conta(esforcosCorrida(stream, SPRINT_KMH), 'esfSprint');
+  // Duração mínima de 0,6 s — definida pelo Felipe para esta extração
+  // (26/09/2026). O MDP segue com 0,4 s; por isso o filtro é aplicado aqui.
+  const longo = e => e.dur >= DUR_MIN_ACEL_S - 1e-9;
+  conta(MDP.detectarEsforcos(stream, acc, +1, 3).filter(longo).map(e => e.ts), 'acel3');
+  conta(MDP.detectarEsforcos(stream, acc, -1, -3).filter(longo).map(e => e.ts), 'decel3');
 
   const dtMed = (() => {
     const d = []; for (let i = 1; i < stream.length && i < 400; i++) d.push(stream[i].ts - stream[i - 1].ts);
     d.sort((a, b) => a - b); return d[Math.floor(d.length / 2)] || 0.1;
   })();
 
-  const linhas = janelas.map(j => {
-    const m = j.m, dur = j.fim - j.ini;
+  // A "sobra" (segundos iniciais que não fecham 1 min) entra no total do bloco
+  // para a validação, mas NÃO vira linha: o pedido é 5 minutos por lesão.
+  const linhas = janelas.filter(j => j.rotulo !== 'sobra').map(j => {
+    const m = j.m;
     const o = {
       minuto: j.rotulo,
-      ini_rel_s: r1(j.ini - bloco.ini), fim_rel_s: r1(j.fim - bloco.ini), duracao_s: r1(dur),
-      cobertura_pct: r1(Math.min(100, (m.amostras * dtMed) / dur * 100)),
       dist_m: r1(m.dist),
     };
-    for (const b of BANDAS) o['dist_' + b.nome + '_m'] = r1(m['dist' + b.nome]);
+    // B1–B4 removidas da saída por decisão do Felipe (26/09/2026)
+    for (const b of BANDAS) if (BANDAS_SAIDA.includes(b.nome)) o['dist_' + b.nome + '_m'] = r1(m['dist' + b.nome]);
     Object.assign(o, {
       hsr_m: r1(m.hsr), sprint_m: r1(m.sprint),
-      esforcos_hsr: m.esfHsr, esforcos_sprint: m.esfSprint,
-      acel_3: m.acel3, desacel_3: m.decel3, acel_2: m.acel2, desacel_2: m.decel2,
+      acel_3: m.acel3, desacel_3: m.decel3,
       vmax_kmh: r1(m.vmax),
       player_load: pl.inc ? r1(m.pl) : null,
-      fc_media: m.hrN ? Math.round(m.hrSoma / m.hrN) : null,
-      fc_max: m.hrN ? Math.round(m.hrMax) : null,
-      pot_metab_media_wkg: m.mpN ? r2(m.mpSoma / m.mpN) : null,
     });
     return o;
   });
@@ -496,11 +475,8 @@ export default async function handlerLesoes(req, res, token) {
     for (const r of resultados) {
       if (r.erro) continue;
       for (const l of r.calc.linhas) {
-        const v = r.validacao || {};
         const row = {
-          ...ident(r.bloco), ancora, ...l,
-          val_dist_dif_pct: v.dist ? v.dist.dif_pct : '',
-          val_pl_dif_pct: v.player_load ? v.player_load.dif_pct : '',
+          ...ident(r.bloco), ...l,
           period_id: r.bloco.periodId, activity_id: r.bloco.activityId, athlete_id: r.bloco.atribuicao.athleteId,
         };
         if (!cab) cab = Object.keys(row);
@@ -536,5 +512,129 @@ export default async function handlerLesoes(req, res, token) {
   });
 }
 
+
+// ── 7) SONDA: métricas explosivas, HDOP e GNSS (26/09/2026) ──────────────
+/* Pedido do Felipe: incluir "Explosive Efforts" e "Esforços Explosivos 2"
+   (métricas personalizadas do tenant) e HDOP/GNSS vindos da Catapult.
+   Nada disso entra na extração antes de ele ver este resultado. A sonda:
+     1. procura os slugs no catálogo (/parameters);
+     2. lê o valor do BLOCO no /stats e confere se a soma dos componentes
+        (fórmula mostrada no OpenField) bate com a métrica personalizada;
+     3. testa se a API entrega cada evento/esforço com horário — só assim dá
+        para contar por minuto;
+     4. testa quais campos de qualidade de sinal o stream aceita. */
+const FORMULAS = {
+  'Esforços Explosivos 2': [
+    'Acceleration B2 Efforts (Gen 2)', 'Acceleration B3 Efforts (Gen 2)',
+    'Deceleration B2 Efforts (Gen 2)', 'Deceleration B3 Efforts (Gen 2)',
+    'IMA CoD Right High', 'IMA CoD Left High', 'IMA Jump Count High Band',
+  ],
+  'Explosive Efforts': [
+    'IMA Accel High', 'IMA Decel High', 'IMA CoD Left High', 'IMA CoD Right High',
+    'IMA Decel Medium', 'IMA Accel Medium', 'IMA CoD Right Medium', 'IMA CoD Left Medium',
+    'IMA Jump Count Band 4', 'IMA Jump Count Band 5', 'IMA Jump Count Band 6', 'IMA Jump Count Band 7',
+    'Total Dive Count',
+  ],
+};
+const TERMOS_QUALIDADE = ['hdop', 'gnss', 'satel', 'positional quality', 'signal'];
+
+async function tentar(fn) {
+  try { return { ok: true, dado: await fn() }; } catch (e) { return { ok: false, erro: e.message }; }
+}
+function amostra(arr, n) { return Array.isArray(arr) ? arr.slice(0, n) : arr; }
+
+export async function sondaExplosivos(req, res, token) {
+  const q = req.query;
+  const varredura = await acharBlocos(token, q.desde ? brtParaUnix(String(q.desde)) : brtParaUnix('01/01/2024'));
+  const bloco = q.periodo
+    ? varredura.blocos.find(b => b.periodId === String(q.periodo))
+    : varredura.blocos.find(b => CATALOGO[b.periodId]);
+  if (!bloco) return res.status(404).json({ erro: 'bloco não encontrado' });
+  const athleteId = (q.atleta && String(q.atleta)) || (CATALOGO[bloco.periodId] || {}).athleteId;
+  const saida = { bloco: { data: bloco.data, atividade: bloco.atividade, periodo: bloco.periodo, athleteId } };
+
+  // 1) catálogo
+  const params = await catapult('/parameters', token);
+  const porNome = new Map((params || []).map(p => [semAcento(p.name), p]));
+  saida.catalogo = {};
+  for (const [metrica, comps] of Object.entries(FORMULAS)) {
+    const alvo = porNome.get(semAcento(metrica));
+    saida.catalogo[metrica] = {
+      slug: alvo ? alvo.slug : null,
+      componentes: comps.map(c => { const p = porNome.get(semAcento(c)); return { nome: c, slug: p ? p.slug : null }; }),
+    };
+  }
+  saida.catalogo.qualidadeSinal = (params || [])
+    .filter(p => TERMOS_QUALIDADE.some(t => semAcento(p.name).includes(t) || semAcento(p.slug).includes(t)))
+    .map(p => ({ nome: p.name, slug: p.slug, unidade: p.unit_type, agregacao: p.aggregation }));
+
+  // 2) /stats do bloco: métrica personalizada × soma dos componentes
+  const slugs = [];
+  for (const m of Object.values(saida.catalogo)) {
+    if (!m || !m.componentes) continue;
+    if (m.slug) slugs.push(m.slug);
+    for (const c of m.componentes) if (c.slug) slugs.push(c.slug);
+  }
+  for (const qs of saida.catalogo.qualidadeSinal) slugs.push(qs.slug);
+  const st = await tentar(() => catapult('/stats', token, {
+    filters: [{ name: 'activity_id', comparison: '=', values: [bloco.activityId] }],
+    parameters: [...new Set(slugs)], group_by: ['period', 'athlete'],
+  }));
+  if (st.ok) {
+    const linha = (st.dado || []).find(r => (r.athlete_id ?? r.athlete?.id) === athleteId &&
+      (r.period_id === bloco.periodId || (r.period_name || '').trim() === bloco.periodo));
+    saida.statsDoBloco = {};
+    for (const [metrica, m] of Object.entries(saida.catalogo)) {
+      if (!m || !m.componentes) continue;
+      const comps = m.componentes.map(c => ({ nome: c.nome, valor: linha && c.slug ? linha[c.slug] ?? null : null }));
+      const soma = comps.reduce((a, c) => a + (+c.valor || 0), 0);
+      saida.statsDoBloco[metrica] = {
+        valor: linha && m.slug ? linha[m.slug] ?? null : null,
+        somaDosComponentes: soma, componentes: comps,
+      };
+    }
+    saida.statsDoBloco.qualidadeSinal = saida.catalogo.qualidadeSinal.map(qs => ({ slug: qs.slug, valor: linha ? linha[qs.slug] ?? null : null }));
+  } else saida.statsDoBloco = { erro: st.erro };
+
+  // 3) eventos/esforços com horário
+  const base = `/activities/${bloco.activityId}/athletes/${athleteId}`;
+  const basePer = `/periods/${bloco.periodId}/athletes/${athleteId}`;
+  const rotas = [
+    `${base}/events?event_types=ima_acceleration`,
+    `${base}/events?event_types=ima_jump`,
+    `${base}/events?event_types=ima_acceleration,ima_jump`,
+    `${basePer}/events?event_types=ima_acceleration`,
+    `${base}/efforts?effort_types=acceleration`,
+    `${base}/efforts?effort_types=acceleration,velocity`,
+    `${basePer}/efforts?effort_types=acceleration`,
+    `${base}/events`,
+    `${base}/efforts`,
+  ];
+  saida.eventosComHorario = [];
+  for (const r of rotas) {
+    const t = await tentar(() => catapult(r, token));
+    if (!t.ok) { saida.eventosComHorario.push({ rota: r, ok: false, erro: t.erro }); continue; }
+    const d = t.dado;
+    const lista = Array.isArray(d) ? (d[0] && typeof d[0] === 'object' && !Array.isArray(d[0]) && Object.values(d[0]).some(Array.isArray)
+      ? d[0] : d) : d;
+    saida.eventosComHorario.push({
+      rota: r, ok: true,
+      tipo: Array.isArray(d) ? `array(${d.length})` : typeof d,
+      chaves: d && typeof d === 'object' ? Object.keys(Array.isArray(d) ? (d[0] || {}) : d) : null,
+      amostra: JSON.stringify(amostra(Array.isArray(d) ? d : [lista], 2)).slice(0, 1500),
+    });
+  }
+
+  // 4) campos de qualidade no stream
+  saida.streamQualidade = [];
+  for (const campo of ['hdop', 'pq', 'ref', 'gnss', 'sat', 'satellites', 'nsat']) {
+    const t = await tentar(() => catapult(`${basePer}/sensor?parameters=ts,cs,${campo}&nulls=1`, token));
+    if (!t.ok) { saida.streamQualidade.push({ campo, aceito: false, erro: t.erro }); continue; }
+    const pts = extrairPontos(t.dado).filter(p => p[campo] != null);
+    saida.streamQualidade.push({ campo, aceito: true, leiturasComValor: pts.length, amostra: pts.slice(0, 3).map(p => p[campo]) });
+  }
+  return res.status(200).json(saida);
+}
+
 // exportado para o teste offline
-export { calcularBloco, janelasMinuto, atribuirAtleta, incrementosPL, ehBlocoLesao, esforcosCorrida };
+export { calcularBloco, janelasMinuto, atribuirAtleta, incrementosPL, ehBlocoLesao };
