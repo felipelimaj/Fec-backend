@@ -28,7 +28,7 @@
      regras do projeto (bandas confirmadas em 19/08, aceleração derivada em
      janela fixa de 0,6 s).
    - Colunas por minuto (26/09/2026, após revisão com o Felipe): distância
-     total, B5–B7, HSR, sprint, acel ≥ 3, desacel ≤ −3 (duração mínima 0,6 s),
+     total, B5–B7 (permanência ≥ 0,6 s por banda), HSR = B5+B6+B7, sprint = B6+B7, acel ≥ 3, desacel ≤ −3 (duração mínima 0,6 s),
      vmax, Player Load. B1–B4 removidas pelo Felipe.
      Removidas por não terem sido aprovadas: explosivos_fec, cobertura_pct,
      esforços de HSR/sprint, acel/desacel ±2, FC, potência metabólica,
@@ -62,6 +62,7 @@ const BANDAS = [
 const HSR_KMH = 19.8, SPRINT_KMH = 25.2;
 const BANDAS_SAIDA = ['B5', 'B6', 'B7'];
 const DUR_MIN_ACEL_S = 0.6;   // aprovado pelo Felipe em 26/09/2026
+const DWELL_CORRIDA_S = 0.6;  // permanência mínima por banda (B5–B7) — regra da Catapult (Felipe, 27/09/2026)
 
 // Lesões já catalogadas na extração anterior (Lesoes_Catapult_Weberton.xlsx).
 // Garante o atleta certo sem depender do nome do período e traz o contexto
@@ -326,9 +327,41 @@ function calcularBloco(pontosBrutos, bloco, ancora, explosivos) {
     if (dt > MDP.CONFIG.VAO_MAX_S) dt = MDP.CONFIG.VAO_MAX_S;
     const vMed = (p.v + q.v) / 2, khMed = vMed * 3.6, metros = vMed * dt;
     m.dist += metros;
-    if (khMed >= HSR_KMH) m.hsr += metros;
-    if (khMed >= SPRINT_KMH) m.sprint += metros;
     for (const b of BANDAS) if (khMed >= b.de && khMed < b.ate) { m['dist' + b.nome] += metros; break; }
+  }
+
+  // PERMANÊNCIA MÍNIMA de 0,6 s por BANDA (B5, B6, B7) — regra da Catapult
+  // (Felipe, 27/09/2026). Um trecho contínuo dentro da banda só conta se durar
+  // ≥ 0,6 s; aí toda a distância dele conta. HSR = B5 + B6 + B7 e
+  // sprint = B6 + B7, sempre como SOMA das bandas (decisão do Felipe).
+  // A distância de cada pedaço do trecho vai para o minuto em que acontece;
+  // buraco de sinal > 2 s encerra o trecho.
+  const permanencia = (banda) => {
+    const campo = 'dwell' + banda.nome;
+    for (const j of janelas) j.m[campo] = 0;
+    let run = [];
+    const fecha = () => {
+      if (!run.length) return;
+      const dur = run[run.length - 1].t1 - run[0].t0;
+      if (dur >= DWELL_CORRIDA_S - 1e-9) for (const seg of run) { const j = qual(seg.t0); if (j) j.m[campo] += seg.metros; }
+      run = [];
+    };
+    for (let i = 0; i < stream.length - 1; i++) {
+      const p = stream[i], q = stream[i + 1];
+      let dt = q.ts - p.ts;
+      if (dt <= 0) continue;
+      const vao = dt > MDP.CONFIG.VAO_MAX_S;
+      if (vao) dt = MDP.CONFIG.VAO_MAX_S;
+      const kh = (p.v + q.v) / 2 * 3.6;
+      if (kh >= banda.de && kh < banda.ate) run.push({ t0: p.ts, t1: p.ts + dt, metros: kh / 3.6 * dt }); else fecha();
+      if (vao) fecha();
+    }
+    fecha();
+  };
+  for (const b of BANDAS) if (BANDAS_SAIDA.includes(b.nome)) permanencia(b);
+  for (const j of janelas) {
+    j.m.hsr = j.m.dwellB5 + j.m.dwellB6 + j.m.dwellB7;
+    j.m.sprint = j.m.dwellB6 + j.m.dwellB7;
   }
 
   // esforços: detectados no bloco inteiro, contados no minuto em que começam
@@ -361,7 +394,7 @@ function calcularBloco(pontosBrutos, bloco, ancora, explosivos) {
       dist_m: r1(m.dist),
     };
     // B1–B4 removidas da saída por decisão do Felipe (26/09/2026)
-    for (const b of BANDAS) if (BANDAS_SAIDA.includes(b.nome)) o['dist_' + b.nome + '_m'] = r1(m['dist' + b.nome]);
+    for (const b of BANDAS) if (BANDAS_SAIDA.includes(b.nome)) o['dist_' + b.nome + '_m'] = r1(m['dwell' + b.nome]);
     Object.assign(o, {
       hsr_m: r1(m.hsr), sprint_m: r1(m.sprint),
       acel_3: m.acel3, desacel_3: m.decel3,
@@ -451,16 +484,29 @@ const COMP_IMA = ['imaAcelAlto', 'imaDesAlto', 'imaEsqAlto', 'imaDirAlto', 'imaA
 const COMP_SALTO = ['saltoAlto', 'salto4', 'salto5', 'salto6', 'salto7'];
 const BAND_GEN2 = { '2': 'acelB2', '3': 'acelB3', '-2': 'desB2', '-3': 'desB3' };
 
-// Padrão da Catapult — NÃO confirmado no tenant. Direção em "horas de relógio"
-// (0–12, 12 = frente). Intensidade em m/s: Medium ≥ 2,5 · High ≥ 3,5.
-const IMA_PADRAO = { medio: 2.5, alto: 3.5, giro: 0, espelho: false };
+// Intensidade CONFIRMADA no tenant (print do OpenField, 27/09/2026): banda 1 = Low
+// 1,5–2,5 · banda 2 = Medium 2,5–3,5 · banda 3 = High 3,5–8. Os SETORES de direção
+// ainda não estão confirmados (0–12 em horas de relógio, 12 = frente).
+// meiaAcel/meiaDes = meia-largura (em horas) dos setores de aceleração (em torno das 12h)
+// e desaceleração (em torno das 6h); o que sobra de cada lado é CoD direita/esquerda.
+const IMA_PADRAO = { medio: 2.5, alto: 3.5, teto: 8, giro: 0, espelho: false, meiaAcel: 1.5, meiaDes: 1.5, criterio: 'inicio' };
+
+function imaNoBloco(brutos, cfg) {
+  const crit = cfg.criterio || 'inicio';
+  return brutos.ima.filter(e => {
+    const t = crit === 'fim' ? (e.end_time ?? e.start_time) : crit === 'meio' ? (e.start_time + (e.end_time ?? e.start_time)) / 2 : e.start_time;
+    return t >= brutos.ini && t < brutos.fim;
+  });
+}
 
 function classificarIMA(ev, cfg) {
   const i = +ev.intensity;
   if (!(i >= cfg.medio)) return null;
+  if (cfg.teto != null && i > cfg.teto) return null;   // acima do teto da banda 3
   let d = (((+ev.direction + cfg.giro) % 12) + 12) % 12;
   if (cfg.espelho) d = (12 - d) % 12;
-  const setor = (d >= 10.5 || d < 1.5) ? 'Acel' : d < 4.5 ? 'Dir' : d < 7.5 ? 'Des' : 'Esq';
+  const hA = cfg.meiaAcel ?? 1.5, hD = cfg.meiaDes ?? 1.5;
+  const setor = (d >= 12 - hA || d < hA) ? 'Acel' : (Math.abs(d - 6) < hD) ? 'Des' : d < 6 ? 'Dir' : 'Esq';
   return 'ima' + setor + (i >= cfg.alto ? 'Alto' : 'Med');
 }
 
@@ -470,6 +516,8 @@ function cfgIMA(q) {
   if (q.imaAlto) c.alto = parseFloat(q.imaAlto);
   if (q.imaGiro) c.giro = parseFloat(q.imaGiro);
   if (q.imaEspelho) c.espelho = String(q.imaEspelho) === '1';
+  if (q.imaMeiaAcel) c.meiaAcel = parseFloat(q.imaMeiaAcel);
+  if (q.imaMeiaDes) c.meiaDes = parseFloat(q.imaMeiaDes);
   return c;
 }
 
@@ -485,17 +533,19 @@ async function baixarEventos(bloco, athleteId, token) {
     catapult(`${base}/events?event_types=ima_acceleration,ima_jump`, token),
   ]);
   const dentro = x => x.start_time >= bloco.ini && x.start_time < bloco.fim;
+  const encosta = x => x.start_time < bloco.fim && (x.end_time ?? x.start_time) >= bloco.ini;
   return {
     gen2: listaDe(ef, 'acceleration_efforts').filter(dentro),
-    ima: listaDe(ev, 'ima_acceleration').filter(dentro),
-    saltos: listaDe(ev, 'ima_jump').filter(dentro),
+    ima: listaDe(ev, 'ima_acceleration').filter(encosta),
+    saltos: listaDe(ev, 'ima_jump').filter(encosta),
+    ini: bloco.ini, fim: bloco.fim,
   };
 }
 
 function montarExplosivos(brutos, linhaStats, cfg) {
   const eventos = [];
   for (const e of brutos.gen2) { const c = BAND_GEN2[String(e.band)]; if (c) eventos.push({ ts: e.start_time, comp: c }); }
-  for (const e of brutos.ima) { const c = classificarIMA(e, cfg); if (c) eventos.push({ ts: e.start_time, comp: c }); }
+  for (const e of imaNoBloco(brutos, cfg)) { const c = classificarIMA(e, cfg); if (c) eventos.push({ ts: Math.max(e.start_time, brutos.ini), comp: c }); }
 
   const nosso = {};
   for (const e of eventos) nosso[e.comp] = (nosso[e.comp] || 0) + 1;
@@ -538,34 +588,48 @@ async function calibrarIMA(blocos, token) {
     catch (e) { dados.push({ b, erro: e.message }); }
   }
   const validos = dados.filter(d => !d.erro);
+  const contar = (d, cfg) => {
+    const cont = {};
+    for (const e of imaNoBloco(d.ev, cfg)) { const c = classificarIMA(e, cfg); if (c) cont[c] = (cont[c] || 0) + 1; }
+    return cont;
+  };
   const resultados = [];
-  for (const medio of [1.5, 2.0, 2.5, 3.0])
-    for (const alto of [2.5, 3.0, 3.5, 4.0, 4.5]) {
-      if (alto <= medio) continue;
-      for (const giro of [0, 3, 6, 9]) for (const espelho of [false, true]) {
-        const cfg = { medio, alto, giro, espelho };
-        let blocosOk = 0, erroTotal = 0;
-        for (const d of validos) {
-          const cont = {};
-          for (const e of d.ev.ima) { const c = classificarIMA(e, cfg); if (c) cont[c] = (cont[c] || 0) + 1; }
-          let ok = true;
-          for (const k of COMP_IMA) {
-            const dif = Math.abs((cont[k] || 0) - (+d.st[COMP_SLUG[k]] || 0));
-            erroTotal += dif; if (dif) ok = false;
-          }
-          if (ok) blocosOk++;
-        }
-        resultados.push({ cfg, blocosQueBatem: blocosOk, de: validos.length, erroTotal });
-      }
+  // Intensidade travada no que o tenant usa (27/09); varre só direção e tempo.
+  const larguras = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.25, 2.5];
+  for (const meiaAcel of larguras)
+  for (const meiaDes of larguras)
+  for (const giro of [-0.5, -0.25, 0, 0.25, 0.5])
+  for (const espelho of [false, true])
+  for (const criterio of ['inicio', 'meio', 'fim']) {
+    const cfg = { medio: 2.5, alto: 3.5, teto: 8, giro, espelho, meiaAcel, meiaDes, criterio };
+    let blocosOk = 0, erroTotal = 0;
+    for (const d of validos) {
+      const cont = contar(d, cfg); let ok = true;
+      for (const k of COMP_IMA) { const dif = Math.abs((cont[k] || 0) - (+d.st[COMP_SLUG[k]] || 0)); erroTotal += dif; if (dif) ok = false; }
+      if (ok) blocosOk++;
     }
+    resultados.push({ cfg, blocosQueBatem: blocosOk, de: validos.length, erroTotal });
+  }
   resultados.sort((a, b) => b.blocosQueBatem - a.blocosQueBatem || a.erroTotal - b.erroTotal);
+  const topo = resultados[0];
+  // Raio-x: eventos ≥ limiar médio de cada bloco, para enxergar os que caem na fronteira
+  const raioX = validos.map(d => ({
+    periodo: d.b.periodo,
+    catapult: Object.fromEntries(COMP_IMA.map(k => [k, +d.st[COMP_SLUG[k]] || 0])),
+    nossoPadrao: contar(d, IMA_PADRAO),
+    eventos: d.ev.ima.filter(e => e.intensity >= 1.5).map(e => ({
+      ini_rel_s: r1(e.start_time - d.ev.ini), fim_rel_s: r1((e.end_time ?? e.start_time) - d.ev.ini),
+      intensidade: r2(e.intensity), direcao: r2(e.direction), classePadrao: classificarIMA(e, IMA_PADRAO),
+    })),
+    saltos: d.ev.saltos.map(e => ({ ini_rel_s: r1(e.start_time - d.ev.ini), altura_m: e.height })),
+    saltosCatapult: Object.fromEntries(COMP_SALTO.map(k => [k, +d.st[COMP_SLUG[k]] || 0])),
+  }));
   return {
     padraoAtual: IMA_PADRAO,
-    padraoResultado: resultados.find(r => JSON.stringify(r.cfg) === JSON.stringify(IMA_PADRAO)),
-    melhores: resultados.slice(0, 8),
-    // Mais de uma configuração com o mesmo resultado no topo = os dados não
-    // bastam para decidir; aí é preciso a configuração do OpenField.
-    empatadosNoTopo: resultados.filter(r => r.blocosQueBatem === resultados[0].blocosQueBatem && r.erroTotal === resultados[0].erroTotal).length,
+    padraoResultado: resultados.find(r => JSON.stringify(r.cfg) === JSON.stringify(IMA_PADRAO)) || null,
+    melhores: resultados.slice(0, 10),
+    empatadosNoTopo: resultados.filter(r => r.blocosQueBatem === topo.blocosQueBatem && r.erroTotal === topo.erroTotal).length,
+    raioX,
     falhas: dados.filter(d => d.erro).map(d => ({ periodo: d.b.periodo, erro: d.erro })),
   };
 }
