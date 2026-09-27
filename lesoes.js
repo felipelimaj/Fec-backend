@@ -29,7 +29,8 @@
      janela fixa de 0,6 s).
    - Colunas por minuto (26/09/2026, após revisão com o Felipe): distância
      total, B5–B7 (permanência ≥ 0,6 s por banda), HSR = B5+B6+B7, sprint = B6+B7, acel ≥ 3, desacel ≤ −3 (duração mínima 0,6 s),
-     vmax, Player Load. B1–B4 removidas pelo Felipe.
+     vmax, Player Load, esforços Gen2 (acel/desacel B2 e B3) da Catapult,
+     HDOP/GNSS/satélites. B1–B4 removidas pelo Felipe.
      Removidas por não terem sido aprovadas: explosivos_fec, cobertura_pct,
      esforços de HSR/sprint, acel/desacel ±2, FC, potência metabólica,
      ancora, ini/fim/duração da janela, colunas de validação no CSV e a
@@ -296,7 +297,7 @@ function metricasVazias() {
   return m;
 }
 
-function calcularBloco(pontosBrutos, bloco, ancora, explosivos) {
+function calcularBloco(pontosBrutos, bloco, ancora, gen2) {
   const stream = normalizar(pontosBrutos);
   if (stream.length < 20) throw new Error(`stream com só ${stream.length} leituras no bloco`);
 
@@ -373,12 +374,11 @@ function calcularBloco(pontosBrutos, bloco, ancora, explosivos) {
   conta(MDP.detectarEsforcos(stream, acc, +1, 3).filter(longo).map(e => e.ts), 'acel3');
   conta(MDP.detectarEsforcos(stream, acc, -1, -3).filter(longo).map(e => e.ts), 'decel3');
 
-  // Componentes das métricas explosivas (eventos da Catapult com horário),
+  // Esforços Gen2 da Catapult (com horário), só das colunas que passaram na trava,
   // contados no minuto em que começam.
-  if (explosivos) for (const ev of explosivos.eventos) {
-    const j = qual(ev.ts); if (j) j.m.comp[ev.comp] = (j.m.comp[ev.comp] || 0) + 1;
+  if (gen2) for (const ev of gen2.eventos) {
+    const j = qual(ev.ts); if (j) j.m.comp[ev.coluna] = (j.m.comp[ev.coluna] || 0) + 1;
   }
-  const soma = (m, lista) => lista.reduce((a, c) => a + (m.comp[c] || 0), 0);
 
   const dtMed = (() => {
     const d = []; for (let i = 1; i < stream.length && i < 400; i++) d.push(stream[i].ts - stream[i - 1].ts);
@@ -400,8 +400,7 @@ function calcularBloco(pontosBrutos, bloco, ancora, explosivos) {
       acel_3: m.acel3, desacel_3: m.decel3,
       vmax_kmh: r1(m.vmax),
       player_load: pl.inc ? r1(m.pl) : null,
-      esforcos_explosivos_2: explosivos && explosivos.valido ? soma(m, FORMULAS_EXPL['Esforços Explosivos 2']) : null,
-      explosive_efforts: explosivos && explosivos.valido ? soma(m, FORMULAS_EXPL['Explosive Efforts']) : null,
+      ...Object.fromEntries(GEN2.map(g => [g.coluna, gen2 && gen2.validas.has(g.coluna) ? (m.comp[g.coluna] || 0) : null])),
       hdop_medio: r2(agrMedia(m.q.hdop)), hdop_min: r2(agrMin(m.q.hdop)), hdop_max: r2(agrMax(m.q.hdop)),
       gnss_qualidade_media_pct: r1(agrMedia(m.q.pq)), gnss_qualidade_min_pct: r1(agrMin(m.q.pq)), gnss_qualidade_max_pct: r1(agrMax(m.q.pq)),
       satelites_medio: r1(agrMedia(m.q.ref)), satelites_min: agrMin(m.q.ref), satelites_max: agrMax(m.q.ref),
@@ -430,208 +429,61 @@ const SLUGS_VALIDACAO = [
   'average_gnss_quality', 'min_gnss_quality', 'max_gnss_quality',
   'average_satellite_count', 'min_satellite_count', 'max_satellite_count',
 ];
-// componentes e métricas explosivas (declarados abaixo)
-const SLUGS_EXPLOSIVOS = () => ['esforços_explosivos_2', 'explosive_efforts_gk',
-  ...Object.values(COMP_SLUG)];
+// componentes Gen2 (declarados abaixo)
+const SLUGS_GEN2 = () => GEN2.map(g => g.slug);
 
 async function statsDaAtividade(activityId, token) {
   const pedir = (params) => catapult('/stats', token, {
     filters: [{ name: 'activity_id', comparison: '=', values: [activityId] }],
     parameters: params, group_by: ['period', 'athlete'],
   });
-  try { return await pedir([...SLUGS_VALIDACAO, ...SLUGS_EXPLOSIVOS()]); }
+  try { return await pedir([...SLUGS_VALIDACAO, ...SLUGS_GEN2()]); }
   catch (e) { /* segue */ }
   try { return await pedir(SLUGS_VALIDACAO); }
   catch (e) { return pedir(['total_distance', 'total_duration']); }
 }
 
 
-// ── 5b) Esforços Explosivos 2 e Explosive Efforts por minuto ─────────────
-/* Métricas personalizadas do tenant (fórmulas mostradas pelo Felipe no
-   OpenField, 26/09/2026). Slugs confirmados pela sonda no mesmo dia.
-   Cada componente vem da Catapult com horário:
-     - esforços de aceleração Gen2  → /efforts (campo band: 2, 3, -2, -3)
-       band 2 = Accel B2 e band -2 = Decel B2 conferidos contra o /stats no
-       bloco do Calebe (3 e 2). Band 3 / -3 = B3 por analogia — a TRAVA abaixo
-       confere em cada lesão.
-     - eventos IMA                  → /events (intensity, direction)
-       A API não diz "High/Medium" nem "CoD Left/Right": a classificação usa
-       IMA_PADRAO (valores padrão da Catapult, NÃO confirmados no tenant).
-     - saltos                        → /events ima_jump (height)
-       Sem limiares de altura: salto só é aceito quando o /stats diz que no
-       bloco não houve salto nas bandas usadas (então todos contam zero).
-     - mergulhos                     → só goleiro; aceito quando o /stats dá 0.
-   TRAVA: as colunas só são preenchidas quando a soma do BLOCO de CADA
-   componente é IGUAL ao /stats oficial. Se um único componente divergir, as
-   duas colunas ficam vazias naquela lesão e o motivo sai no JSON. */
-const COMP_SLUG = {
-  acelB2: 'gen2_acceleration_band7_total_effort_count', acelB3: 'gen2_acceleration_band8_total_effort_count',
-  desB2: 'gen2_acceleration_band2_total_effort_count', desB3: 'gen2_acceleration_band1_total_effort_count',
-  imaAcelAlto: 'ima_band3_accel_count', imaDesAlto: 'ima_band3_decel_count',
-  imaEsqAlto: 'ima_band3_left_count', imaDirAlto: 'ima_band3_right_count',
-  imaAcelMed: 'ima_band2_accel_count', imaDesMed: 'ima_band2_decel_count',
-  imaEsqMed: 'ima_band2_left_count', imaDirMed: 'ima_band2_right_count',
-  saltoAlto: 'ima_band3_jump_count', salto4: 'ima_band4_jump_count', salto5: 'ima_band5_jump_count',
-  salto6: 'ima_band6_jump_count', salto7: 'ima_band7_jump_count', mergulhos: 'total_goalkeeping_dives',
-};
-const SLUG_EE2 = 'esforços_explosivos_2', SLUG_EF = 'explosive_efforts_gk';
-const FORMULAS_EXPL = {
-  'Esforços Explosivos 2': ['acelB2', 'acelB3', 'desB2', 'desB3', 'imaDirAlto', 'imaEsqAlto', 'saltoAlto'],
-  'Explosive Efforts': ['imaAcelAlto', 'imaDesAlto', 'imaEsqAlto', 'imaDirAlto', 'imaDesMed', 'imaAcelMed',
-    'imaDirMed', 'imaEsqMed', 'salto4', 'salto5', 'salto6', 'salto7', 'mergulhos'],
-};
-const COMP_IMA = ['imaAcelAlto', 'imaDesAlto', 'imaEsqAlto', 'imaDirAlto', 'imaAcelMed', 'imaDesMed', 'imaEsqMed', 'imaDirMed'];
-const COMP_SALTO = ['saltoAlto', 'salto4', 'salto5', 'salto6', 'salto7'];
-const BAND_GEN2 = { '2': 'acelB2', '3': 'acelB3', '-2': 'desB2', '-3': 'desB3' };
-
-// Intensidade CONFIRMADA no tenant (print do OpenField, 27/09/2026): banda 1 = Low
-// 1,5–2,5 · banda 2 = Medium 2,5–3,5 · banda 3 = High 3,5–8. Os SETORES de direção
-// ainda não estão confirmados (0–12 em horas de relógio, 12 = frente).
-// meiaAcel/meiaDes = meia-largura (em horas) dos setores de aceleração (em torno das 12h)
-// e desaceleração (em torno das 6h); o que sobra de cada lado é CoD direita/esquerda.
-const IMA_PADRAO = { medio: 2.5, alto: 3.5, teto: 8, giro: 0, espelho: false, meiaAcel: 1.5, meiaDes: 1.5, criterio: 'inicio' };
-
-function imaNoBloco(brutos, cfg) {
-  const crit = cfg.criterio || 'inicio';
-  return brutos.ima.filter(e => {
-    const t = crit === 'fim' ? (e.end_time ?? e.start_time) : crit === 'meio' ? (e.start_time + (e.end_time ?? e.start_time)) / 2 : e.start_time;
-    return t >= brutos.ini && t < brutos.fim;
-  });
-}
-
-function classificarIMA(ev, cfg) {
-  const i = +ev.intensity;
-  if (!(i >= cfg.medio)) return null;
-  if (cfg.teto != null && i > cfg.teto) return null;   // acima do teto da banda 3
-  let d = (((+ev.direction + cfg.giro) % 12) + 12) % 12;
-  if (cfg.espelho) d = (12 - d) % 12;
-  const hA = cfg.meiaAcel ?? 1.5, hD = cfg.meiaDes ?? 1.5;
-  const setor = (d >= 12 - hA || d < hA) ? 'Acel' : (Math.abs(d - 6) < hD) ? 'Des' : d < 6 ? 'Dir' : 'Esq';
-  return 'ima' + setor + (i >= cfg.alto ? 'Alto' : 'Med');
-}
-
-function cfgIMA(q) {
-  const c = { ...IMA_PADRAO };
-  if (q.imaMedio) c.medio = parseFloat(q.imaMedio);
-  if (q.imaAlto) c.alto = parseFloat(q.imaAlto);
-  if (q.imaGiro) c.giro = parseFloat(q.imaGiro);
-  if (q.imaEspelho) c.espelho = String(q.imaEspelho) === '1';
-  if (q.imaMeiaAcel) c.meiaAcel = parseFloat(q.imaMeiaAcel);
-  if (q.imaMeiaDes) c.meiaDes = parseFloat(q.imaMeiaDes);
-  return c;
-}
+// ── 5b) Esforços de aceleração Gen2 da Catapult por minuto ───────────────
+/* Opção B aprovada pelo Felipe (27/09/2026): no lugar de Esforços Explosivos 2
+   e Explosive Efforts (não reconstruíveis por minuto — direção do IMA é
+   processada internamente pela Catapult e as alturas de salto do tenant
+   mudaram, não valem para dados < 2026), entram os 4 componentes Gen2, que
+   vêm da Catapult com horário e bateram 7/7 com o /stats em 26/09:
+     /periods/{id}/athletes/{id}/efforts?effort_types=acceleration, campo band:
+       2 = Acceleration B2 (gen2_acceleration_band7) · 3 = Acceleration B3 (band8)
+      -2 = Deceleration B2 (band2)                    · -3 = Deceleration B3 (band1)
+   Cada esforço conta no minuto em que começa (start_time).
+   TRAVA por coluna: a soma do bloco precisa ser IGUAL ao /stats; se divergir,
+   aquela coluna fica vazia na lesão e o motivo sai no JSON. */
+const GEN2 = [
+  { band: '2',  coluna: 'gen2_acel_b2',    slug: 'gen2_acceleration_band7_total_effort_count' },
+  { band: '3',  coluna: 'gen2_acel_b3',    slug: 'gen2_acceleration_band8_total_effort_count' },
+  { band: '-2', coluna: 'gen2_desacel_b2', slug: 'gen2_acceleration_band2_total_effort_count' },
+  { band: '-3', coluna: 'gen2_desacel_b3', slug: 'gen2_acceleration_band1_total_effort_count' },
+];
 
 function listaDe(raw, chave) {
   const d = Array.isArray(raw) ? raw[0] : raw;
   return (d && d.data && Array.isArray(d.data[chave])) ? d.data[chave] : [];
 }
 
-async function baixarEventos(bloco, athleteId, token) {
-  const base = `/periods/${bloco.periodId}/athletes/${athleteId}`;
-  const [ef, ev] = await Promise.all([
-    catapult(`${base}/efforts?effort_types=acceleration`, token),
-    catapult(`${base}/events?event_types=ima_acceleration,ima_jump`, token),
-  ]);
-  const dentro = x => x.start_time >= bloco.ini && x.start_time < bloco.fim;
-  const encosta = x => x.start_time < bloco.fim && (x.end_time ?? x.start_time) >= bloco.ini;
-  return {
-    gen2: listaDe(ef, 'acceleration_efforts').filter(dentro),
-    ima: listaDe(ev, 'ima_acceleration').filter(encosta),
-    saltos: listaDe(ev, 'ima_jump').filter(encosta),
-    ini: bloco.ini, fim: bloco.fim,
-  };
+async function baixarGen2(bloco, athleteId, token) {
+  const raw = await catapult(`/periods/${bloco.periodId}/athletes/${athleteId}/efforts?effort_types=acceleration`, token);
+  return listaDe(raw, 'acceleration_efforts').filter(x => x.start_time >= bloco.ini && x.start_time < bloco.fim);
 }
 
-function montarExplosivos(brutos, linhaStats, cfg) {
-  const eventos = [];
-  for (const e of brutos.gen2) { const c = BAND_GEN2[String(e.band)]; if (c) eventos.push({ ts: e.start_time, comp: c }); }
-  for (const e of imaNoBloco(brutos, cfg)) { const c = classificarIMA(e, cfg); if (c) eventos.push({ ts: Math.max(e.start_time, brutos.ini), comp: c }); }
-
-  const nosso = {};
-  for (const e of eventos) nosso[e.comp] = (nosso[e.comp] || 0) + 1;
-  const oficial = k => (linhaStats && linhaStats[COMP_SLUG[k]] != null) ? +linhaStats[COMP_SLUG[k]] : null;
-
-  const motivos = [];
-  if (!linhaStats) motivos.push('sem /stats do bloco');
-  const saltosOficiais = COMP_SALTO.reduce((a, k) => a + (oficial(k) || 0), 0);
-  if (saltosOficiais > 0) motivos.push(`há ${saltosOficiais} salto(s) nas bandas usadas e faltam os limiares de altura do tenant`);
-  if ((oficial('mergulhos') || 0) > 0) motivos.push('há mergulhos no bloco e o evento de mergulho não é lido');
-
-  const conferencia = {};
-  for (const k of Object.keys(COMP_SLUG)) {
-    const n = COMP_SALTO.includes(k) || k === 'mergulhos' ? 0 : (nosso[k] || 0);
-    conferencia[k] = { nosso: n, catapult: oficial(k), bate: oficial(k) === n };
-    if (linhaStats && oficial(k) === null) motivos.push(`/stats sem ${COMP_SLUG[k]}`);
-    else if (linhaStats && oficial(k) !== n) motivos.push(`${k}: ${n} contra ${oficial(k)} da Catapult`);
+function montarGen2(esforcos, linhaStats) {
+  const eventos = [], conferencia = {}, motivos = [];
+  for (const g of GEN2) {
+    const meus = esforcos.filter(e => String(e.band) === g.band);
+    const oficial = linhaStats && linhaStats[g.slug] != null ? +linhaStats[g.slug] : null;
+    const bate = oficial !== null && oficial === meus.length;
+    conferencia[g.coluna] = { nosso: meus.length, catapult: oficial, bate };
+    if (!bate) motivos.push(oficial === null ? `${g.coluna}: /stats sem ${g.slug}` : `${g.coluna}: ${meus.length} contra ${oficial} da Catapult`);
+    if (bate) for (const e of meus) eventos.push({ ts: e.start_time, coluna: g.coluna });
   }
-  const ee2 = linhaStats ? linhaStats[SLUG_EE2] : null, ef = linhaStats ? linhaStats[SLUG_EF] : null;
-  const somaF = nome => FORMULAS_EXPL[nome].reduce((a, k) => a + (oficial(k) || 0), 0);
-  if (ee2 != null && +ee2 !== somaF('Esforços Explosivos 2')) motivos.push('Esforços Explosivos 2 do /stats ≠ soma dos componentes');
-  if (ef != null && +ef !== somaF('Explosive Efforts')) motivos.push('Explosive Efforts do /stats ≠ soma dos componentes');
-
-  return {
-    eventos, valido: motivos.length === 0, motivos, conferencia,
-    blocoCatapult: { esforcos_explosivos_2: ee2, explosive_efforts: ef },
-    blocoNosso: { esforcos_explosivos_2: FORMULAS_EXPL['Esforços Explosivos 2'].reduce((a, k) => a + conferencia[k].nosso, 0),
-                  explosive_efforts: FORMULAS_EXPL['Explosive Efforts'].reduce((a, k) => a + conferencia[k].nosso, 0) },
-  };
-}
-
-/* ?lesoes=calibrar_ima — varre limiares/orientação do IMA e diz qual
-   configuração reproduz EXATAMENTE os 8 contadores IMA do /stats em todas as
-   lesões. Não muda nada na extração: só informa, para o Felipe aprovar. */
-async function calibrarIMA(blocos, token) {
-  const dados = [];
-  for (const b of blocos) {
-    if (!b.atribuicao.ok || !b.atribuicao.stats) continue;
-    try { dados.push({ b, ev: await baixarEventos(b, b.atribuicao.athleteId, token), st: b.atribuicao.stats }); }
-    catch (e) { dados.push({ b, erro: e.message }); }
-  }
-  const validos = dados.filter(d => !d.erro);
-  const contar = (d, cfg) => {
-    const cont = {};
-    for (const e of imaNoBloco(d.ev, cfg)) { const c = classificarIMA(e, cfg); if (c) cont[c] = (cont[c] || 0) + 1; }
-    return cont;
-  };
-  const resultados = [];
-  // Intensidade travada no que o tenant usa (27/09); varre só direção e tempo.
-  const larguras = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.25, 2.5];
-  for (const meiaAcel of larguras)
-  for (const meiaDes of larguras)
-  for (const giro of [-0.5, -0.25, 0, 0.25, 0.5])
-  for (const espelho of [false, true])
-  for (const criterio of ['inicio', 'meio', 'fim']) {
-    const cfg = { medio: 2.5, alto: 3.5, teto: 8, giro, espelho, meiaAcel, meiaDes, criterio };
-    let blocosOk = 0, erroTotal = 0;
-    for (const d of validos) {
-      const cont = contar(d, cfg); let ok = true;
-      for (const k of COMP_IMA) { const dif = Math.abs((cont[k] || 0) - (+d.st[COMP_SLUG[k]] || 0)); erroTotal += dif; if (dif) ok = false; }
-      if (ok) blocosOk++;
-    }
-    resultados.push({ cfg, blocosQueBatem: blocosOk, de: validos.length, erroTotal });
-  }
-  resultados.sort((a, b) => b.blocosQueBatem - a.blocosQueBatem || a.erroTotal - b.erroTotal);
-  const topo = resultados[0];
-  // Raio-x: eventos ≥ limiar médio de cada bloco, para enxergar os que caem na fronteira
-  const raioX = validos.map(d => ({
-    periodo: d.b.periodo,
-    catapult: Object.fromEntries(COMP_IMA.map(k => [k, +d.st[COMP_SLUG[k]] || 0])),
-    nossoPadrao: contar(d, IMA_PADRAO),
-    eventos: d.ev.ima.filter(e => e.intensity >= 1.5).map(e => ({
-      ini_rel_s: r1(e.start_time - d.ev.ini), fim_rel_s: r1((e.end_time ?? e.start_time) - d.ev.ini),
-      intensidade: r2(e.intensity), direcao: r2(e.direction), classePadrao: classificarIMA(e, IMA_PADRAO),
-    })),
-    saltos: d.ev.saltos.map(e => ({ ini_rel_s: r1(e.start_time - d.ev.ini), altura_m: e.height })),
-    saltosCatapult: Object.fromEntries(COMP_SALTO.map(k => [k, +d.st[COMP_SLUG[k]] || 0])),
-  }));
-  return {
-    padraoAtual: IMA_PADRAO,
-    padraoResultado: resultados.find(r => JSON.stringify(r.cfg) === JSON.stringify(IMA_PADRAO)) || null,
-    melhores: resultados.slice(0, 10),
-    empatadosNoTopo: resultados.filter(r => r.blocosQueBatem === topo.blocosQueBatem && r.erroTotal === topo.erroTotal).length,
-    raioX,
-    falhas: dados.filter(d => d.erro).map(d => ({ periodo: d.b.periodo, erro: d.erro })),
-  };
+  return { eventos, conferencia, motivos, validas: new Set(Object.keys(conferencia).filter(k => conferencia[k].bate)) };
 }
 
 function difPct(nosso, oficial) {
@@ -673,10 +525,6 @@ export default async function handlerLesoes(req, res, token) {
     .filter(pid => !varredura.blocos.some(b => b.periodId === pid))
     .map(pid => CATALOGO[pid].atleta + ' ' + CATALOGO[pid].dataLesao);
 
-  if (String(q.lesoes) === 'calibrar_ima') {
-    return res.status(200).json(await calibrarIMA(blocos, token));
-  }
-
   if (modoLista) {
     return res.status(200).json({
       atividadesVarridas: varredura.nAtividades,
@@ -698,13 +546,13 @@ export default async function handlerLesoes(req, res, token) {
     if (!b.atribuicao.ok) return { ...base, erro: 'atleta não identificado — ' + b.atribuicao.como };
     try {
       const s = await baixarStream(b, b.atribuicao.athleteId, token);
-      let explosivos = null;
+      let gen2 = null;
       try {
-        explosivos = montarExplosivos(await baixarEventos(b, b.atribuicao.athleteId, token), b.atribuicao.stats, cfgIMA(q));
+        gen2 = montarGen2(await baixarGen2(b, b.atribuicao.athleteId, token), b.atribuicao.stats);
       } catch (e) {
-        explosivos = { eventos: [], valido: false, motivos: ['falha ao baixar eventos: ' + e.message] };
+        gen2 = { eventos: [], conferencia: {}, motivos: ['falha ao baixar esforços: ' + e.message], validas: new Set() };
       }
-      const calc = calcularBloco(s.pontos, b, ancora, explosivos);
+      const calc = calcularBloco(s.pontos, b, ancora, gen2);
       const of = b.atribuicao.stats;
       const oficial = of ? {
         dist: of.total_distance, pl: of.total_player_load, vmax: of.max_vel,
@@ -725,8 +573,7 @@ export default async function handlerLesoes(req, res, token) {
           satelites: { medio: [r1(agrMedia(calc.tot.q.ref)), r1(of.average_satellite_count)], min: [agrMin(calc.tot.q.ref), of.min_satellite_count], max: [agrMax(calc.tot.q.ref), of.max_satellite_count] },
           leitura: '[nosso, catapult] — bloco inteiro',
         },
-        explosivos: explosivos ? { preenchido: explosivos.valido, motivos: explosivos.motivos,
-          bloco: { nosso: explosivos.blocoNosso, catapult: explosivos.blocoCatapult }, componentes: explosivos.conferencia } : null,
+        gen2: gen2 ? { colunasPreenchidas: [...gen2.validas], motivos: gen2.motivos, componentes: gen2.conferencia } : null,
       } : null;
       return { ...base, calc, validacao, stream: { campos: s.campos, rota: s.rota, hz: calc.hz, leituras: calc.leituras, plModo: calc.plModo } };
     } catch (e) {
