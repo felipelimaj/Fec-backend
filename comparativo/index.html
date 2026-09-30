@@ -269,6 +269,13 @@ code{background:var(--lt);border:1px solid var(--bdr);border-radius:4px;padding:
       </select>
     </div>
     <div class="fld">
+      <label>Janela em análise</label>
+      <div class="seg" id="seg-jan">
+        <button data-v="bloco" class="on">Bloco inteiro</button>
+        <button data-v="ult6">Últimos 6</button>
+      </div>
+    </div>
+    <div class="fld">
       <label>Expulsões</label>
       <div class="seg" id="seg-exp">
         <button data-v="marcar" class="on">Marcar</button>
@@ -328,7 +335,7 @@ var PAUSA_MS = 1200;    // respiro entre lotes: a Catapult limita a taxa
 
 // ============================================================================
 // CONTEXTO — aba "Jogos 2026" da planilha do departamento
-// Copiado em 21/08/2026. Para atualizar: acrescente a linha do jogo novo.
+// Copiado em 21/08/2026, atualizado em 30/09/2026 (até o jogo 58). Para atualizar: acrescente a linha do jogo novo.
 // tec = coluna CODIGO (treinador no comando) · exp = coluna Expulsão
 // ============================================================================
 var CONTEXTO = [
@@ -385,10 +392,16 @@ var CONTEXTO = [
  {n:49,data:'09/08/2026',adv:'Cuiabá',      camp:'Série B',        mando:'Fora',estadio:'Arena Pantanal',  viagem:null,placar:'1x1',gf:1,gc:1,pts:1,res:'Empate', posse:null,xg:null,xgAdv:null,esq:'',temp:35,umi:38,dias:3,fase:'21ª Rodada',exp:1,tec:'Paulo Autuori'},
  {n:50,data:'15/08/2026',adv:'Juventude',   camp:'Série B',        mando:'Fora',estadio:'Alfredo Jaconi',  viagem:null,placar:'0x0',gf:0,gc:0,pts:1,res:'Empate', posse:null,xg:null,xgAdv:null,esq:'',temp:17,umi:80,dias:4,fase:'22ª Rodada',exp:0,tec:'Paulo Autuori'},
  {n:51,data:'19/08/2026',adv:'São Bernardo',camp:'Série B',        mando:'Casa',estadio:'Arena Castelão',   viagem:0,   placar:'1x1',gf:1,gc:1,pts:1,res:'Empate', posse:null,xg:null,xgAdv:null,esq:'',temp:27,umi:90,dias:0,fase:'23ª Rodada',exp:0,tec:'Paulo Autuori'},
- // Temperatura e umidade vieram da aba Jogos 2026. Viagem e dias fora estão
- // como 0 / Fortaleza na planilha, o que não bate com um jogo em Santa Catarina
- // — ficam nulos aqui até serem preenchidos, e nulo é ignorado nas médias.
- {n:52,data:'23/08/2026',adv:'Criciúma',    camp:'Série B',        mando:'Fora',estadio:'Heriberto Hulse',  viagem:null,placar:'0x2',gf:2,gc:0,pts:3,res:'Vitória',posse:null,xg:null,xgAdv:null,esq:'',temp:14,umi:66,dias:null,fase:'24ª Rodada',exp:0,tec:'Paulo Autuori'}
+ // Viagem e dias fora do Criciúma foram preenchidos na planilha depois da
+ // primeira cópia (antes estavam 0 / Fortaleza e ficavam nulos aqui).
+ {n:52,data:'23/08/2026',adv:'Criciúma',    camp:'Série B',        mando:'Fora',estadio:'Heriberto Hulse',  viagem:6164,placar:'0x2',gf:2,gc:0,pts:3,res:'Vitória',posse:null,xg:null,xgAdv:null,esq:'',temp:14,umi:66,dias:4,fase:'24ª Rodada',exp:0,tec:'Paulo Autuori'},
+ // Jogos 53–58 copiados da aba Jogos 2026 em 30/09/2026.
+ {n:53,data:'31/08/2026',adv:'Operário',    camp:'Série B',        mando:'Casa',estadio:'Arena Castelão',   viagem:0,   placar:'1x1',gf:1,gc:1,pts:1,res:'Empate', posse:null,xg:null,xgAdv:null,esq:'',temp:27,umi:84,dias:0,fase:'25ª Rodada',exp:0,tec:'Paulo Autuori'},
+ {n:54,data:'05/09/2026',adv:'Goiás',       camp:'Série B',        mando:'Fora',estadio:'Serrinha',         viagem:5420,placar:'0x1',gf:1,gc:0,pts:3,res:'Vitória',posse:null,xg:null,xgAdv:null,esq:'',temp:36,umi:39,dias:3,fase:'26ª Rodada',exp:0,tec:'Paulo Autuori'},
+ {n:55,data:'09/09/2026',adv:'Avaí',        camp:'Série B',        mando:'Casa',estadio:'Arena Castelão',   viagem:0,   placar:'1x0',gf:1,gc:0,pts:3,res:'Vitória',posse:null,xg:null,xgAdv:null,esq:'',temp:28,umi:88,dias:0,fase:'27ª Rodada',exp:0,tec:'Paulo Autuori'},
+ {n:56,data:'13/09/2026',adv:'Ceará',       camp:'Série B',        mando:'Casa',estadio:'Arena Castelão',   viagem:0,   placar:'1x1',gf:1,gc:1,pts:1,res:'Empate', posse:null,xg:null,xgAdv:null,esq:'',temp:28,umi:82,dias:0,fase:'28ª Rodada',exp:0,tec:'Paulo Autuori'},
+ {n:57,data:'20/09/2026',adv:'Londrina',    camp:'Série B',        mando:'Fora',estadio:'VGD',              viagem:5651,placar:'1x2',gf:2,gc:1,pts:3,res:'Vitória',posse:null,xg:null,xgAdv:null,esq:'',temp:23,umi:76,dias:4,fase:'29ª Rodada',exp:0,tec:'Paulo Autuori'},
+ {n:58,data:'27/09/2026',adv:'Athletic',    camp:'Série B',        mando:'Casa',estadio:'Arena Castelão',   viagem:0,   placar:'2x2',gf:2,gc:2,pts:1,res:'Empate', posse:null,xg:null,xgAdv:null,esq:'',temp:29,umi:73,dias:0,fase:'30ª Rodada',exp:0,tec:'Paulo Autuori'}
 ];
 
 // ============================================================================
@@ -473,7 +486,7 @@ var ABAS = [
 // ============================================================================
 // ESTADO
 // ============================================================================
-var S = {ref:'top10var', exp:'marcar', esc:'abs', minMin:60, elenco:'ativos', matriz:'delta',
+var S = {janela:'bloco', ref:'top10var', exp:'marcar', esc:'abs', minMin:60, elenco:'ativos', matriz:'delta',
          sessao:false, aba:'resumo',
          ordIndiv:{col:'dNovo',dir:-1}, ordMin:{col:'minNovo',dir:-1}, metricaFoco:'dist'};
 var DADOS = {};        // { 'DD/MM/YYYY': [atleta, ...] }
@@ -562,6 +575,32 @@ function detectarBlocos(){
 var BLOCOS = detectarBlocos();
 var LB_NOVO = curto(BLOCOS.novo.tec);        // ex.: "Autuori"
 var LB_ANT  = curto(BLOCOS.anterior.tec);    // ex.: "Carpini"
+
+// JANELA EM ANÁLISE
+// "Bloco inteiro" = todos os jogos do técnico atual. "Últimos 6" = só as 6
+// partidas mais recentes desse bloco, pela data do calendário (os filtros da
+// barra, como excluir expulsões, se aplicam depois). A referência NÃO muda:
+// continua sendo o bloco anterior, com os mesmos KPIs do seletor (10 maiores,
+// últimos N, todos). Como nAmostra() lê BLOCOS.novo, "Últimos jogos" da
+// referência passa a ser os últimos 6 do bloco anterior — igual para igual.
+// Os jogos do técnico atual que ficam fora da janela não entram em nenhum lado.
+var JANELA_N = 6;
+var BLOCO_NOVO_COMPLETO = BLOCOS.novo;
+var LB_NOVO_TEC = LB_NOVO;
+function aplicarJanela(){
+  var c = BLOCO_NOVO_COMPLETO;
+  if(S.janela==='ult6' && c.jogos.length>JANELA_N){
+    var ord = c.jogos.slice().sort(function(a,b){ return chaveData(a.data).localeCompare(chaveData(b.data)); });
+    BLOCOS.novo = {tec:c.tec, jogos:ord.slice(-JANELA_N), janela:true};
+    LB_NOVO = LB_NOVO_TEC+' · últimos '+JANELA_N;
+  } else {
+    BLOCOS.novo = c;
+    LB_NOVO = LB_NOVO_TEC;
+  }
+}
+function naJanela(data){
+  return BLOCOS.novo.jogos.some(function(g){ return g.data===data; });
+}
 var CTX = {};
 CONTEXTO.forEach(function(g){ CTX[g.data] = g; });
 
@@ -1005,7 +1044,10 @@ function faixaContexto(){
   var r=rotuloRefCurto(), jn=jogosDe(BLOCOS.novo).length;
   var h='<div class="fx">';
   h+='<div class="fx-l"><div class="fx-k">Bloco em análise</div>'+
-     '<div class="fx-v">'+esc(LB_NOVO)+'</div><div class="fx-s">'+jn+' jogos</div></div>';
+     '<div class="fx-v">'+esc(LB_NOVO)+'</div><div class="fx-s">'+jn+' jogos'+
+     (BLOCOS.novo.janela ? ' · '+esc(BLOCOS.novo.jogos[0].data.slice(0,5))+' a '+
+       esc(BLOCOS.novo.jogos[BLOCOS.novo.jogos.length-1].data.slice(0,5))+
+       ' · de '+BLOCO_NOVO_COMPLETO.jogos.length+' do bloco' : '')+'</div></div>';
   h+='<div class="fx-x">comparado com</div>';
   h+='<div class="fx-r"><div class="fx-k">Referência</div>'+
      '<div class="fx-v">'+esc(r.t)+'</div><div class="fx-s">'+esc(r.d)+'</div></div>';
@@ -1184,6 +1226,9 @@ function linhaTempo(met, dp, un){
     var v = valor(agEquipe(g.data),met.k,S.esc)||0;
     var x0 = PAD_L+i*bw+2, w=Math.max(3,bw-4);
     var cor = corTec[(g.tec||'').trim()] || '#CBD5E1';
+    // Com a janela ligada, jogos do técnico atual anteriores a ela ficam num
+    // azul intermediário: não são referência nem bloco em análise.
+    if(BLOCOS.novo.janela && (g.tec||'').trim()===BLOCOS.novo.tec && !naJanela(g.data)) cor='#5B7BB8';
     var alt = Math.max(0, base-y(v));
     s+='<rect x="'+x0+'" y="'+y(v)+'" width="'+w+'" height="'+alt+'" fill="'+cor+'" rx="1">'+
        '<title>'+esc(g.data)+' · '+esc(g.adv)+' ('+esc(g.mando)+', '+esc(g.camp)+') — '+esc(curto(g.tec))+': '+
@@ -1229,7 +1274,7 @@ function linhaTempo(met, dp, un){
   todos.forEach(function(g,i){
     var cx=PAD_L+i*bw+bw/2, ty=base+9;
     var adv=g.adv.length>15 ? g.adv.slice(0,14)+'…' : g.adv;
-    var forte = (g.tec||'').trim()===BLOCOS.novo.tec;
+    var forte = naJanela(g.data);
     s+='<g transform="translate('+cx+','+ty+') rotate(-55)">';
     s+='<text x="0" y="0" text-anchor="end" font-size="11" font-family="Inter,sans-serif" '+
        'font-weight="'+(forte?700:500)+'" fill="'+(forte?'#071A3E':'#475569')+'">'+esc(adv)+
@@ -1239,7 +1284,13 @@ function linhaTempo(met, dp, un){
   });
   s+='</svg></div>';
   var lg='<div class="lg">';
-  Object.keys(corTec).forEach(function(t){ lg+='<span><i style="background:'+corTec[t]+'"></i>'+esc(curto(t))+'</span>'; });
+  Object.keys(corTec).forEach(function(t){
+    var rot = (t===BLOCOS.novo.tec && BLOCOS.novo.janela) ? LB_NOVO : curto(t);
+    lg+='<span><i style="background:'+corTec[t]+'"></i>'+esc(rot)+'</span>';
+  });
+  if(BLOCOS.novo.janela){
+    lg+='<span><i style="background:#5B7BB8"></i>'+esc(LB_NOVO_TEC)+' · antes da janela (fora da comparação)</span>';
+  }
   lg+='<span><i style="background:#E8360A"></i>Jogo com expulsão</span>'+
       '<span><i style="background:#C4952A;opacity:.25"></i>Faixa dos 10 maiores de '+esc(LB_ANT)+'</span>';
   var comFalha=todos.filter(function(g){ return falhaGps(g); });
@@ -2099,6 +2150,12 @@ function renderMetodo(){
   h+='<h4>O que está sendo comparado</h4>';
   h+='<p>Os <b>'+jn+' jogos</b> de '+esc(LB_NOVO)+' contra os <b>'+ja+' jogos</b> de '+esc(LB_ANT)+'. '+
      'A separação vem da coluna CODIGO da aba Jogos 2026. Jogo sob comando interino fica fora das duas médias.</p>';
+  h+='<h4>Janela em análise</h4>'+
+     '<p><b>Bloco inteiro</b> usa todos os '+BLOCO_NOVO_COMPLETO.jogos.length+' jogos de '+esc(LB_NOVO_TEC)+'. '+
+     '<b>Últimos '+JANELA_N+'</b> isola as '+JANELA_N+' partidas mais recentes desse bloco, pela data do calendário, '+
+     'e as compara com a mesma referência e os mesmos KPIs. Os jogos anteriores à janela ficam fora dos dois lados. '+
+     'Com a janela ligada, a opção "Últimos jogos" do seletor de referência passa a pegar os últimos '+JANELA_N+
+     ' de '+esc(LB_ANT)+', para manter igual número de partidas.</p>';
 
   h+='<h4>Variáveis</h4><ul>'+
      '<li>Alta Intensidade = B5+B6+B7, acima de 19,80 km/h.</li>'+
@@ -2340,12 +2397,14 @@ function seg(id, chave){
 }
 
 function render(){
+  aplicarJanela();
   var optUlt=document.querySelector('#sel-ref option[value=ult5]');
   if(optUlt) optUlt.textContent='Últimos '+nAmostra()+' jogos';
   document.getElementById('hd-ant').textContent=LB_ANT;
   document.getElementById('hd-ant-mt').textContent=BLOCOS.anterior.jogos.length+' jogos · bloco de referência';
   document.getElementById('hd-nov').textContent=LB_NOVO;
-  document.getElementById('hd-nov-mt').textContent=BLOCOS.novo.jogos.length+' jogos · bloco em análise';
+  document.getElementById('hd-nov-mt').textContent=BLOCOS.novo.jogos.length+' jogos · '+
+    (BLOCOS.novo.janela ? 'janela de '+BLOCO_NOVO_COMPLETO.jogos.length : 'bloco em análise');
   try{
     if(S.aba==='resumo') renderResumo();
     else if(S.aba==='equipe') renderEquipe();
@@ -2412,6 +2471,7 @@ document.getElementById('sel-ref').addEventListener('change',function(e){ S.ref=
 document.getElementById('inp-min').addEventListener('change',function(e){
   S.minMin=Math.max(0,Math.min(120,Number(e.target.value)||0)); render();
 });
+seg('seg-jan','janela');
 seg('seg-exp','exp');
 seg('seg-elenco','elenco');
 seg('seg-esc','esc');

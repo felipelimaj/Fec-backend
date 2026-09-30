@@ -64,6 +64,14 @@ Na Minutagem o cálculo ignora os filtros da barra de controle, como o resto daq
 
 O filtro **Só ativos** vale para as abas Individual e Minutagem. Totais de equipe e recortes por posição usam todos que entraram em campo: remover de um jogo de março quem já saiu do clube faria a referência daquele jogo descrever uma partida que não aconteceu.
 
+### Janela em análise — últimos 6 jogos
+
+Na barra de controle, **Janela em análise** alterna entre **Bloco inteiro** (todos os jogos do técnico atual) e **Últimos 6** (as 6 partidas mais recentes desse bloco, pela data do calendário). Os filtros da barra, como excluir expulsões, se aplicam depois do recorte.
+
+A referência não muda: continua sendo o bloco anterior, com os mesmos KPIs do seletor — 10 maiores por variável, 10 maiores em distância, últimos jogos e todos. Como `nAmostra()` lê o bloco em análise, com a janela ligada a opção "Últimos jogos" passa a pegar os últimos 6 do bloco anterior. O tamanho do efeito segue contra todos os jogos do bloco anterior.
+
+Os jogos do técnico atual que ficam antes da janela não entram em nenhum dos dois lados. No gráfico da temporada eles aparecem num azul intermediário, com legenda própria. O tamanho da janela é a constante `JANELA_N` no `index.html`.
+
 ## Aba Auditoria
 
 Confere as bandas contra o dado bruto, não contra a documentação. O endpoint devolve, por jogo, as oito bandas de velocidade e as oito de aceleração Gen2 somadas.
