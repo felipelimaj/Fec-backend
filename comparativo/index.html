@@ -852,11 +852,13 @@ function trilho(c, met){
 function avisos(){
   var h='';
   var jn = jogosDe(BLOCOS.novo), ja = jogosDe(BLOCOS.anterior);
-  var expNovo = jn.filter(function(g){ return (g.exp||0)>0; });
-  var expAnt  = ja.filter(function(g){ return (g.exp||0)>0; });
+  // Conta sobre a lista SEM o filtro de expulsão: jogosDe() já tira esses
+  // jogos quando o filtro está em "excluir", e aí a contagem saía sempre zero.
+  var expNovo = jogosBrutos(BLOCOS.novo).filter(function(g){ return (g.exp||0)>0; });
+  var expAnt  = jogosBrutos(BLOCOS.anterior).filter(function(g){ return (g.exp||0)>0; });
 
   if(S.exp==='marcar' && expNovo.length && S.esc==='abs'){
-    h+='<div class="warn"><span>⚠</span><div><b>Expulsão dentro do bloco de 5 jogos.</b> '+
+    h+='<div class="warn"><span>⚠</span><div><b>Expulsão dentro do bloco em análise ('+jn.length+' jogos).</b> '+
        expNovo.map(function(g){ return esc(g.data)+' × '+esc(g.adv); }).join(', ')+
        ' — a equipe terminou com um atleta a menos, o que derruba qualquer total absoluto sem que a '+
        'intensidade tenha caído. Os jogos com expulsão aparecem hachurados em vermelho nos gráficos. '+
@@ -951,10 +953,13 @@ function cartaoEfeito(comps){
   var ja=jogosDe(BLOCOS.anterior), jn=jogosDe(BLOCOS.novo);
   var h='<div class="card" style="border-left:5px solid var(--az3)">';
   h+='<div class="ctitle">Tamanho do efeito</div>';
+  var jaTot=jogosBrutos(BLOCOS.anterior).length, jaExp=jaTot-ja.length;
   h+='<div class="fx-alt"><b>Atenção: aqui a referência é outra.</b> Esta seção compara com a média de '+
-     '<b>todos os '+ja.length+' jogos de '+esc(LB_ANT)+'</b>, e não com a referência escolhida na barra de controle. '+
-     'Efeito se calcula entre distribuições; os 10 maiores são uma cauda, e o desvio deles é pequeno demais para '+
-     'servir de régua.</div>';
+     '<b>todos os '+ja.length+' jogos de '+esc(LB_ANT)+'</b>'+
+     (jaExp>0?' ('+jaExp+' com expulsão fora pelo filtro)':'')+', e não com a referência escolhida na barra de '+
+     'controle (<b>'+esc(rotuloRefCurto().t)+'</b>). O tamanho do efeito compara duas distribuições inteiras: um '+
+     'recorte da referência — os maiores jogos ou só os mais recentes — tem desvio menor que o real e inflaria o '+
+     'resultado.</div>';
   h+='<p class="csub">O Δ% das barras acima diz para que lado a diferença foi. Ele não diz se ela importa: '+
      '3% numa variável que oscila 12% entre jogos é ruído; os mesmos 3% numa que oscila 2% é mudança de patamar. '+
      'Aqui a diferença é dividida pela variação normal entre partidas, e o resultado sai numa escala única.</p>';
@@ -979,9 +984,9 @@ function cartaoEfeito(comps){
   });
   h+='</tbody></table></div>';
   h+='<p class="csub" style="margin-top:11px">A coluna <b>Variação entre jogos</b> é o desvio padrão combinado dos '+
-     'dois blocos, ponderado pelo número de jogos — é a régua do denominador. O <b>IC 90%</b> mostra até onde o '+
-     'efeito poderia ir com '+jn.length+' jogos de um lado; quando ele atravessa o zero, o dado não separa queda de '+
-     'aumento, e a linha aparece marcada como <b>incerto</b>.</p></div>';
+     'dois blocos, ponderado pelos graus de liberdade (nº de jogos − 1) — é a régua do denominador. O <b>IC 90%</b> '+
+     'mostra até onde o efeito poderia ir com '+jn.length+' jogos de um lado e '+ja.length+' do outro; quando ele '+
+     'atravessa o zero, o dado não separa queda de aumento, e a linha aparece marcada como <b>incerto</b>.</p></div>';
   return h;
 }
 
@@ -1033,7 +1038,7 @@ function rotuloRefCurto(){
     top10dist:{t:'10 maiores jogos de '+LB_ANT+' em distância',
                d:'os mesmos 10 jogos em todas as variáveis · partidas reais'},
     ult5:     {t:'Últimos '+nAmostra()+' jogos de '+LB_ANT,
-               d:'mesmo nº de partidas e mesmo momento de temporada'},
+               d:'mesmo nº de partidas · os jogos imediatamente antes da troca de comando'},
     todos:    {t:'Média de todos os '+ja+' jogos de '+LB_ANT,
                d:'a era inteira · estável, mas dilui fases diferentes'}
   }[S.ref];
@@ -1054,16 +1059,17 @@ function faixaContexto(){
   h+='<div class="fx-t">'+
      '<span><i>Escala</i>'+(S.esc==='min'?'por minuto':'absoluto')+'</span>'+
      '<span><i>Expulsões</i>'+(S.exp==='excluir'?'excluídas':'marcadas')+'</span>'+
-     (S.aba==='individual'?'<span><i>Elenco</i>'+(S.elenco==='ativos'?'só ativos':'todos')+'</span>':'')+
+     (S.aba==='individual'?'<span><i>Elenco</i>'+(S.elenco==='ativos'?'só ativos':'todos')+'</span>'+
+       '<span><i>Mín. minutos</i>'+S.minMin+' min por jogo</span>':'')+
      '</div>';
   return h+'</div>';
 }
 
 function rotuloRef(){
-  return {top10var:'Referência: média dos 10 maiores por variável',
-          top10dist:'Referência: média dos 10 maiores jogos em distância',
-          ult5:'Referência: últimos '+nAmostra()+' jogos do treinador anterior',
-          todos:'Referência: média de todos os jogos anteriores'}[S.ref];
+  return {top10var:'Referência: média dos 10 maiores jogos de '+LB_ANT+' por variável',
+          top10dist:'Referência: média dos 10 maiores jogos de '+LB_ANT+' em distância',
+          ult5:'Referência: últimos '+nAmostra()+' jogos de '+LB_ANT,
+          todos:'Referência: média de todos os '+jogosDe(BLOCOS.anterior).length+' jogos de '+LB_ANT}[S.ref];
 }
 
 function leitura(comps){
@@ -1099,7 +1105,7 @@ function leitura(comps){
   if(triviais.length) p+='Efeito trivial em '+triviais.join(', ')+' — aqui o Δ% aponta uma direção, mas a diferença '+
     'cabe dentro do que já oscilava de partida para partida.';
   p+='</p>';
-  p+='<p class="csub" style="font-size:12px">Com 5 jogos de um lado, o intervalo de confiança de qualquer efeito sai '+
+  p+='<p class="csub" style="font-size:12px">Com '+jogosDe(BLOCOS.novo).length+' jogos de um lado, o intervalo de confiança de qualquer efeito sai '+
      'largo. A tabela de tamanho do efeito mostra esse intervalo; quando ele atravessa o zero, o dado não separa '+
      'queda de aumento.</p>';
   return p;
@@ -1596,8 +1602,8 @@ function renderMinutagem(){
 
   var h='<div class="warn info"><span>ⓘ</span><div>Esta aba ignora o corte de minutos e o filtro de expulsão da barra '+
     'de controle. A pergunta aqui é quantos minutos cada atleta recebeu, e nenhum jogo deve sumir dessa conta. '+
-    'A comparação natural é contra os <b>últimos '+nA+' jogos</b> de '+esc(LB_ANT)+': mesmo número de partidas, mesmo '+
-    'momento de temporada, mesmo elenco disponível.</div></div>';
+    'A comparação natural é contra os <b>últimos '+nA+' jogos</b> de '+esc(LB_ANT)+': mesmo número de partidas, '+
+    'os jogos imediatamente antes da troca de comando.</div></div>';
 
   h+='<div class="grid g4" style="margin-bottom:14px">';
   h+=kpi('Minutos de campo por jogo', fmt(minJogoN,0),'min','Últimos '+nA+' de '+LB_ANT+': '+fmt(minJogoU,0)+' min',
@@ -2148,7 +2154,8 @@ function renderMetodo(){
   h+='<div class="ctitle">Critérios</div>';
 
   h+='<h4>O que está sendo comparado</h4>';
-  h+='<p>Os <b>'+jn+' jogos</b> de '+esc(LB_NOVO)+' contra os <b>'+ja+' jogos</b> de '+esc(LB_ANT)+'. '+
+  h+='<p>Os <b>'+jn+' jogos</b> de '+esc(LB_NOVO)+' contra os <b>'+ja+' jogos</b> de '+esc(LB_ANT)+
+     (S.exp==='excluir'?' (antes do filtro de expulsão)':'')+'. '+
      'A separação vem da coluna CODIGO da aba Jogos 2026. Jogo sob comando interino fica fora das duas médias.</p>';
   h+='<h4>Janela em análise</h4>'+
      '<p><b>Bloco inteiro</b> usa todos os '+BLOCO_NOVO_COMPLETO.jogos.length+' jogos de '+esc(LB_NOVO_TEC)+'. '+
@@ -2173,9 +2180,9 @@ function renderMetodo(){
      '<p>Δ% diz a direção da diferença. O tamanho do efeito diz se ela tem peso prático: é a diferença entre as '+
      'médias dividida pela variação normal entre jogos. Faixas de Hopkins: abaixo de 0,2 trivial; até 0,6 pequeno; '+
      'até 1,2 moderado; até 2,0 grande; acima disso muito grande.</p>'+
-     '<ul><li><b>Denominador:</b> desvio padrão combinado dos dois blocos, ponderado pelo número de jogos. Com 45 de '+
-     'um lado e 5 do outro, ele fica dominado pelo bloco grande — um desvio tirado de 5 jogos é instável demais para '+
-     'servir de régua.</li>'+
+     '<ul><li><b>Denominador:</b> desvio padrão combinado dos dois blocos, ponderado pelos graus de liberdade. Com '+
+     jogosDe(BLOCOS.anterior).length+' jogos de um lado e '+jogosDe(BLOCOS.novo).length+' do outro, ele fica dominado '+
+     'pelo bloco grande — um desvio tirado de poucos jogos é instável demais para servir de régua.</li>'+
      '<li><b>Comparação:</b> sempre contra a média de <b>todos</b> os jogos de '+esc(LB_ANT)+', nunca contra os 10 '+
      'maiores. Os 10 maiores são uma cauda: o desvio deles é artificialmente pequeno e inflaria o efeito.</li>'+
      '<li><b>IC 90%:</b> até onde o efeito poderia ir com o número de jogos disponível. Quando atravessa o zero, '+
@@ -2193,7 +2200,7 @@ function renderMetodo(){
      '<li>Titular = pelo menos 40 minutos no primeiro tempo.</li></ul>';
 
   h+='<h4>Limites</h4><ul>'+
-     '<li>Cinco jogos não separam efeito de trabalho de variação normal entre partidas. A faixa dourada de cada '+
+     '<li>'+jogosDe(BLOCOS.novo).length+' jogos não separam com segurança efeito de trabalho de variação normal entre partidas. A faixa dourada de cada '+
      'trilho mostra o quanto a referência oscilou.</li>'+
      '<li>Adversário, mando e viagem mudaram junto com o bloco. A aba Contexto enquadra, mas não corrige.</li>'+
      '<li>Os Δ% são descritivos. Não há teste estatístico.</li></ul>';
