@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Atualizar Carga 2026</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--night:#071A3E;--blue:#003087;--red:#E8360A;--gold:#C4952A;--bg:#F3F5F9;--ink:#0D1B33;--ink2:#4A5772;--muted:#8792A8;--grid:#E3E7EF;--ok:#1E7B4A;--warn:#B26A00;--bad:#C0281C}
+*{box-sizing:border-box}html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:14px/1.5 Barlow,system-ui,sans-serif}
+header{position:relative;background:var(--night);color:#fff;overflow:hidden}
+header:before{content:"";position:absolute;inset:0;opacity:.13;background:repeating-linear-gradient(115deg,#fff 0 2px,transparent 2px 22px)}
+header:after{content:"";position:absolute;left:0;right:0;bottom:0;height:4px;background:var(--gold)}
+.hw{position:relative;max-width:920px;margin:0 auto;padding:20px 16px;display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
+h1{margin:0;font:700 26px "Barlow Condensed",sans-serif;text-transform:uppercase}h1 span{color:var(--gold)}
+header a{color:#fff;text-decoration:none;border:1px solid rgba(255,255,255,.35);padding:6px 12px;border-radius:6px;font-weight:600;font-size:13px}
+main{max-width:920px;margin:0 auto;padding:16px}
+.step{background:#fff;border-radius:6px;box-shadow:0 1px 2px rgba(7,26,62,.08);padding:14px 16px;margin-bottom:12px;border-left:4px solid var(--blue)}
+.step h2{margin:0 0 6px;font:700 18px "Barlow Condensed",sans-serif;text-transform:uppercase;color:var(--night)}
+.step h2 b{display:inline-block;width:24px;height:24px;border-radius:50%;background:var(--blue);color:#fff;text-align:center;line-height:24px;font-size:14px;margin-right:6px}
+.drop{border:2px dashed #B9C6DE;border-radius:6px;padding:18px;text-align:center;color:var(--ink2);cursor:pointer;background:#FAFBFD}
+.drop.on{border-color:var(--blue);background:#EEF2F9}
+.drop strong{color:var(--blue)}
+input[type=text],input[type=password]{width:100%;font:13px Barlow,system-ui,sans-serif;padding:7px 9px;border:1px solid var(--grid);border-radius:6px}
+button{font:600 14px Barlow,system-ui,sans-serif;border:0;border-radius:6px;padding:9px 16px;cursor:pointer;background:var(--blue);color:#fff}
+button.sec{background:#fff;color:var(--blue);border:1px solid var(--blue)}
+button.red{background:var(--red)}
+button:disabled{opacity:.45;cursor:not-allowed}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:8px}
+.st{font-size:13px;color:var(--ink2);margin-top:6px}
+.ok{color:var(--ok);font-weight:600}.warn{color:var(--warn);font-weight:600}.bad{color:var(--bad);font-weight:600}
+table{border-collapse:collapse;width:100%;font-size:13px;margin-top:8px}
+td,th{padding:5px 8px;border-bottom:1px solid var(--grid);text-align:left}
+td:last-child{text-align:right;font-weight:600}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}@media(max-width:640px){.grid{grid-template-columns:1fr}}
+label{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+pre{background:#0D1B33;color:#D6DEEE;border-radius:6px;padding:10px;font-size:12px;max-height:180px;overflow:auto;white-space:pre-wrap}
+details summary{cursor:pointer;font-weight:600;color:var(--blue)}
+</style>
+</head>
+<body>
+<header><div class="hw"><h1>Atualizar <span>Carga por Microciclo</span></h1><a href="index.html">← Voltar ao painel</a></div></header>
+<main>
+
+<div class="step">
+  <h2><b>1</b>Export da Catapult</h2>
+  <div class="drop" id="dCat"><strong>Clique ou arraste aqui</strong> o <code>Jogos_CTR_2026.xlsx</code> mais recente<br><small>o arquivo é lido só no seu navegador, nada é enviado</small></div>
+  <input type="file" id="iCat" accept=".xlsx,.xls" hidden>
+  <div class="st" id="sCat">Nenhum arquivo.</div>
+</div>
+
+<div class="step">
+  <h2><b>2</b>GRUPOS TAG</h2>
+  <div class="st" style="margin-top:0">O painel pega o grupo de cada atleta em cada dia da aba <b>Página1</b>. Tente primeiro pela planilha publicada; se não funcionar, envie o arquivo.</div>
+  <label for="uTag" style="display:block;margin-top:8px">Link publicado (CSV da 1ª aba)</label>
+  <input type="text" id="uTag" value="https://docs.google.com/spreadsheets/d/e/2PACX-1vRH094U7lfAofo3Tn2NWZ0VHx7EACHOEFQaGePCLsP9fXgB4EMjc8cpwbG-4NJMsfA5u-_uaq_mdtjG/pub?output=csv">
+  <div class="row"><button class="sec" id="bTag">Buscar Tag publicada</button><span style="color:var(--muted)">ou</span>
+    <button class="sec" id="bTagF">Enviar GRUPOS TAG (.xlsx/.csv)</button><input type="file" id="iTag" accept=".xlsx,.xls,.csv" hidden></div>
+  <div class="st" id="sTag">Nenhuma Tag carregada.</div>
+</div>
+
+<div class="step">
+  <h2><b>3</b>Gerar e conferir</h2>
+  <button id="bGo" disabled>Gerar base</button>
+  <div id="res"></div>
+</div>
+
+<div class="step" id="pub" style="display:none;border-left-color:var(--gold)">
+  <h2><b>4</b>Publicar</h2>
+  <div class="row"><button id="bDown">Baixar dados.js</button>
+    <span class="st" style="margin:0">Troque o <code>dados.js</code> no GitHub — o Vercel republica sozinho.</span></div>
+  <details style="margin-top:12px"><summary>Enviar direto para o GitHub (opcional)</summary>
+    <div class="grid" style="margin-top:8px">
+      <div><label>Repositório (dono/nome)</label><input type="text" id="gRepo" value="felipelimaj/Fec-backend"></div>
+      <div><label>Branch</label><input type="text" id="gBr" value="main"></div>
+      <div><label>Caminho do arquivo</label><input type="text" id="gPath" value="carga/dados.js"></div>
+      <div><label>Token (fine-grained, Contents: read/write)</label><input type="password" id="gTok" placeholder="github_pat_…"></div>
+    </div>
+    <div class="row"><button class="red" id="bGit">Enviar dados.js ao GitHub</button><span class="st" id="sGit" style="margin:0">O token fica salvo só neste navegador.</span></div>
+  </details>
+</div>
+
+</main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="converter.js"></script>
+<script src="dados.js"></script>
+<script>
+(function(){
+'use strict';
+var ANT = window.CARGA || null;        // base atualmente publicada (para a regressão)
+var linhasCat=null, linhasTag=null, base=null, texto='';
+var $=function(id){return document.getElementById(id);};
+function fmt(n){return (+n).toLocaleString('pt-BR');}
+
+function lerArquivo(f, cb, st){
+  st.innerHTML='Lendo <b>'+f.name+'</b>… (um export grande leva alguns segundos)';
+  var r=new FileReader();
+  r.onload=function(){setTimeout(function(){try{
+    var csv=/\.csv$/i.test(f.name);
+    var wb=csv?XLSX.read(new TextDecoder('utf-8').decode(r.result),{type:'string',raw:true})
+              :XLSX.read(r.result,{type:'array',cellDates:true,dense:true});
+    var aba=wb.SheetNames.indexOf('Página1')>=0?'Página1':wb.SheetNames[0];
+    cb(XLSX.utils.sheet_to_json(wb.Sheets[aba],{header:1,raw:true,defval:null}), f.name, aba);
+  }catch(e){st.innerHTML='<span class="bad">Erro ao ler: '+e.message+'</span>';}},30);};
+  r.readAsArrayBuffer(f);
+}
+function drop(zone,input,onFile){
+  zone.onclick=function(){input.click();};
+  input.onchange=function(){if(input.files[0])onFile(input.files[0]);};
+  ['dragenter','dragover'].forEach(function(e){zone.addEventListener(e,function(ev){ev.preventDefault();zone.classList.add('on');});});
+  ['dragleave','drop'].forEach(function(e){zone.addEventListener(e,function(ev){ev.preventDefault();zone.classList.remove('on');});});
+  zone.addEventListener('drop',function(ev){if(ev.dataTransfer.files[0])onFile(ev.dataTransfer.files[0]);});
+}
+function pronto(){$('bGo').disabled=!(linhasCat&&linhasTag);}
+
+drop($('dCat'),$('iCat'),function(f){lerArquivo(f,function(l,n){linhasCat=l;$('sCat').innerHTML='<span class="ok">✓</span> '+n+' · '+fmt(l.length-1)+' linhas';pronto();},$('sCat'));});
+$('bTagF').onclick=function(){$('iTag').click();};
+$('iTag').onchange=function(){var f=$('iTag').files[0];if(f)lerArquivo(f,function(l,n,aba){linhasTag=l;$('sTag').innerHTML='<span class="ok">✓</span> '+n+' (aba '+aba+') · '+fmt(l.length-1)+' linhas';pronto();},$('sTag'));};
+$('bTag').onclick=function(){
+  var u=$('uTag').value.trim().replace(/\/pubhtml.*$/,'/pub?output=csv');
+  $('sTag').textContent='Buscando…';
+  fetch(u,{cache:'no-store'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.text();}).then(function(t){
+    var wb=XLSX.read(t,{type:'string',raw:true}); var l=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true,defval:null});
+    if(String(l[0]).indexOf('Grupo')<0) throw new Error('o link não devolveu a aba Página1 (sem coluna Grupo)');
+    linhasTag=l; $('sTag').innerHTML='<span class="ok">✓</span> Tag publicada · '+fmt(l.length-1)+' linhas'; pronto();
+  }).catch(function(e){$('sTag').innerHTML='<span class="bad">Não foi possível buscar ('+e.message+').</span> Envie o arquivo GRUPOS TAG pelo botão ao lado.';});
+};
+
+$('bGo').onclick=function(){
+  var log=[]; $('res').innerHTML='<div class="st">Processando…</div>';
+  setTimeout(function(){try{
+    var cat=Conversor.lerCatapult(linhasCat,function(m){log.push(m);});
+    var tg=Conversor.lerTag(linhasTag);
+    base=Conversor.montar(cat,tg);
+    texto='/* Gerado por atualizar.html a partir do export da Catapult + GRUPOS TAG. Não editar à mão. */\nwindow.CARGA = '+JSON.stringify(base)+';\n';
+    conferir(base,log);
+  }catch(e){$('res').innerHTML='<div class="st bad">Erro: '+e.message+'</div>';}},30);
+};
+
+function conferir(b,log){
+  var s=b.stats, hoje=new Date().toISOString().slice(0,10), chk=[];
+  var futuras=b.regs.filter(function(r){return r[0]>hoje;}).length;
+  chk.push(futuras?['bad','Datas no futuro: '+futuras+' sessões — confira a coluna Date do export']:['ok','Nenhuma data no futuro']);
+  var semPct=s.semTag/s.sessoes*100;
+  chk.push([semPct>5?'warn':'ok','Sessões sem grupo na Tag: '+s.semTag+' ('+semPct.toFixed(1)+'%)'+(semPct>5?' — a Tag pode estar desatualizada':'')]);
+  var tagUlt=Object.keys(b.cal).sort().pop();
+  chk.push([tagUlt>=s.ultimaData?'ok':'warn','Última data na Tag: '+tagUlt+' · no GPS: '+s.ultimaData]);
+  if(ANT){
+    var m={}; b.regs.forEach(function(r){m[r[1]+'|'+r[0]+'|'+r[3]]=r;});
+    var sumiu=0, mudou=0, novos=b.regs.length;
+    ANT.regs.forEach(function(r){var k=r[1]+'|'+r[0]+'|'+r[3];var n=m[k];if(!n)sumiu++;else{novos--;if(n[4]!==r[4]||n[5]!==r[5]||n[6]!==r[6]||n[7]!==r[7])mudou++;}});
+    chk.push([sumiu?'warn':'ok','Regressão contra a base publicada ('+fmt(ANT.regs.length)+' sessões): '+(sumiu?sumiu+' sessões antigas não aparecem mais':'todas as sessões antigas continuam')+(mudou?' · '+mudou+' com grupo/valores alterados (normal se a Tag foi corrigida)':'')+' · '+fmt(Math.max(0,novos))+' novas']);
+  } else chk.push(['warn','Sem base anterior para comparar']);
+  var h='<table><tr><th>Item</th><th></th></tr>'+
+    '<tr><td>Período</td><td>'+s.primeiraData+' → '+s.ultimaData+'</td></tr>'+
+    '<tr><td>Sessões-atleta (linha Session)</td><td>'+fmt(s.sessoes)+'</td></tr>'+
+    '<tr><td>Atletas</td><td>'+Object.keys(b.atletas).length+'</td></tr>'+
+    '<tr><td>Jogos (D_0 na Tag)</td><td>'+Object.keys(b.jogos).length+'</td></tr>'+
+    '<tr><td>Por grupo</td><td>'+Object.keys(s.grupos).map(function(g){return g+' '+s.grupos[g];}).join(' · ')+'</td></tr>'+
+    '<tr><td>Descartadas: distância 0 / repetidas</td><td>'+s.zeradas+' / '+s.duplicadas+'</td></tr>'+
+    '<tr><td>Datas: conferidas pelo Day Name / desempatadas / leitura direta</td><td>'+fmt(s.diretas)+' / '+fmt(s.ambiguas)+' / '+fmt(s.semDia)+'</td></tr></table>';
+  h+='<div style="margin-top:10px">'+chk.map(function(c){return '<div class="'+c[0]+'">'+(c[0]==='ok'?'✓ ':c[0]==='warn'?'⚠ ':'✗ ')+'<span style="color:var(--ink);font-weight:500">'+c[1]+'</span></div>';}).join('')+'</div>';
+  if(log.length)h+='<pre>'+log.join('\n')+'</pre>';
+  $('res').innerHTML=h; $('pub').style.display='block';
+}
+
+$('bDown').onclick=function(){var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([texto],{type:'text/javascript'}));a.download='dados.js';a.click();};
+
+try{var g=JSON.parse(localStorage.getItem('carga26_gh')||'{}');['gRepo','gBr','gPath','gTok'].forEach(function(k){if(g[k])$(k).value=g[k];});}catch(e){}
+$('bGit').onclick=function(){
+  var repo=$('gRepo').value.trim(), br=$('gBr').value.trim()||'main', path=$('gPath').value.trim()||'carga/dados.js', tok=$('gTok').value.trim();
+  if(!repo||!tok){$('sGit').innerHTML='<span class="bad">Preencha repositório e token.</span>';return;}
+  try{localStorage.setItem('carga26_gh',JSON.stringify({gRepo:repo,gBr:br,gPath:path,gTok:tok}));}catch(e){}
+  var url='https://api.github.com/repos/'+repo+'/contents/'+path, H={Authorization:'Bearer '+tok,Accept:'application/vnd.github+json'};
+  $('sGit').textContent='Enviando…';
+  fetch(url+'?ref='+encodeURIComponent(br),{headers:H}).then(function(r){return r.ok?r.json():{};}).then(function(cur){
+    var b64=btoa(unescape(encodeURIComponent(texto)));
+    return fetch(url,{method:'PUT',headers:H,body:JSON.stringify({message:'Atualiza carga por microciclo até '+base.stats.ultimaData,content:b64,branch:br,sha:cur.sha})});
+  }).then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.message||r.status);return j;});})
+  .then(function(){$('sGit').innerHTML='<span class="ok">✓ Enviado.</span> O Vercel publica em ~1 min.';})
+  .catch(function(e){$('sGit').innerHTML='<span class="bad">Falhou: '+e.message+'</span>';});
+};
+})();
+</script>
+</body>
+</html>
