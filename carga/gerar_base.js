@@ -5,6 +5,7 @@ const ler = (f, aba) => { const wb = XLSX.readFile(f, { cellDates: true }); cons
   return XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null }); };
 const cat = C.lerCatapult(ler(fCat), console.log);
 const tg = C.lerTag(ler(fTag, 'Página1'));
-const base = C.montar(cat, tg);
+let jogos = []; try { jogos = C.lerJogos(ler(fTag, 'Jogos 2026')); } catch (e) { console.log('Aviso: aba Jogos 2026 não lida —', e.message); }
+const base = C.montar(cat, tg, jogos);
 fs.writeFileSync(out, '/* Gerado por atualizar.html a partir do export da Catapult + GRUPOS TAG. Não editar à mão. */\nwindow.CARGA = ' + JSON.stringify(base) + ';\n');
 console.log(JSON.stringify(base.stats, null, 1), Object.keys(base.atletas).length, 'atletas', Object.keys(base.jogos).length, 'jogos');

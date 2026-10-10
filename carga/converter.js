@@ -182,8 +182,8 @@
       if (!d || d < CFG.INICIO_TEMPORADA) continue;
       var id = String(r[iId]).trim().replace(/\.0$/, '');
       var g = String(r[iG] || '').trim().toUpperCase() || 'SEM TAG';
-      tag[id + '|' + d] = g;
-      var cod = iCod >= 0 ? String(r[iCod] || '').trim() : '';
+      var cod = iCod >= 0 ? String(r[iCod] === null || r[iCod] === undefined ? '' : r[iCod]).trim() : '';
+      tag[id + '|' + d] = [g, cod];
       if (!dias[d]) dias[d] = { cod: {}, adv: String(adv || '').trim() };
       if (cod) dias[d].cod[cod] = (dias[d].cod[cod] || 0) + 1;
     }
@@ -197,14 +197,29 @@
     return { tag: tag, cal: cal };
   }
 
+  /* ---------------- Aba "Jogos 2026" (treinador de cada jogo, coluna CODIGO) ---------------- */
+  function lerJogos(linhas) {
+    var cab = linhas[0].map(function (c) { return String(c || '').trim(); });
+    var iD = cab.indexOf('Data'), iA = cab.indexOf('Adversário'), iT = cab.indexOf('CODIGO');
+    if (iD < 0 || iT < 0) throw new Error('A aba "Jogos 2026" precisa das colunas Data e CODIGO (treinador).');
+    var out = [];
+    for (var i = 1; i < linhas.length; i++) {
+      var r = linhas[i]; if (!r || !r[iD] || !r[iT]) continue;
+      var d = dataTag(r[iD], '', 'dm'); if (!d) continue;
+      out.push([d, iA >= 0 ? String(r[iA] || '').trim() : '', String(r[iT]).trim()]);
+    }
+    out.sort(function (a, b) { return a[0] < b[0] ? -1 : 1; });
+    return out;
+  }
+
   /* ---------------- Junta tudo ---------------- */
-  function montar(cat, tg) {
+  function montar(cat, tg, treinadores) {
     var grupos = {}, semTag = 0;
     cat.regs.forEach(function (r) {
-      var g = tg.tag[r[1] + '|' + r[0]];
-      if (!g) { g = 'SEM TAG'; semTag++; }
-      r.push(g);
-      grupos[g] = (grupos[g] || 0) + 1;
+      var t = tg.tag[r[1] + '|' + r[0]];
+      if (!t) { t = ['SEM TAG', '']; semTag++; }
+      r.push(t[0], t[1] || '—');
+      grupos[t[0]] = (grupos[t[0]] || 0) + 1;
     });
     // jogos = dias com código D_0 na Tag
     var jogos = {};
@@ -212,11 +227,12 @@
     cat.stats.semTag = semTag; cat.stats.grupos = grupos;
     return {
       gerado: new Date().toISOString(),
-      campos: ['data', 'id', 'min', 'dist', 'hsr', 'acel', 'desacel', 'grupo'],
-      regs: cat.regs, atletas: cat.atletas, cal: tg.cal, jogos: jogos, stats: cat.stats
+      campos: ['data', 'id', 'min', 'dist', 'hsr', 'acel', 'desacel', 'grupo', 'diaCodigo'],
+      regs: cat.regs, atletas: cat.atletas, cal: tg.cal, jogos: jogos,
+      treinadores: treinadores || [], stats: cat.stats
     };
   }
 
-  var API = { CFG: CFG, lerCatapult: lerCatapult, lerTag: lerTag, montar: montar, _candidatas: candidatas, _dataTag: dataTag };
+  var API = { CFG: CFG, lerCatapult: lerCatapult, lerTag: lerTag, lerJogos: lerJogos, montar: montar, _candidatas: candidatas, _dataTag: dataTag };
   if (typeof module !== 'undefined' && module.exports) module.exports = API; else root.Conversor = API;
 })(this);

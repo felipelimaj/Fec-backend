@@ -89,7 +89,7 @@ details summary{cursor:pointer;font-weight:600;color:var(--blue)}
 (function(){
 'use strict';
 var ANT = window.CARGA || null;        // base atualmente publicada (para a regressão)
-var linhasCat=null, linhasTag=null, base=null, texto='';
+var linhasCat=null, linhasTag=null, linhasJogos=null, base=null, texto='';
 var $=function(id){return document.getElementById(id);};
 function fmt(n){return (+n).toLocaleString('pt-BR');}
 
@@ -101,7 +101,8 @@ function lerArquivo(f, cb, st){
     var wb=csv?XLSX.read(new TextDecoder('utf-8').decode(r.result),{type:'string',raw:true})
               :XLSX.read(r.result,{type:'array',cellDates:true,dense:true});
     var aba=wb.SheetNames.indexOf('Página1')>=0?'Página1':wb.SheetNames[0];
-    cb(XLSX.utils.sheet_to_json(wb.Sheets[aba],{header:1,raw:true,defval:null}), f.name, aba);
+    var extra=wb.SheetNames.indexOf('Jogos 2026')>=0?XLSX.utils.sheet_to_json(wb.Sheets['Jogos 2026'],{header:1,raw:true,defval:null}):null;
+    cb(XLSX.utils.sheet_to_json(wb.Sheets[aba],{header:1,raw:true,defval:null}), f.name, aba, extra);
   }catch(e){st.innerHTML='<span class="bad">Erro ao ler: '+e.message+'</span>';}},30);};
   r.readAsArrayBuffer(f);
 }
@@ -116,14 +117,14 @@ function pronto(){$('bGo').disabled=!(linhasCat&&linhasTag);}
 
 drop($('dCat'),$('iCat'),function(f){lerArquivo(f,function(l,n){linhasCat=l;$('sCat').innerHTML='<span class="ok">✓</span> '+n+' · '+fmt(l.length-1)+' linhas';pronto();},$('sCat'));});
 $('bTagF').onclick=function(){$('iTag').click();};
-$('iTag').onchange=function(){var f=$('iTag').files[0];if(f)lerArquivo(f,function(l,n,aba){linhasTag=l;$('sTag').innerHTML='<span class="ok">✓</span> '+n+' (aba '+aba+') · '+fmt(l.length-1)+' linhas';pronto();},$('sTag'));};
+$('iTag').onchange=function(){var f=$('iTag').files[0];if(f)lerArquivo(f,function(l,n,aba,jg){linhasTag=l;linhasJogos=jg;$('sTag').innerHTML='<span class="ok">✓</span> '+n+' (aba '+aba+') · '+fmt(l.length-1)+' linhas'+(jg?' · aba Jogos 2026 lida (treinadores)':' · sem aba Jogos 2026: mantém os treinadores da base atual');pronto();},$('sTag'));};
 $('bTag').onclick=function(){
   var u=$('uTag').value.trim().replace(/\/pubhtml.*$/,'/pub?output=csv');
   $('sTag').textContent='Buscando…';
   fetch(u,{cache:'no-store'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.text();}).then(function(t){
     var wb=XLSX.read(t,{type:'string',raw:true}); var l=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true,defval:null});
     if(String(l[0]).indexOf('Grupo')<0) throw new Error('o link não devolveu a aba Página1 (sem coluna Grupo)');
-    linhasTag=l; $('sTag').innerHTML='<span class="ok">✓</span> Tag publicada · '+fmt(l.length-1)+' linhas'; pronto();
+    linhasTag=l; linhasJogos=null; $('sTag').innerHTML='<span class="ok">✓</span> Tag publicada · '+fmt(l.length-1)+' linhas · treinadores: mantém os da base atual (para jogo novo ou troca de treinador, envie o arquivo GRUPOS TAG)'; pronto();
   }).catch(function(e){$('sTag').innerHTML='<span class="bad">Não foi possível buscar ('+e.message+').</span> Envie o arquivo GRUPOS TAG pelo botão ao lado.';});
 };
 
@@ -132,7 +133,10 @@ $('bGo').onclick=function(){
   setTimeout(function(){try{
     var cat=Conversor.lerCatapult(linhasCat,function(m){log.push(m);});
     var tg=Conversor.lerTag(linhasTag);
-    base=Conversor.montar(cat,tg);
+    var trein=null;
+    if(linhasJogos){ trein=Conversor.lerJogos(linhasJogos); }
+    else if(ANT && ANT.treinadores){ trein=ANT.treinadores; log.push('Treinadores mantidos da base atual ('+trein.length+' jogos).'); }
+    base=Conversor.montar(cat,tg,trein||[]);
     texto='/* Gerado por atualizar.html a partir do export da Catapult + GRUPOS TAG. Não editar à mão. */\nwindow.CARGA = '+JSON.stringify(base)+';\n';
     conferir(base,log);
   }catch(e){$('res').innerHTML='<div class="st bad">Erro: '+e.message+'</div>';}},30);
@@ -145,6 +149,9 @@ function conferir(b,log){
   var semPct=s.semTag/s.sessoes*100;
   chk.push([semPct>5?'warn':'ok','Sessões sem grupo na Tag: '+s.semTag+' ('+semPct.toFixed(1)+'%)'+(semPct>5?' — a Tag pode estar desatualizada':'')]);
   var tagUlt=Object.keys(b.cal).sort().pop();
+  var tUlt=b.treinadores.length?b.treinadores[b.treinadores.length-1][0]:'—';
+  var jUlt=Object.keys(b.jogos).sort().pop()||'—';
+  chk.push([b.treinadores.length&&tUlt>=jUlt?'ok':'warn','Treinadores: '+b.treinadores.length+' jogos na aba Jogos 2026 (último '+tUlt+') · último D_0 na Tag: '+jUlt+(tUlt<jUlt?' — jogo novo sem treinador: envie o arquivo GRUPOS TAG':'')]);
   chk.push([tagUlt>=s.ultimaData?'ok':'warn','Última data na Tag: '+tagUlt+' · no GPS: '+s.ultimaData]);
   if(ANT){
     var m={}; b.regs.forEach(function(r){m[r[1]+'|'+r[0]+'|'+r[3]]=r;});

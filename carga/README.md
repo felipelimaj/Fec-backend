@@ -19,6 +19,11 @@ Painel estático (sem servidor) com a carga semanal (segunda a domingo) desde o 
 3. Clique em **Gerar base** e confira os itens (datas no futuro, sessões sem grupo, regressão).
 4. Clique em **Baixar dados.js** e troque no GitHub, ou use **Enviar ao GitHub** com um token fine-grained (Contents: read/write). O Vercel republica sozinho.
 
+## Recursos do painel
+- Filtros: grupo (pode marcar mais de um), Dia Código (mais de um, com atalhos "Sem D_0" e "Só D_0"), atleta e visualização: "Acumulado da semana" ou "Média por sessão".
+- Faixas coloridas por treinador (coluna CODIGO da aba Jogos 2026), rótulo de dados girado dentro de cada barra e botão CSV em cada gráfico.
+- Cartões com a média das semanas das 4 variáveis e o valor da semana selecionada.
+
 ## Regras de cálculo
 - Fonte: só a linha `Session` (o total do dia do atleta, incluindo o jogo). Descarta as linhas com distância 0 e as linhas idênticas repetidas.
 - Datas: mesmas correções da Minutagem (tipos misturados, conferência pelo Day Name, desempate pela ordem das linhas).
@@ -28,5 +33,8 @@ Painel estático (sem servidor) com a carga semanal (segunda a domingo) desde o 
 - Acel./Desacel. = Acceleration / Deceleration B2-3 Total Efforts (Gen 2).
 - Sessões da semana: em cada dia, o número de sessões feito pela maioria dos atletas do filtro (dia com dois períodos = 2), somado na semana.
 - Jogos: dias com `Dia Código = D_0` na Tag.
+- Média por sessão = acumulado da semana ÷ sessões da semana em que o grupo teve carga. Na tabela de atletas é a soma do atleta dividida pelas sessões dele.
+- Treinador: cada dia pertence ao treinador do próximo jogo, e o dia de jogo ao treinador daquele jogo. A semana leva a cor do treinador com mais dias nela.
+- Treinadores só são relidos quando a Tag é enviada como arquivo .xlsx (a aba Jogos 2026 não vem no link publicado). Com o link publicado, ficam os da base atual, e o atualizar.html avisa se houver jogo novo sem treinador.
 
 Referência (base de 09/10/2026): 6.150 sessões-atleta, 68 atletas, 60 jogos, 41 semanas. Na semana 41, o G1 tem 12.829 m de média, com 13 atletas.
