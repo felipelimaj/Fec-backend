@@ -14,27 +14,30 @@ Painel estático (sem servidor) com a carga semanal (segunda a domingo) desde o 
 | `gerar_base.js` | alternativa em Node: `node gerar_base.js Jogos_CTR_2026.xlsx "GRUPOS TAG.xlsx"` |
 
 ## Rotina de atualização
-1. Exporte o `Jogos_CTR_2026.xlsx` da Catapult, como já faz para a Minutagem.
-2. Abra `/atualizar.html`, solte o export e clique em **Buscar Tag publicada**. Se a busca falhar, envie o arquivo GRUPOS TAG.
-3. Clique em **Gerar base** e confira os itens (datas no futuro, sessões sem grupo, regressão).
-4. Clique em **Baixar dados.js** e troque no GitHub, ou use **Enviar ao GitHub** com um token fine-grained (Contents: read/write). O Vercel republica sozinho.
+1. Exporte o `Jogos_CTR_2026.xlsx` da Catapult.
+2. Abra `/atualizar.html` e solte o export.
+3. GRUPOS TAG: clique em **Buscar Tag publicada**, ou envie o arquivo .xlsx. O arquivo é necessário quando há jogo novo ou troca de treinador, porque a aba Jogos 2026 não vem pelo link.
+4. Cadastro: clique em **Buscar Cadastro** (lista de goleiros). Se pular esta etapa, ficam os goleiros da base atual.
+5. Clique em **Gerar base** e confira os itens: datas, sessões sem grupo, treinadores, goleiros excluídos e regressão.
+6. Para publicar, clique em **Baixar dados.js** e troque o arquivo em `carga/` no GitHub, ou use **Enviar ao GitHub**. Gerar a base não publica nada: os dados só aparecem no link depois que o `dados.js` novo chega ao GitHub.
 
 ## Recursos do painel
-- Filtros: grupo (pode marcar mais de um), Dia Código (mais de um, com atalhos "Sem D_0" e "Só D_0"), atleta e visualização: "Acumulado da semana" ou "Média por sessão".
-- Faixas coloridas por treinador (coluna CODIGO da aba Jogos 2026), rótulo de dados girado dentro de cada barra e botão CSV em cada gráfico.
-- Cartões com a média das semanas das 4 variáveis e o valor da semana selecionada.
+- **Aba Semanal:** grade 2×2 com Distância, HSR, Sprint e Acel./Desacel. (barras agrupadas), uma barra por semana. Tem faixas por treinador, rótulos girados dentro das barras, tooltip com sessões e CSV por gráfico.
+- **Aba Dia a dia:** 1, 2 ou 4 semanas, navegando com ◀ ▶. A grade 2×2 mostra a média do grupo por dia, com o atleta buscado em losango dourado. Abaixo, um mapa de calor atleta × dia por variável, com CSV.
+- **Filtros:** grupo (vários), Dia Código (vários), busca de atleta por digitação, Acumulado ou Média por sessão, e o método de cálculo (A ou B).
+- **Cartões:** a média das semanas das 5 variáveis e o valor da semana selecionada.
 
 ## Regras de cálculo
-- Fonte: só a linha `Session` (o total do dia do atleta, incluindo o jogo). Descarta as linhas com distância 0 e as linhas idênticas repetidas.
-- Datas: mesmas correções da Minutagem (tipos misturados, conferência pelo Day Name, desempate pela ordem das linhas).
-- Grupo: por atleta e por dia (ID do `Player Name` = ID da Tag). Atleta-dia sem Tag vira `SEM TAG`.
-- Barra: soma semanal de cada atleta e depois a média entre os atletas com pelo menos uma sessão no filtro. Com um atleta selecionado, a barra é a soma dele.
-- HSR = Velocity Band 5 + 6 + 7. A banda 8 não existe no tenant nem no export e entra como 0. As colunas "(Set 2)" não são usadas.
-- Acel./Desacel. = Acceleration / Deceleration B2-3 Total Efforts (Gen 2).
-- Sessões da semana: em cada dia, o número de sessões feito pela maioria dos atletas do filtro (dia com dois períodos = 2), somado na semana.
-- Jogos: dias com `Dia Código = D_0` na Tag.
-- Média por sessão = acumulado da semana ÷ sessões da semana em que o grupo teve carga. Na tabela de atletas é a soma do atleta dividida pelas sessões dele.
-- Treinador: cada dia pertence ao treinador do próximo jogo, e o dia de jogo ao treinador daquele jogo. A semana leva a cor do treinador com mais dias nela.
-- Treinadores só são relidos quando a Tag é enviada como arquivo .xlsx (a aba Jogos 2026 não vem no link publicado). Com o link publicado, ficam os da base atual, e o atualizar.html avisa se houver jogo novo sem treinador.
+- **Fonte:** só a linha `Session`, que é o total do dia do atleta, incluindo o jogo. Descarta as linhas com distância 0 e as linhas idênticas repetidas.
+- **Goleiros** (POSIÇÃO = GOLEIRO no Cadastro de Atletas) são removidos da base: não entram em nenhuma soma, média ou contagem.
+- **Datas:** mesmas correções da Minutagem.
+- **Grupo e Dia Código:** vêm da Tag, por atleta e por dia. Atleta-dia sem Tag vira `SEM TAG` com código `—`.
+- **Média do dia:** soma dos atletas presentes ÷ número de atletas presentes.
+- **Método B (médias diárias):** acumulado = soma das médias dos dias da semana; média por sessão = acumulado ÷ sessões da semana.
+- **Método A (somas individuais):** acumulado = média, entre os atletas que apareceram, das somas semanais de cada um. Média por sessão = média, entre os atletas, de (soma do atleta ÷ sessões dele).
+- **Sessões da semana:** em cada dia, o número de sessões que a maioria dos atletas do filtro fez (dia com dois períodos = 2), somado na semana.
+- **HSR** = Velocity Band 5 + 6 + 7 (≥ 19,8 km/h). **Sprint** = Velocity Band 6 + 7 (≥ 25,2 km/h). A banda 8 não existe no tenant. As colunas "(Set 2)" não são usadas.
+- **Acel./Desacel.** = esforços B2-3 (Gen 2).
+- **Treinador:** cada dia pertence ao treinador do próximo jogo (coluna CODIGO da aba Jogos 2026). A semana leva a cor do treinador com mais dias nela.
 
-Referência (base de 09/10/2026): 6.150 sessões-atleta, 68 atletas, 60 jogos, 41 semanas. Na semana 41, o G1 tem 12.829 m de média, com 13 atletas.
+Referência (base de 09/10/2026, sem goleiros): 5.350 sessões-atleta. Semana 37, filtro G1 + D_0, Distância: método B = 19.815 m acumulado e 9.907 m por sessão; método A = 14.154 m e 9.840 m.

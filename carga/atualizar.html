@@ -61,13 +61,23 @@ details summary{cursor:pointer;font-weight:600;color:var(--blue)}
 </div>
 
 <div class="step">
-  <h2><b>3</b>Gerar e conferir</h2>
+  <h2><b>3</b>Cadastro de Atletas (goleiros)</h2>
+  <div class="st" style="margin-top:0">Atletas com POSIÇÃO = GOLEIRO ficam fora de todo o painel. A lista é lida do Cadastro publicado.</div>
+  <label for="uCad" style="display:block;margin-top:8px">Link publicado do Cadastro (CSV)</label>
+  <input type="text" id="uCad" value="https://docs.google.com/spreadsheets/d/e/2PACX-1vT2jaLvln5GbiUoNsczLHRMYt0gHjzDOEar1h9LLuKG-Xa4KJKZr2SS133l0pr8AgetsdYF5Ek2KU7Q/pub?output=csv">
+  <div class="row"><button class="sec" id="bCad">Buscar Cadastro</button><span style="color:var(--muted)">ou</span>
+    <button class="sec" id="bCadF">Enviar Cadastro (.xlsx/.csv)</button><input type="file" id="iCad" accept=".xlsx,.xls,.csv" hidden></div>
+  <div class="st" id="sCad">Se não buscar, mantém os goleiros da base atual.</div>
+</div>
+
+<div class="step">
+  <h2><b>4</b>Gerar e conferir</h2>
   <button id="bGo" disabled>Gerar base</button>
   <div id="res"></div>
 </div>
 
 <div class="step" id="pub" style="display:none;border-left-color:var(--gold)">
-  <h2><b>4</b>Publicar</h2>
+  <h2><b>5</b>Publicar</h2>
   <div class="row"><button id="bDown">Baixar dados.js</button>
     <span class="st" style="margin:0">Troque o <code>dados.js</code> no GitHub — o Vercel republica sozinho.</span></div>
   <details style="margin-top:12px"><summary>Enviar direto para o GitHub (opcional)</summary>
@@ -89,7 +99,7 @@ details summary{cursor:pointer;font-weight:600;color:var(--blue)}
 (function(){
 'use strict';
 var ANT = window.CARGA || null;        // base atualmente publicada (para a regressão)
-var linhasCat=null, linhasTag=null, linhasJogos=null, base=null, texto='';
+var linhasCat=null, linhasTag=null, linhasJogos=null, goleiros=null, base=null, texto='';
 var $=function(id){return document.getElementById(id);};
 function fmt(n){return (+n).toLocaleString('pt-BR');}
 
@@ -118,6 +128,16 @@ function pronto(){$('bGo').disabled=!(linhasCat&&linhasTag);}
 drop($('dCat'),$('iCat'),function(f){lerArquivo(f,function(l,n){linhasCat=l;$('sCat').innerHTML='<span class="ok">✓</span> '+n+' · '+fmt(l.length-1)+' linhas';pronto();},$('sCat'));});
 $('bTagF').onclick=function(){$('iTag').click();};
 $('iTag').onchange=function(){var f=$('iTag').files[0];if(f)lerArquivo(f,function(l,n,aba,jg){linhasTag=l;linhasJogos=jg;$('sTag').innerHTML='<span class="ok">✓</span> '+n+' (aba '+aba+') · '+fmt(l.length-1)+' linhas'+(jg?' · aba Jogos 2026 lida (treinadores)':' · sem aba Jogos 2026: mantém os treinadores da base atual');pronto();},$('sTag'));};
+function setCad(l,origem){try{goleiros=Conversor.lerCadastro(l);var n=Object.keys(goleiros).map(function(id){return goleiros[id]+' ('+id+')';});
+  $('sCad').innerHTML='<span class="ok">✓</span> '+origem+' · '+n.length+' goleiros no cadastro: '+n.join(', ');}catch(e){$('sCad').innerHTML='<span class="bad">'+e.message+'</span>';}}
+$('bCad').onclick=function(){
+  $('sCad').textContent='Buscando…';
+  fetch($('uCad').value.trim().replace(/\/pubhtml.*$/,'/pub?output=csv'),{cache:'no-store'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.text();}).then(function(t){
+    var wb=XLSX.read(t,{type:'string',raw:true});setCad(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true,defval:null}),'Cadastro publicado');
+  }).catch(function(e){$('sCad').innerHTML='<span class="bad">Não foi possível buscar ('+e.message+').</span> Envie o arquivo pelo botão ao lado, ou siga sem buscar para manter os goleiros da base atual.';});
+};
+$('bCadF').onclick=function(){$('iCad').click();};
+$('iCad').onchange=function(){var f=$('iCad').files[0];if(f)lerArquivo(f,function(l,n){setCad(l,n);},$('sCad'));};
 $('bTag').onclick=function(){
   var u=$('uTag').value.trim().replace(/\/pubhtml.*$/,'/pub?output=csv');
   $('sTag').textContent='Buscando…';
@@ -136,7 +156,9 @@ $('bGo').onclick=function(){
     var trein=null;
     if(linhasJogos){ trein=Conversor.lerJogos(linhasJogos); }
     else if(ANT && ANT.treinadores){ trein=ANT.treinadores; log.push('Treinadores mantidos da base atual ('+trein.length+' jogos).'); }
-    base=Conversor.montar(cat,tg,trein||[]);
+    var gk=goleiros;
+    if(!gk && ANT && ANT.goleiros){ gk=ANT.goleiros; log.push('Goleiros mantidos da base atual: '+Object.keys(gk).map(function(id){return gk[id]+' ('+id+')';}).join(', ')); }
+    base=Conversor.montar(cat,tg,trein||[],gk||{});
     texto='/* Gerado por atualizar.html a partir do export da Catapult + GRUPOS TAG. Não editar à mão. */\nwindow.CARGA = '+JSON.stringify(base)+';\n';
     conferir(base,log);
   }catch(e){$('res').innerHTML='<div class="st bad">Erro: '+e.message+'</div>';}},30);
@@ -153,10 +175,14 @@ function conferir(b,log){
   var jUlt=Object.keys(b.jogos).sort().pop()||'—';
   chk.push([b.treinadores.length&&tUlt>=jUlt?'ok':'warn','Treinadores: '+b.treinadores.length+' jogos na aba Jogos 2026 (último '+tUlt+') · último D_0 na Tag: '+jUlt+(tUlt<jUlt?' — jogo novo sem treinador: envie o arquivo GRUPOS TAG':'')]);
   chk.push([tagUlt>=s.ultimaData?'ok':'warn','Última data na Tag: '+tagUlt+' · no GPS: '+s.ultimaData]);
+  var gx=s.goleirosExcluidos||{};
+  chk.push([Object.keys(gx).length?'ok':'warn','Goleiros excluídos: '+(Object.keys(gx).map(function(id){return gx[id]+' ('+id+')';}).join(', ')||'nenhum — confira o Cadastro')+' · '+fmt(s.sessoesGoleiros||0)+' sessões fora do painel']);
   if(ANT){
-    var m={}; b.regs.forEach(function(r){m[r[1]+'|'+r[0]+'|'+r[3]]=r;});
+    var FA={},FB={};(ANT.campos||[]).forEach(function(c,i){FA[c]=i;});b.campos.forEach(function(c,i){FB[c]=i;});
+    var gkB=b.goleiros||{}, m={}; b.regs.forEach(function(r){m[r[1]+'|'+r[0]+'|'+r[3]]=r;});
     var sumiu=0, mudou=0, novos=b.regs.length;
-    ANT.regs.forEach(function(r){var k=r[1]+'|'+r[0]+'|'+r[3];var n=m[k];if(!n)sumiu++;else{novos--;if(n[4]!==r[4]||n[5]!==r[5]||n[6]!==r[6]||n[7]!==r[7])mudou++;}});
+    ANT.regs.forEach(function(r){if(gkB[r[1]]!==undefined)return;var k=r[1]+'|'+r[0]+'|'+r[3];var n=m[k];if(!n)sumiu++;else{novos--;
+      if(['hsr','acel','desacel','grupo'].some(function(c){return FA[c]!==undefined&&n[FB[c]]!==r[FA[c]];}))mudou++;}});
     chk.push([sumiu?'warn':'ok','Regressão contra a base publicada ('+fmt(ANT.regs.length)+' sessões): '+(sumiu?sumiu+' sessões antigas não aparecem mais':'todas as sessões antigas continuam')+(mudou?' · '+mudou+' com grupo/valores alterados (normal se a Tag foi corrigida)':'')+' · '+fmt(Math.max(0,novos))+' novas']);
   } else chk.push(['warn','Sem base anterior para comparar']);
   var h='<table><tr><th>Item</th><th></th></tr>'+

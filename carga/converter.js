@@ -127,7 +127,8 @@
       if (vistos[chave]) { dupl++; continue; }
       vistos[chave] = 1;
       var hsr = num(r[ix.b5]) + num(r[ix.b6]) + (ix.b7 >= 0 ? num(r[ix.b7]) : 0) + (ix.b8 >= 0 ? num(r[ix.b8]) : 0);
-      regs.push([res[i], id, +dur.toFixed(1), Math.round(dist), Math.round(hsr), num(r[ix.acel]), num(r[ix.desacel])]);
+      var sprint = num(r[ix.b6]) + (ix.b7 >= 0 ? num(r[ix.b7]) : 0) + (ix.b8 >= 0 ? num(r[ix.b8]) : 0);
+      regs.push([res[i], id, +dur.toFixed(1), Math.round(dist), Math.round(hsr), Math.round(sprint), num(r[ix.acel]), num(r[ix.desacel])]);
       atletas[id] = curto;
     }
     regs.sort(function (a, b) { return a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : (+a[1]) - (+b[1]); });
@@ -212,8 +213,30 @@
     return out;
   }
 
+  /* ---------------- Cadastro de Atletas: IDs com POSIÇÃO = GOLEIRO ---------------- */
+  function lerCadastro(linhas) {
+    var cab = linhas[0].map(function (c) { return String(c || '').trim().toUpperCase(); });
+    var iId = cab.indexOf('ID'), iN = cab.indexOf('ATLETA'), iP = -1;
+    cab.forEach(function (c, k) { if (iP < 0 && /^POSI/.test(c)) iP = k; });
+    if (iId < 0 || iP < 0) throw new Error('O Cadastro precisa das colunas ID e POSIÇÃO.');
+    var gk = {};
+    for (var i = 1; i < linhas.length; i++) {
+      var r = linhas[i]; if (!r || r[iId] === null || r[iId] === '') continue;
+      if (/GOLEIR/i.test(String(r[iP] || ''))) gk[String(r[iId]).trim().replace(/\.0$/, '')] = iN >= 0 ? String(r[iN] || '').trim() : '';
+    }
+    return gk;
+  }
+
   /* ---------------- Junta tudo ---------------- */
-  function montar(cat, tg, treinadores) {
+  function montar(cat, tg, treinadores, goleiros) {
+    goleiros = goleiros || {};
+    var excl = {}, nEx = 0;
+    cat.regs = cat.regs.filter(function (r) {
+      if (goleiros[r[1]] !== undefined) { excl[r[1]] = cat.atletas[r[1]]; nEx++; return false; }
+      return true;
+    });
+    Object.keys(excl).forEach(function (id) { delete cat.atletas[id]; });
+    cat.stats.goleirosExcluidos = excl; cat.stats.sessoesGoleiros = nEx; cat.stats.sessoes = cat.regs.length;
     var grupos = {}, semTag = 0;
     cat.regs.forEach(function (r) {
       var t = tg.tag[r[1] + '|' + r[0]];
@@ -227,12 +250,13 @@
     cat.stats.semTag = semTag; cat.stats.grupos = grupos;
     return {
       gerado: new Date().toISOString(),
-      campos: ['data', 'id', 'min', 'dist', 'hsr', 'acel', 'desacel', 'grupo', 'diaCodigo'],
+      campos: ['data', 'id', 'min', 'dist', 'hsr', 'sprint', 'acel', 'desacel', 'grupo', 'diaCodigo'],
+      goleiros: goleiros,
       regs: cat.regs, atletas: cat.atletas, cal: tg.cal, jogos: jogos,
       treinadores: treinadores || [], stats: cat.stats
     };
   }
 
-  var API = { CFG: CFG, lerCatapult: lerCatapult, lerTag: lerTag, lerJogos: lerJogos, montar: montar, _candidatas: candidatas, _dataTag: dataTag };
+  var API = { CFG: CFG, lerCatapult: lerCatapult, lerTag: lerTag, lerJogos: lerJogos, lerCadastro: lerCadastro, montar: montar, _candidatas: candidatas, _dataTag: dataTag };
   if (typeof module !== 'undefined' && module.exports) module.exports = API; else root.Conversor = API;
 })(this);
