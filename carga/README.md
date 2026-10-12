@@ -23,7 +23,7 @@ Painel estático (sem servidor) com a carga semanal (segunda a domingo) desde o 
 
 ## Recursos do painel
 - **Aba Semanal:** grade 2×2 com Distância, HSR, Sprint e Acel./Desacel. (barras agrupadas), uma barra por semana. Tem faixas por treinador, rótulos girados dentro das barras, tooltip com sessões e CSV por gráfico.
-- **Aba Dia a dia:** 1, 2 ou 4 semanas, navegando com ◀ ▶. A grade 2×2 mostra a média do grupo por dia, com o atleta buscado em losango dourado. Abaixo, um mapa de calor atleta × dia por variável, com CSV.
+- **Aba Dia a dia:** 1, 2 ou 4 semanas, ou uma janela **Personalizada** (datas De/até). Navega com ◀ ▶, que no modo personalizado avança o tamanho da janela. A grade 2×2 mostra a média do grupo por dia, com o atleta buscado em losango dourado. Abaixo, um mapa de calor atleta × dia por variável, com CSV.
 - **Filtros:** grupo (vários), Dia Código (vários), busca de atleta por digitação, Acumulado ou Média por sessão, e o método de cálculo (A ou B).
 - **Cartões:** a média das semanas das 5 variáveis e o valor da semana selecionada.
 

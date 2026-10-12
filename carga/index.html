@@ -91,7 +91,12 @@ main{max-width:1400px;margin:0 auto;padding:14px 16px 24px}
 .csv:hover{background:var(--blue);color:#fff}
 .slg{font-size:11.5px;color:var(--ink2);display:flex;gap:12px}
 .slg i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px;vertical-align:-1px}
-.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
+.scroll{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;padding-bottom:4px}
+.scroll::-webkit-scrollbar{height:12px}
+.scroll::-webkit-scrollbar-track{background:#EEF2F9;border-radius:6px}
+.scroll::-webkit-scrollbar-thumb{background:#9AA9C7;border-radius:6px;border:2px solid #EEF2F9}
+.scroll::-webkit-scrollbar-thumb:hover{background:#003087}
+.bar:focus{outline:none}
 svg{display:block;overflow:visible}
 svg text{font-family:var(--f)}
 .bar{cursor:pointer;outline:none}
@@ -130,6 +135,8 @@ details summary{cursor:pointer;font-weight:600;color:var(--blue)}
 .hm th.jg{color:var(--gold)}
 .hm td.tot{font-weight:700;background:#F3F5F9;color:var(--ink)}
 .hidden{display:none !important}
+.dt{border:1px solid var(--grid);border-radius:6px;padding:4px 7px;font-size:13px;color:var(--ink);background:#fff}
+.dt:focus{outline:2px solid var(--blue);outline-offset:-1px}
 @media (max-width:900px){.filters{position:relative}}
 @media (max-width:600px){header h1{font-size:22px}.brand img{height:44px}.kpi .v{font-size:21px}.search input{width:170px}}
 </style>
@@ -207,7 +214,8 @@ details summary{cursor:pointer;font-weight:600;color:var(--blue)}
         <div class="wk" id="dWk">Semana</div>
         <button class="arw" id="dNext" aria-label="Próxima semana">▶</button>
         <span class="flab" style="margin-left:10px">Período</span>
-        <div class="seg" id="dSpan"><button data-s="1">1 semana</button><button data-s="2">2 semanas</button><button data-s="4">4 semanas</button></div>
+        <div class="seg" id="dSpan"><button data-s="1">1 semana</button><button data-s="2">2 semanas</button><button data-s="4">4 semanas</button><button data-s="c">Personalizado</button></div>
+        <span id="dCustom" class="nav hidden" style="gap:6px"><label class="flab" for="dIni" style="margin:0">De</label><input type="date" id="dIni" class="dt"><label class="flab" for="dFim" style="margin:0">até</label><input type="date" id="dFim" class="dt"></span>
         <span class="note" id="dInfo" style="margin-left:auto"></span>
       </div>
     </div>
@@ -297,8 +305,8 @@ document.getElementById('sub').textContent='Fortaleza EC · Fisiologia · dados 
 
 /* ---------- estado ---------- */
 var st={tab:'sem',g:[],cod:null,atl:'',modo:'soma',met:'B',sel:NSEM,span:1,hm:'dist',ordA:{c:'dist',d:-1}};
-try{var sv=JSON.parse(localStorage.getItem('carga26c')||'{}');['g','cod','modo','met','span','hm','tab'].forEach(function(k){if(sv[k]!==undefined)st[k]=sv[k];});}catch(e){}
-function salvar(){try{localStorage.setItem('carga26c',JSON.stringify({g:st.g,cod:st.cod,modo:st.modo,met:st.met,span:st.span,hm:st.hm,tab:st.tab}));}catch(e){}}
+try{var sv=JSON.parse(localStorage.getItem('carga26c')||'{}');['g','cod','modo','met','span','hm','tab','cIni','cFim'].forEach(function(k){if(sv[k]!==undefined)st[k]=sv[k];});}catch(e){}
+function salvar(){try{localStorage.setItem('carga26c',JSON.stringify({g:st.g,cod:st.cod,modo:st.modo,met:st.met,span:st.span,hm:st.hm,tab:st.tab,cIni:st.cIni,cFim:st.cFim}));}catch(e){}}
 
 /* ---------- abas ---------- */
 var TABS=document.querySelectorAll('.tab');
@@ -448,6 +456,7 @@ function barras(box,cfg){
     var hit=el('rect',{x:P.l+i*step,y:P.t,width:step,height:ch+30,fill:'transparent',class:'bar',tabindex:0,'aria-label':x.aria||''},svg);
     hit.addEventListener('mouseenter',function(ev){showTip(x.tip(),ev);});hit.addEventListener('mousemove',moveTip);hit.addEventListener('mouseleave',hideTip);
     hit.addEventListener('focus',function(){var b=hit.getBoundingClientRect();showTip(x.tip(),{clientX:b.right,clientY:b.top});});hit.addEventListener('blur',hideTip);
+    hit.addEventListener('mousedown',function(e){e.preventDefault();}); // clique não rola o gráfico para focar a barra
     if(x.click)hit.addEventListener('click',x.click);
   });
 }
@@ -459,8 +468,19 @@ function cartao(container,p,extraMeta){
 }
 var SYNC_OFF=false;
 // rolagem sincronizada entre os quatro gráficos
-function sincronizar(cont){var sc=[].slice.call(cont.querySelectorAll('.scroll')),lock=false;
-  sc.forEach(function(s){s.addEventListener('scroll',function(){if(lock||SYNC_OFF)return;lock=true;sc.forEach(function(o){if(o!==s)var a=s.scrollWidth-s.clientWidth,bb=o.scrollWidth-o.clientWidth;o.scrollLeft=a>0?s.scrollLeft/a*bb:0;});lock=false;},{passive:true});});}
+function sincronizar(cont){
+  // Só o gráfico que o usuário está mexendo comanda; os outros apenas seguem (sem efeito pingue-pongue).
+  var sc=[].slice.call(cont.querySelectorAll('.scroll')),ativo=null,t=null;
+  sc.forEach(function(s){
+    ['wheel','pointerdown','touchstart','mouseenter','keydown'].forEach(function(ev){s.addEventListener(ev,function(){ativo=s;},{passive:true});});
+    s.addEventListener('scroll',function(){
+      hideTip();
+      if(SYNC_OFF||ativo!==s)return;
+      var a=s.scrollWidth-s.clientWidth,r=a>0?s.scrollLeft/a:0;
+      sc.forEach(function(o){if(o===s)return;var x=r*(o.scrollWidth-o.clientWidth);if(Math.abs(o.scrollLeft-x)>=1)o.scrollLeft=x;});
+    },{passive:true});
+  });
+}
 
 /* ---------- CSV ---------- */
 function num(v,d){return v.toFixed(d).replace('.',',');}
@@ -511,7 +531,7 @@ function renderSemanal(){
     var itens=W.map(function(w,i){return {l0:String(w.s.n),l2:(i===0||w.s.ini.slice(5,7)!==W[i-1].s.ini.slice(5,7))?MESES[+w.s.ini.slice(5,7)-1]:'',
       vals:p.s.map(function(m){return val(w,m);}),sel:w.s.n===st.sel,dim:!w.na,dots:w.jogos.length,
       aria:'Semana '+w.s.n,tip:function(){return tipSemana(w,p);},click:function(){st.sel=w.s.n;render();}};});
-    barras(p.cS.querySelector('.plot'),{itens:itens,series:p.s,fmt:p.s.map(function(m){return function(v){return fmtM(m,v);};}),faixas:fx,minStep:p.s.length>1?34:24,H:260,aria:p.titulo+' por semana'});
+    barras(p.cS.querySelector('.plot'),{itens:itens,series:p.s,fmt:p.s.map(function(m){return function(v){return fmtM(m,v);};}),faixas:fx,minStep:30,H:260,aria:p.titulo+' por semana'});
   });
   PAINEIS.forEach(function(p){var sc=p.cS.querySelector('.scroll');sc.scrollLeft=ratio*(sc.scrollWidth-sc.clientWidth);sc._ok=1;});
   setTimeout(function(){SYNC_OFF=false;},60);
@@ -563,9 +583,23 @@ function tabSem(W){
 var chartsD=document.getElementById('chartsD'),ULTIMO_D=null;
 PAINEIS.forEach(function(p){var c=cartao(chartsD,p);p.cD=c;c.querySelector('.csv').onclick=function(){csvDiario(p);};});
 sincronizar(chartsD);
-document.getElementById('dPrev').onclick=function(){if(st.sel>1){st.sel--;render();}};
-document.getElementById('dNext').onclick=function(){if(st.sel<NSEM){st.sel++;render();}};
-var dSpan=document.getElementById('dSpan');dSpan.querySelectorAll('button').forEach(function(b){b.onclick=function(){st.span=+b.dataset.s;salvar();render();};});
+var D_MIN=semanas[0].ini, D_MAX=ULT, dIni=document.getElementById('dIni'), dFim=document.getElementById('dFim');
+dIni.min=dFim.min=D_MIN; dIni.max=dFim.max=D_MAX;
+function nDias(a,b){return Math.round((dUTC(b)-dUTC(a))/864e5);}
+function clampD(d){return d<D_MIN?D_MIN:d>D_MAX?D_MAX:d;}
+// ◀ ▶: no modo semanal anda 1 semana; no personalizado anda o tamanho da janela escolhida
+document.getElementById('dPrev').onclick=function(){
+  if(st.span==='c'){var n=nDias(st.cIni,st.cFim)+1;if(st.cIni>D_MIN){st.cIni=clampD(addD(st.cIni,-n));st.cFim=addD(st.cIni,n-1);salvar();render();}}
+  else if(st.sel>1){st.sel--;render();}};
+document.getElementById('dNext').onclick=function(){
+  if(st.span==='c'){var n=nDias(st.cIni,st.cFim)+1;if(st.cFim<D_MAX){st.cFim=clampD(addD(st.cFim,n));st.cIni=addD(st.cFim,-(n-1));salvar();render();}}
+  else if(st.sel<NSEM){st.sel++;render();}};
+var dSpan=document.getElementById('dSpan');dSpan.querySelectorAll('button').forEach(function(b){b.onclick=function(){
+  if(b.dataset.s==='c'){ if(!st.cIni){st.cFim=semanas[st.sel-1].fim>D_MAX?D_MAX:semanas[st.sel-1].fim; st.cIni=clampD(addD(st.cFim,-13));} st.span='c'; }
+  else st.span=+b.dataset.s;
+  salvar();render();};});
+function lerDatas(){var a=dIni.value,b=dFim.value;if(!a||!b)return;a=clampD(a);b=clampD(b);if(a>b){var t=a;a=b;b=t;}st.cIni=a;st.cFim=b;salvar();render();}
+dIni.addEventListener('change',lerDatas);dFim.addEventListener('change',lerDatas);
 var hmMet=document.getElementById('hmMet');
 MET.forEach(function(m){var b=document.createElement('button');b.className='chip';b.dataset.k=m.k;b.textContent=m.curto.replace(' (m)','');b.onclick=function(){st.hm=m.k;salvar();renderDiario();};hmMet.appendChild(b);});
 document.getElementById('hmCsv').onclick=function(){csvHeat();};
@@ -583,11 +617,21 @@ function tipDia(x,p){
     else h+='<div style="opacity:.75">sem sessão neste dia</div>';}
   return h;}
 function renderDiario(){
-  var s0=Math.max(1,st.sel-st.span+1),ini=semanas[s0-1].ini,fim=semanas[st.sel-1].fim;
-  document.getElementById('dWk').textContent=(s0===st.sel?'Semana '+st.sel:'Semanas '+s0+'–'+st.sel)+' · '+br(ini)+' – '+br(fim);
-  document.getElementById('dPrev').disabled=st.sel<=1;document.getElementById('dNext').disabled=st.sel>=NSEM;
-  dSpan.querySelectorAll('button').forEach(function(b){b.setAttribute('aria-pressed',+b.dataset.s===st.span);});
-  var tr=[];for(var w=s0;w<=st.sel;w++)semanas[w-1].treinos.forEach(function(t){if(tr.indexOf(t)<0)tr.push(t);});
+  if(st.span==='c'&&(!st.cIni||!st.cFim)){st.cFim=D_MAX;st.cIni=clampD(addD(D_MAX,-13));}
+  if(st.span==='c'){st.cIni=clampD(st.cIni);st.cFim=clampD(st.cFim);if(st.cIni>st.cFim){var tt=st.cIni;st.cIni=st.cFim;st.cFim=tt;}}
+  var cust=st.span==='c',ini,fim,s0;
+  if(cust){ini=st.cIni;fim=st.cFim;s0=nSem(ini);
+    document.getElementById('dWk').textContent=br(ini)+' – '+br(fim)+' · '+(nDias(ini,fim)+1)+' dias';
+    if(dIni.value!==ini)dIni.value=ini; if(dFim.value!==fim)dFim.value=fim;
+    document.getElementById('dPrev').disabled=ini<=D_MIN;document.getElementById('dNext').disabled=fim>=D_MAX;}
+  else{s0=Math.max(1,st.sel-st.span+1);ini=semanas[s0-1].ini;fim=semanas[st.sel-1].fim;
+    document.getElementById('dWk').textContent=(s0===st.sel?'Semana '+st.sel:'Semanas '+s0+'–'+st.sel)+' · '+br(ini)+' – '+br(fim);
+    document.getElementById('dPrev').disabled=st.sel<=1;document.getElementById('dNext').disabled=st.sel>=NSEM;}
+  document.getElementById('dCustom').classList.toggle('hidden',!cust);
+  document.getElementById('dPrev').setAttribute('aria-label',cust?'Janela anterior':'Semana anterior');document.getElementById('dNext').setAttribute('aria-label',cust?'Próxima janela':'Próxima semana');
+  dSpan.querySelectorAll('button').forEach(function(b){b.setAttribute('aria-pressed',String(b.dataset.s)===String(st.span));});
+  var semFim=cust?nSem(fim):st.sel;
+  var tr=[];for(var w=s0;w<=semFim;w++)if(semanas[w-1])semanas[w-1].treinos.forEach(function(t){if(tr.indexOf(t)<0)tr.push(t);});
   document.getElementById('dInfo').textContent=tr.length?'Treinador: '+tr.join(' → '):'';
   var noP=function(r){return r[F.data]>=ini&&r[F.data]<=fim;};
   var G=agregarDias(filtrados(true).filter(noP));
@@ -601,7 +645,7 @@ function renderDiario(){
     var itens=dias.map(function(x,i){var d=x.dia;return {l0:br(d),l1:DIAS_PT[dUTC(d).getUTCDay()],l3:(B.cal[d]||[''])[0]||'',dots:B.jogos[d]!==undefined?1:0,
       vals:p.s.map(function(m){return x.g?x.g.media[m.k]:0;}),marks:st.atl?p.s.map(function(m){return x.a?x.a[m.k]:null;}):null,
       sel:false,dim:false,tip:function(){return tipDia(x,p);},aria:d}});
-    barras(p.cD.querySelector('.plot'),{itens:itens,series:p.s,fmt:p.s.map(function(m){return function(v){return fmtM(m,v);};}),minStep:p.s.length>1?(st.span>2?46:56):(st.span>2?44:46),H:270,b:58,aria:p.titulo+' por dia'});
+    barras(p.cD.querySelector('.plot'),{itens:itens,series:p.s,fmt:p.s.map(function(m){return function(v){return fmtM(m,v);};}),minStep:(cust?nDias(ini,fim)+1>14:st.span>2)?46:56,H:270,b:58,aria:p.titulo+' por dia'});
   });
   heat(dias);
 }
