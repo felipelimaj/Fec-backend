@@ -47,6 +47,7 @@
       if (p.length !== 3) return [];
       if (p[0].length === 4) { y = +p[0]; m = +p[1]; d = +p[2]; }
       else { d = +p[0]; m = +p[1]; y = +p[2]; }  // texto vem dd/mm/aaaa
+      if (y < 100) y += 2000;                      // ano com 2 dígitos (dd/mm/aa)
     } else return [];
     var out = [];
     [[y, m, d], [y, d, m]].forEach(function (c) {
@@ -149,6 +150,7 @@
     if (p.length !== 3) return null;
     if (p[0].length === 4) return iso(+p[0], +p[1], +p[2]);
     var a = +p[0], b = +p[1], y = +p[2];
+    if (y < 100) y += 2000;   // o CSV publicado pode trazer o ano com 2 dígitos (m/d/aa)
     var md = valida(y, a, b) ? iso(y, a, b) : null;   // m/d/aaaa (formato do CSV publicado)
     var dm = valida(y, b, a) ? iso(y, b, a) : null;   // d/m/aaaa
     var m = String(adv || '').match(/(\d{2})-(\d{2})\s*$/);

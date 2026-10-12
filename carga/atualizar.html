@@ -169,7 +169,10 @@ function conferir(b,log){
   var futuras=b.regs.filter(function(r){return r[0]>hoje;}).length;
   chk.push(futuras?['bad','Datas no futuro: '+futuras+' sessões — confira a coluna Date do export']:['ok','Nenhuma data no futuro']);
   var semPct=s.semTag/s.sessoes*100;
-  chk.push([semPct>5?'warn':'ok','Sessões sem grupo na Tag: '+s.semTag+' ('+semPct.toFixed(1)+'%)'+(semPct>5?' — a Tag pode estar desatualizada':'')]);
+  var travar=semPct>20;
+  chk.push([travar?'bad':semPct>5?'warn':'ok','Sessões sem grupo na Tag: '+s.semTag+' ('+semPct.toFixed(1)+'%)'+(travar?' — a leitura da Tag falhou (datas da Tag não casaram com o GPS). Publicação bloqueada: tente enviar o arquivo GRUPOS TAG (.xlsx).':semPct>5?' — a Tag pode estar desatualizada':'')]);
+  var tagDatas=Object.keys(b.cal).filter(function(d){return !/^20\d\d-\d\d-\d\d$/.test(d);}).length;
+  if(tagDatas){travar=true;chk.push(['bad',tagDatas+' datas da Tag em formato inválido — publicação bloqueada']);}
   var tagUlt=Object.keys(b.cal).sort().pop();
   var tUlt=b.treinadores.length?b.treinadores[b.treinadores.length-1][0]:'—';
   var jUlt=Object.keys(b.jogos).sort().pop()||'—';
@@ -196,6 +199,10 @@ function conferir(b,log){
   h+='<div style="margin-top:10px">'+chk.map(function(c){return '<div class="'+c[0]+'">'+(c[0]==='ok'?'✓ ':c[0]==='warn'?'⚠ ':'✗ ')+'<span style="color:var(--ink);font-weight:500">'+c[1]+'</span></div>';}).join('')+'</div>';
   if(log.length)h+='<pre>'+log.join('\n')+'</pre>';
   $('res').innerHTML=h; $('pub').style.display='block';
+  $('bDown').disabled=travar; $('bGit').disabled=travar;
+  var av=$('trava'); if(av) av.remove();
+  if(travar){ $('pub').insertAdjacentHTML('afterbegin','<div id="trava" class="st bad" style="margin:0 0 8px">⚠ Publicação bloqueada: a base gerada perdeu os grupos. <label style="color:var(--ink);font-weight:500;text-transform:none;letter-spacing:0;font-size:13px"><input type="checkbox" id="forcar"> publicar mesmo assim</label></div>');
+    $('forcar').onchange=function(){$('bDown').disabled=$('bGit').disabled=!this.checked;}; }
 }
 
 $('bDown').onclick=function(){var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([texto],{type:'text/javascript'}));a.download='dados.js';a.click();};
