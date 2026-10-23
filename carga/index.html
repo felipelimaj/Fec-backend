@@ -285,7 +285,7 @@ function fmtM(m,v){return nfmt(m.un==='m'?0:1)(v);}
 var ORD_G=['G1','G2','G3','DM','JUSTIFICADO','BASE','SEM TAG'];
 var DIAS_PT=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 var MESES=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
-var CORES_T=['#4C6FAF','#C4952A','#2E8B7A','#8E5BA8','#6B7A90'];
+var CORES_T=['#4C6FAF','#C4952A','#2E8B7A','#8E5BA8','#6B7A90','#B5532F','#3A9BB5'];
 
 /* ---------- datas / semanas ---------- */
 function dUTC(s){return new Date(s+'T00:00:00Z');}
@@ -302,13 +302,23 @@ function nSem(s){return Math.round((dUTC(segunda(s))-dUTC(SEM0))/(7*864e5))+1;}
 var TJ=(B.treinadores||[]).slice().sort(function(a,b){return a[0]<b[0]?-1:1;});
 var corT={}; TJ.forEach(function(j){if(!corT[j[2]])corT[j[2]]=CORES_T[Object.keys(corT).length%CORES_T.length];});
 // treinador do dia = treinador do próximo jogo DA MESMA TEMPORADA; depois do último jogo, o último treinador dela
-// Início de treinador entre temporadas, informado pelo Felipe: vale para os dias depois do último jogo da temporada
-var INICIO_TREINADOR=[['2025-12-29','Carpini']];
-function treinadorDia(d){var y=d.slice(0,4),L=TJ.filter(function(j){return j[0].slice(0,4)===y;});if(!L.length)return '';
+// Períodos de treinador informados pelo Felipe (datas inclusivas). Têm prioridade sobre a regra do próximo jogo.
+// Dia sem período, num ano que tem períodos: vale o treinador do período anterior (ou do próximo, antes do primeiro).
+var PERIODOS_TREINADOR=[
+  ['2025-01-01','2025-07-13','Vojvoda'],
+  ['2025-07-15','2025-08-31','Renato'],
+  ['2025-09-01','2025-12-08','Palermo'],
+  ['2025-12-29','2025-12-31','Carpini']
+];
+PERIODOS_TREINADOR.forEach(function(p){if(!corT[p[2]])corT[p[2]]=CORES_T[Object.keys(corT).length%CORES_T.length];});
+function treinadorDia(d){
+  var y=d.slice(0,4),P=PERIODOS_TREINADOR.filter(function(p){return p[0].slice(0,4)===y;});
+  if(P.length){var ant=null,prox=null;
+    for(var k=0;k<P.length;k++){if(P[k][0]<=d&&d<=P[k][1])return P[k][2];if(P[k][1]<d)ant=P[k];else if(!prox)prox=P[k];}
+    return (ant||prox)[2];}
+  var L=TJ.filter(function(j){return j[0].slice(0,4)===y;});if(!L.length)return '';
   for(var i=0;i<L.length;i++)if(L[i][0]>=d)return L[i][2];
-  var ult=L[L.length-1][0],t=L[L.length-1][2];
-  INICIO_TREINADOR.forEach(function(x){if(x[0]<=d&&x[0]>ult)t=x[1];});
-  return t;}
+  return L[L.length-1][2];}
 function setTemp(y){
   TEMP=y; regs=REGS_ALL.filter(function(r){return r[0].slice(0,4)===y;});
   SEM0=segunda(regs[0][0]); ULT=regs[regs.length-1][0]; NSEM=nSem(ULT);
