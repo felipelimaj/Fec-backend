@@ -49,12 +49,18 @@ main{max-width:1400px;margin:0 auto;padding:14px 16px 24px}
 .dd{position:relative}
 .ddbtn{border:1px solid var(--grid);background:#fff;border-radius:6px;padding:5px 10px;font-weight:600;font-size:13px;color:var(--ink);cursor:pointer;min-width:140px;text-align:left}
 .ddbtn:after{content:" ▾";color:var(--muted)}
-.ddpanel{position:absolute;top:calc(100% + 4px);left:0;background:#fff;border:1px solid var(--grid);border-radius:6px;box-shadow:0 8px 24px rgba(7,26,62,.18);padding:8px;display:none;width:250px;max-height:360px;overflow:auto;z-index:20}
+.ddpanel{position:absolute;top:calc(100% + 4px);left:0;background:#fff;border:1px solid var(--grid);border-radius:6px;box-shadow:0 8px 24px rgba(7,26,62,.18);padding:8px;display:none;width:290px;max-height:360px;overflow:auto;z-index:20}
 .ddpanel.open{display:block}
 .ddpanel label{display:flex;gap:8px;align-items:center;padding:3px 4px;border-radius:4px;cursor:pointer;font-size:13px}
 .ddpanel label:hover{background:#F3F5F9}
 .ddpanel label small{margin-left:auto;color:var(--muted)}
 .ddacts{display:flex;gap:6px;flex-wrap:wrap;padding:2px 2px 8px;border-bottom:1px solid var(--grid);margin-bottom:6px}
+.mdg{padding:2px 2px 8px;border-bottom:1px solid var(--grid);margin-bottom:6px}
+.mdg .t{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600;margin:0 0 5px}
+.mdg .b{display:flex;gap:5px;flex-wrap:wrap}
+.mdg button{border:1px solid var(--grid);background:#fff;border-radius:999px;padding:3px 9px;font-size:12px;font-weight:600;color:var(--ink2);cursor:pointer}
+.mdg button[aria-pressed=true]{background:var(--night);border-color:var(--night);color:#fff}
+.mdg button small{opacity:.6;font-weight:500;margin-left:3px}
 .ddacts button{border:1px solid var(--grid);background:#fff;border-radius:4px;padding:3px 8px;font-size:12px;font-weight:600;color:var(--blue);cursor:pointer}
 .search{position:relative;display:flex;align-items:center}
 .search input{border:1px solid var(--grid);border-radius:6px;padding:5px 26px 5px 28px;font-size:13px;width:210px;background:#fff}
@@ -168,6 +174,7 @@ details summary{cursor:pointer;font-weight:600;color:var(--blue)}
       <div class="dd"><button class="ddbtn" id="ddCod" aria-expanded="false">Todos</button>
         <div class="ddpanel" id="pCod" role="dialog" aria-label="Selecionar Dia Código">
           <div class="ddacts"><button data-a="todos">Todos</button><button data-a="nenhum">Nenhum</button><button data-a="semjogo">Sem D_0</button><button data-a="so0">Só D_0</button></div>
+          <div class="mdg"><div class="t">Agrupar por MD</div><div class="b" id="gCod"></div></div>
           <div id="lCod"></div>
         </div>
       </div>
@@ -366,14 +373,41 @@ var cods=Object.keys(contC).sort(function(a,b){var x=chaveCod(a),y=chaveCod(b);f
 if(st.cod)st.cod=st.cod.filter(function(c){return cods.indexOf(c)>=0;});
 var lCod=document.getElementById('lCod'),pCod=document.getElementById('pCod'),ddCod=document.getElementById('ddCod');
 cods.forEach(function(c){var l=document.createElement('label');l.innerHTML='<input type="checkbox" value="'+c+'"> '+c+'<small>'+contC[c]+'</small>';lCod.appendChild(l);});
+var ULTIMAS_CC=null;
 function contagensTemp(){ // contagens da temporada nos chips de grupo e na lista de Dia Código (some o que não existe na temporada)
   var cg={},cc={};regs.forEach(function(r){cg[r[F.grupo]]=(cg[r[F.grupo]]||0)+1;cc[r[F.diaCodigo]]=(cc[r[F.diaCodigo]]||0)+1;});
   fG.querySelectorAll('.chip').forEach(function(b){var g=b.dataset.g;if(g==='TODOS')return;var n=cg[g]||0;b.querySelector('small').textContent=n;b.classList.toggle('hidden',!n&&st.g.indexOf(g)<0);});
   lCod.querySelectorAll('label').forEach(function(l){var c=l.querySelector('input').value,n=cc[c]||0;l.querySelector('small').textContent=n;l.classList.toggle('hidden',!n);});
+  ULTIMAS_CC=cc;
 }
 function syncCod(){var on=st.cod===null?cods:st.cod;lCod.querySelectorAll('input').forEach(function(i){i.checked=on.indexOf(i.value)>=0;});
-  ddCod.textContent=st.cod===null?'Todos':(on.length===0?'Nenhum':(on.length<=3?on.join(', '):on.length+' selecionados'));}
+  var gsel=ordG.filter(function(g){return GMD[g].every(function(c){return on.indexOf(c)>=0;});}),cob=[];gsel.forEach(function(g){cob=cob.concat(GMD[g]);});
+  var soGrupos=st.cod!==null&&on.length&&cob.length===on.length;
+  ddCod.textContent=st.cod===null?'Todos':(on.length===0?'Nenhum':(soGrupos&&gsel.length<=4?gsel.join(', '):(on.length<=3?on.join(', '):on.length+' selecionados')));
+  syncGrupos(ULTIMAS_CC);}
 lCod.addEventListener('change',function(){var on=[].slice.call(lCod.querySelectorAll('input:checked')).map(function(i){return i.value;});st.cod=on.length===cods.length?null:on;salvar();render();});
+/* agrupamento por MD: cada código detalhado vai para o grupo do próximo jogo (o "-n"), ex.: D_+2/-1 e D_-1 → MD-1 */
+function grupoMD(c){var m;
+  if(c==='D_0')return 'MD';
+  if((m=String(c).match(/^D_-(\d+)$/))||(m=String(c).match(/\/-(\d+)$/)))return 'MD-'+m[1];
+  if((m=String(c).match(/^D_\+(\d+)$/)))return 'MD+'+m[1];
+  if(/^\d+$/.test(c))return 'Pré-temp.';
+  return 'Sem tag';}
+var GMD={},ordG=[]; cods.forEach(function(c){var g=grupoMD(c);if(!GMD[g]){GMD[g]=[];ordG.push(g);}GMD[g].push(c);});
+function chaveG(g){if(g==='MD')return 0;var m=g.match(/^MD([+-])(\d+)$/);if(m)return m[1]==='-'?-(+m[2]):100+(+m[2]);return g==='Pré-temp.'?1000:2000;}
+ordG.sort(function(a,b){return chaveG(a)-chaveG(b);});
+var gCod=document.getElementById('gCod');
+ordG.forEach(function(g){var b=document.createElement('button');b.dataset.g=g;b.title=GMD[g].join(', ');b.innerHTML=g+'<small></small>';
+  b.onclick=function(){var on=st.cod===null?null:st.cod.slice(),cs=GMD[g];
+    if(on===null)on=cs.slice();                                   // de "Todos" para só este grupo
+    else if(cs.every(function(c){return on.indexOf(c)>=0;}))on=on.filter(function(c){return cs.indexOf(c)<0;}); // tira o grupo
+    else cs.forEach(function(c){if(on.indexOf(c)<0)on.push(c);}); // soma o grupo
+    st.cod=on.length===cods.length?null:on;salvar();render();};
+  gCod.appendChild(b);});
+function syncGrupos(cc){var on=st.cod===null?cods:st.cod;
+  gCod.querySelectorAll('button').forEach(function(b){var cs=GMD[b.dataset.g],n=0;cs.forEach(function(c){n+=cc&&cc[c]||0;});
+    b.querySelector('small').textContent=cc?n:'';if(cc)b.classList.toggle('hidden',!n);
+    b.setAttribute('aria-pressed',st.cod!==null&&cs.every(function(c){return on.indexOf(c)>=0;}));});}
 pCod.querySelector('.ddacts').addEventListener('click',function(e){var a=e.target.dataset.a;if(!a)return;
   if(a==='todos')st.cod=null;else if(a==='nenhum')st.cod=[];else if(a==='semjogo')st.cod=cods.filter(function(c){return c!=='D_0';});else if(a==='so0')st.cod=['D_0'];salvar();render();});
 ddCod.onclick=function(e){e.stopPropagation();var o=pCod.classList.toggle('open');ddCod.setAttribute('aria-expanded',o);};
