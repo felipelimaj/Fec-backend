@@ -302,8 +302,13 @@ function nSem(s){return Math.round((dUTC(segunda(s))-dUTC(SEM0))/(7*864e5))+1;}
 var TJ=(B.treinadores||[]).slice().sort(function(a,b){return a[0]<b[0]?-1:1;});
 var corT={}; TJ.forEach(function(j){if(!corT[j[2]])corT[j[2]]=CORES_T[Object.keys(corT).length%CORES_T.length];});
 // treinador do dia = treinador do próximo jogo DA MESMA TEMPORADA; depois do último jogo, o último treinador dela
+// Início de treinador entre temporadas, informado pelo Felipe: vale para os dias depois do último jogo da temporada
+var INICIO_TREINADOR=[['2025-12-29','Carpini']];
 function treinadorDia(d){var y=d.slice(0,4),L=TJ.filter(function(j){return j[0].slice(0,4)===y;});if(!L.length)return '';
-  for(var i=0;i<L.length;i++)if(L[i][0]>=d)return L[i][2];return L[L.length-1][2];}
+  for(var i=0;i<L.length;i++)if(L[i][0]>=d)return L[i][2];
+  var ult=L[L.length-1][0],t=L[L.length-1][2];
+  INICIO_TREINADOR.forEach(function(x){if(x[0]<=d&&x[0]>ult)t=x[1];});
+  return t;}
 function setTemp(y){
   TEMP=y; regs=REGS_ALL.filter(function(r){return r[0].slice(0,4)===y;});
   SEM0=segunda(regs[0][0]); ULT=regs[regs.length-1][0]; NSEM=nSem(ULT);
