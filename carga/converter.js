@@ -8,7 +8,9 @@
   'use strict';
 
   var CFG = {
-    INICIO_TEMPORADA: '2026-01-01',   // nada antes disso entra
+    INICIO_TEMPORADA: '2024-01-01',   // nada antes disso entra (temporadas 2024, 2025, 2026…)
+    // treinador quando a coluna CODIGO da aba Jogos AAAA está vazia (informado pelo Felipe em 23/10/2026)
+    TREINADOR_PADRAO: { '2024': 'Vojvoda', '2025': 'Vojvoda' },
     PERIODO: 'Session',               // linha que a Catapult usa como total do dia do atleta
     COL: {
       atleta: 'Player Name', periodo: 'Period Name', data: 'Date', dia: 'Day Name',
@@ -112,7 +114,7 @@
     }
 
     // 3ª passada: só a linha Session da temporada, uma por atleta-dia-sessão
-    var vistos = {}, regs = [], atletas = {}, dupl = 0, zeradas = 0;
+    var vistos = {}, regs = [], atletas = {}, contNome = {}, dupl = 0, zeradas = 0;
     for (i = 1; i < n; i++) {
       r = linhas[i];
       if (!r || !r[ix.atleta] || !res[i]) continue;
@@ -130,8 +132,12 @@
       var hsr = num(r[ix.b5]) + num(r[ix.b6]) + (ix.b7 >= 0 ? num(r[ix.b7]) : 0) + (ix.b8 >= 0 ? num(r[ix.b8]) : 0);
       var sprint = num(r[ix.b6]) + (ix.b7 >= 0 ? num(r[ix.b7]) : 0) + (ix.b8 >= 0 ? num(r[ix.b8]) : 0);
       regs.push([res[i], id, +dur.toFixed(1), Math.round(dist), Math.round(hsr), Math.round(sprint), num(r[ix.acel]), num(r[ix.desacel])]);
-      atletas[id] = curto;
+      var cn = contNome[id] || (contNome[id] = {}); cn[curto] = (cn[curto] || 0) + 1;
     }
+    // nome do atleta = o mais frequente para aquele ID (o export tem linhas soltas com nome trocado)
+    Object.keys(contNome).forEach(function (id) {
+      var c = contNome[id]; atletas[id] = Object.keys(c).sort(function (a, b) { return c[b] - c[a]; })[0];
+    });
     regs.sort(function (a, b) { return a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : (+a[1]) - (+b[1]); });
     stats.sessoes = regs.length; stats.duplicadas = dupl; stats.zeradas = zeradas;
     stats.ultimaData = regs.length ? regs[regs.length - 1][0] : null;
@@ -204,12 +210,14 @@
   function lerJogos(linhas) {
     var cab = linhas[0].map(function (c) { return String(c || '').trim(); });
     var iD = cab.indexOf('Data'), iA = cab.indexOf('Adversário'), iT = cab.indexOf('CODIGO');
-    if (iD < 0 || iT < 0) throw new Error('A aba "Jogos 2026" precisa das colunas Data e CODIGO (treinador).');
+    if (iD < 0) throw new Error('A aba "Jogos AAAA" precisa da coluna Data (e CODIGO com o treinador).');
     var out = [];
     for (var i = 1; i < linhas.length; i++) {
-      var r = linhas[i]; if (!r || !r[iD] || !r[iT]) continue;
-      var d = dataTag(r[iD], '', 'dm'); if (!d) continue;
-      out.push([d, iA >= 0 ? String(r[iA] || '').trim() : '', String(r[iT]).trim()]);
+      var r = linhas[i]; if (!r || !r[iD]) continue;
+      var d = dataTag(r[iD], '', 'dm'); if (!d || d < CFG.INICIO_TEMPORADA) continue;
+      var t = iT >= 0 && r[iT] ? String(r[iT]).trim() : (CFG.TREINADOR_PADRAO[d.slice(0, 4)] || '');
+      if (!t) continue;
+      out.push([d, iA >= 0 ? String(r[iA] || '').trim() : '', t]);
     }
     out.sort(function (a, b) { return a[0] < b[0] ? -1 : 1; });
     return out;
@@ -249,6 +257,14 @@
     // jogos = dias com código D_0 na Tag
     var jogos = {};
     Object.keys(tg.cal).forEach(function (d) { if (tg.cal[d][0] === 'D_0') jogos[d] = tg.cal[d][1]; });
+    // temporadas sem treinador na aba Jogos: usa o treinador padrão informado (CFG.TREINADOR_PADRAO) nos dias de jogo
+    treinadores = (treinadores || []).slice();
+    var comT = {}; treinadores.forEach(function (j) { comT[j[0].slice(0, 4)] = 1; });
+    Object.keys(jogos).sort().forEach(function (d) {
+      var y = d.slice(0, 4);
+      if (!comT[y] && CFG.TREINADOR_PADRAO[y]) treinadores.push([d, String(jogos[d] || '').replace(/\s*\d{2}-\d{2}\s*$/, ''), CFG.TREINADOR_PADRAO[y]]);
+    });
+    treinadores.sort(function (a, b) { return a[0] < b[0] ? -1 : 1; });
     cat.stats.semTag = semTag; cat.stats.grupos = grupos;
     return {
       gerado: new Date().toISOString(),
@@ -259,6 +275,20 @@
     };
   }
 
-  var API = { CFG: CFG, lerCatapult: lerCatapult, lerTag: lerTag, lerJogos: lerJogos, lerCadastro: lerCadastro, montar: montar, _candidatas: candidatas, _dataTag: dataTag };
+  // junta todas as abas "Jogos AAAA" de uma planilha (recebe {nomeDaAba: linhas})
+  function lerTodosJogos(abas) {
+    var out = [];
+    Object.keys(abas).forEach(function (n) { if (/^jogos\s+\d{4}$/i.test(n.trim())) out = out.concat(lerJogos(abas[n])); });
+    out.sort(function (a, b) { return a[0] < b[0] ? -1 : 1; });
+    return out;
+  }
+  // mescla treinadores: as temporadas presentes em "novos" substituem as mesmas temporadas de "antigos"
+  function mesclarTreinadores(antigos, novos) {
+    var anos = {}; (novos || []).forEach(function (j) { anos[j[0].slice(0, 4)] = 1; });
+    return (antigos || []).filter(function (j) { return !anos[j[0].slice(0, 4)]; }).concat(novos || [])
+      .sort(function (a, b) { return a[0] < b[0] ? -1 : 1; });
+  }
+
+  var API = { CFG: CFG, lerCatapult: lerCatapult, lerTag: lerTag, lerJogos: lerJogos, lerTodosJogos: lerTodosJogos, mesclarTreinadores: mesclarTreinadores, lerCadastro: lerCadastro, montar: montar, _candidatas: candidatas, _dataTag: dataTag };
   if (typeof module !== 'undefined' && module.exports) module.exports = API; else root.Conversor = API;
 })(this);

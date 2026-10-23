@@ -111,7 +111,7 @@ function lerArquivo(f, cb, st){
     var wb=csv?XLSX.read(new TextDecoder('utf-8').decode(r.result),{type:'string',raw:true})
               :XLSX.read(r.result,{type:'array',cellDates:true,dense:true});
     var aba=wb.SheetNames.indexOf('Página1')>=0?'Página1':wb.SheetNames[0];
-    var extra=wb.SheetNames.indexOf('Jogos 2026')>=0?XLSX.utils.sheet_to_json(wb.Sheets['Jogos 2026'],{header:1,raw:true,defval:null}):null;
+    var extra=null; wb.SheetNames.forEach(function(n){if(/^jogos\s+\d{4}$/i.test(n.trim())){extra=extra||{};extra[n]=XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,raw:true,defval:null});}});
     cb(XLSX.utils.sheet_to_json(wb.Sheets[aba],{header:1,raw:true,defval:null}), f.name, aba, extra);
   }catch(e){st.innerHTML='<span class="bad">Erro ao ler: '+e.message+'</span>';}},30);};
   r.readAsArrayBuffer(f);
@@ -127,7 +127,7 @@ function pronto(){$('bGo').disabled=!(linhasCat&&linhasTag);}
 
 drop($('dCat'),$('iCat'),function(f){lerArquivo(f,function(l,n){linhasCat=l;$('sCat').innerHTML='<span class="ok">✓</span> '+n+' · '+fmt(l.length-1)+' linhas';pronto();},$('sCat'));});
 $('bTagF').onclick=function(){$('iTag').click();};
-$('iTag').onchange=function(){var f=$('iTag').files[0];if(f)lerArquivo(f,function(l,n,aba,jg){linhasTag=l;linhasJogos=jg;$('sTag').innerHTML='<span class="ok">✓</span> '+n+' (aba '+aba+') · '+fmt(l.length-1)+' linhas'+(jg?' · aba Jogos 2026 lida (treinadores)':' · sem aba Jogos 2026: mantém os treinadores da base atual');pronto();},$('sTag'));};
+$('iTag').onchange=function(){var f=$('iTag').files[0];if(f)lerArquivo(f,function(l,n,aba,jg){linhasTag=l;linhasJogos=jg;$('sTag').innerHTML='<span class="ok">✓</span> '+n+' (aba '+aba+') · '+fmt(l.length-1)+' linhas'+(jg?' · abas '+Object.keys(jg).join(', ')+' lidas (treinadores)':' · sem aba Jogos 2026: mantém os treinadores da base atual');pronto();},$('sTag'));};
 function setCad(l,origem){try{goleiros=Conversor.lerCadastro(l);var n=Object.keys(goleiros).map(function(id){return goleiros[id]+' ('+id+')';});
   $('sCad').innerHTML='<span class="ok">✓</span> '+origem+' · '+n.length+' goleiros no cadastro: '+n.join(', ');}catch(e){$('sCad').innerHTML='<span class="bad">'+e.message+'</span>';}}
 $('bCad').onclick=function(){
@@ -154,7 +154,7 @@ $('bGo').onclick=function(){
     var cat=Conversor.lerCatapult(linhasCat,function(m){log.push(m);});
     var tg=Conversor.lerTag(linhasTag);
     var trein=null;
-    if(linhasJogos){ trein=Conversor.lerJogos(linhasJogos); }
+    if(linhasJogos){ trein=Conversor.mesclarTreinadores(ANT&&ANT.treinadores, Conversor.lerTodosJogos(linhasJogos)); }
     else if(ANT && ANT.treinadores){ trein=ANT.treinadores; log.push('Treinadores mantidos da base atual ('+trein.length+' jogos).'); }
     var gk=goleiros;
     if(!gk && ANT && ANT.goleiros){ gk=ANT.goleiros; log.push('Goleiros mantidos da base atual: '+Object.keys(gk).map(function(id){return gk[id]+' ('+id+')';}).join(', ')); }
