@@ -1,0 +1,11 @@
+{
+  "name": "fec-goleiros",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Dashboard de monitoramento longitudinal dos goleiros do Fortaleza EC (Catapult + GRUPOS TAG)",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "test": "node testes/testes_goleiros.mjs"
+  }
+}

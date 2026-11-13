@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Goleiros · Fortaleza EC</title>
+<link rel="icon" href="escudo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --noite: #071A3E; --azul: #003087; --vermelho: #E8360A; --ouro: #C4952A;
+    --fundo: #061633; --painel: #0A1F4A; --painel2: #0E2757; --grade: #1A3670;
+    --tx: #F3F6FC; --tx2: #B3C3E0; --tx3: #8296BD;
+    /* séries validadas (dataviz validate_palette, modo escuro, superfície #0A1F4A) */
+    --treino: #2F8EF5; --jogo: #F2552C; --ref: #C4952A;
+    --raio: 6px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--fundo); color: var(--tx);
+    font: 400 13px/1.35 'Barlow', system-ui, sans-serif;
+  }
+  button, select, input { font: inherit; color: inherit; }
+  .app { display: grid; grid-template-columns: 248px 1fr; height: 100vh; }
+
+  /* ---------------- Barra lateral ---------------- */
+  .lateral {
+    background: var(--noite); border-right: 1px solid var(--grade);
+    display: flex; flex-direction: column; gap: 10px; padding: 12px; overflow-y: auto;
+  }
+  .cracha {
+    position: relative; height: 150px; border-radius: var(--raio); overflow: hidden;
+    background:
+      repeating-linear-gradient(135deg, rgba(255,255,255,.035) 0 10px, transparent 10px 20px),
+      linear-gradient(160deg, var(--azul), var(--noite));
+    border-bottom: 3px solid var(--ouro);
+  }
+  .cracha .escudo { position: absolute; left: 10px; top: 10px; height: 54px; }
+  .cracha .foto {
+    position: absolute; right: 0; bottom: 0; height: 140px; max-width: 70%;
+    object-fit: contain; object-position: bottom right;
+  }
+  .cracha .nome {
+    position: absolute; left: 10px; bottom: 8px; max-width: 60%;
+    font: 700 20px/1 'Barlow Condensed', sans-serif; letter-spacing: .02em; text-transform: uppercase;
+  }
+  .cracha .sub { position: absolute; left: 10px; top: 70px; font-size: 11px; color: var(--tx2); }
+  .rotulo {
+    display: block; font: 600 11px/1 'Barlow Condensed', sans-serif; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--tx2); margin-bottom: 5px;
+  }
+  select, input[type=date] {
+    width: 100%; background: var(--painel); border: 1px solid var(--grade); border-radius: 4px;
+    padding: 6px 8px; color-scheme: dark;
+  }
+  .datas { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .datas input { min-width: 0; padding: 6px 4px; font-size: 12px; }
+  .pilulas { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+  .pilula {
+    flex: 1; background: transparent; border: 1px solid var(--grade); border-radius: 4px;
+    padding: 4px 6px; font-size: 11.5px; color: var(--tx2); cursor: pointer; white-space: nowrap;
+  }
+  .pilula:hover { background: rgba(255,255,255,.05); }
+  .pilula[aria-pressed=true] { background: var(--azul); border-color: #2A5BB8; color: var(--tx); font-weight: 600; }
+
+  .kpis { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+  .kpi { background: var(--painel); border-radius: var(--raio); overflow: hidden; }
+  .kpi .k-tit {
+    background: var(--azul); padding: 4px 10px;
+    font: 600 12.5px/1.2 'Barlow Condensed', sans-serif; letter-spacing: .05em; text-transform: uppercase;
+  }
+  .kpi .k-val { padding: 6px 10px 2px; font: 600 38px/1 'Barlow Condensed', sans-serif; }
+  .kpi .k-val small { font-size: 15px; color: var(--tx2); font-weight: 500; margin-left: 4px; }
+  .kpi .k-nota { padding: 0 10px 7px; font-size: 11px; color: var(--tx3); }
+  .kpi.pendente .k-val { color: var(--tx3); font-size: 26px; }
+
+  .rodape-lateral { margin-top: auto; display: flex; flex-direction: column; gap: 6px; padding-top: 6px; }
+  .btn {
+    background: var(--vermelho); border: 0; border-radius: 4px; padding: 8px 10px; cursor: pointer;
+    font: 700 13px/1 'Barlow Condensed', sans-serif; letter-spacing: .06em; text-transform: uppercase;
+  }
+  .btn:hover { filter: brightness(1.08); }
+  .btn:disabled { opacity: .55; cursor: wait; }
+  .btn.sec { background: transparent; border: 1px solid var(--grade); color: var(--tx2); }
+  .status { font-size: 11px; color: var(--tx3); min-height: 14px; }
+  .status.erro { color: #FF9A80; }
+
+  /* ---------------- Área principal ---------------- */
+  .principal { display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+  .topo {
+    background:
+      repeating-linear-gradient(135deg, rgba(255,255,255,.03) 0 12px, transparent 12px 24px),
+      var(--noite);
+    border-bottom: 3px solid var(--ouro);
+    display: flex; align-items: flex-end; gap: 18px; padding: 0 16px; flex-wrap: wrap;
+  }
+  .titulo {
+    padding: 10px 0 8px; font: 700 18px/1 'Barlow Condensed', sans-serif;
+    letter-spacing: .06em; text-transform: uppercase;
+  }
+  .titulo span { color: var(--ouro); }
+  .abas { display: flex; gap: 2px; }
+  .aba {
+    background: transparent; border: 0; border-bottom: 3px solid transparent; margin-bottom: -3px;
+    padding: 10px 14px 8px; cursor: pointer; color: var(--tx2);
+    font: 600 14px/1 'Barlow Condensed', sans-serif; letter-spacing: .06em; text-transform: uppercase;
+  }
+  .aba:hover { color: var(--tx); }
+  .aba[aria-selected=true] { color: var(--tx); border-bottom-color: var(--vermelho); background: rgba(255,255,255,.04); }
+  .ferramentas { margin-left: auto; display: flex; align-items: center; gap: 14px; padding-bottom: 8px; flex-wrap: wrap; }
+  .legenda { display: flex; gap: 12px; font-size: 12px; color: var(--tx2); align-items: center; }
+  .legenda i { display: inline-block; vertical-align: middle; margin-right: 5px; }
+  .chave-treino { width: 10px; height: 10px; border-radius: 2px; background: var(--treino); }
+  .chave-jogo { width: 9px; height: 9px; background: var(--jogo); transform: rotate(45deg); }
+  .chave-ref { width: 16px; border-top: 2px dashed var(--ref); }
+  label.check { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--tx2); cursor: pointer; }
+  .avisos {
+    display: none; margin: 8px 16px 0; padding: 7px 10px; border-radius: 4px;
+    background: rgba(196,149,42,.12); border: 1px solid rgba(196,149,42,.45); color: #F0DDB0; font-size: 12px;
+  }
+  .avisos ul { margin: 4px 0 0 16px; padding: 0; }
+
+  .graficos { flex: 1; display: flex; flex-direction: column; gap: 10px; padding: 10px 16px 14px; overflow-y: auto; transition: opacity .2s; }
+  .graficos.carregando { opacity: .45; }
+  .cartao {
+    flex: 1 1 0; min-height: 190px; background: var(--painel); border-radius: var(--raio);
+    display: flex; flex-direction: column; padding: 8px 10px 4px;
+  }
+  .cartao h2 {
+    margin: 0 0 2px; font: 600 15px/1.2 'Barlow Condensed', sans-serif; letter-spacing: .03em;
+    display: flex; gap: 8px; align-items: baseline;
+  }
+  .cartao h2 small { font: 400 12px 'Barlow', sans-serif; color: var(--tx3); }
+  .cartao .area { flex: 1; position: relative; min-height: 150px; }
+  .cartao.compacto { flex: 0 0 auto; min-height: 0; }
+  .cartao.compacto .area { min-height: 44px; }
+  .cartao svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .vazio {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center;
+    color: var(--tx3); font-size: 13px; padding: 0 20px;
+  }
+  .vazio code { color: var(--tx2); }
+
+  /* tabela */
+  .tabela-wrap { flex: 1; overflow: auto; background: var(--painel); border-radius: var(--raio); }
+  table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+  th, td { padding: 6px 10px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--grade); }
+  th { position: sticky; top: 0; background: var(--painel2); font: 600 12px 'Barlow Condensed', sans-serif; letter-spacing: .04em; text-transform: uppercase; color: var(--tx2); }
+  td.txt, th.txt { text-align: left; }
+  td { font-variant-numeric: tabular-nums; }
+  tr.jogo td:first-child { box-shadow: inset 3px 0 0 var(--jogo); }
+
+  /* tooltip */
+  .dica {
+    position: fixed; z-index: 10; pointer-events: none; display: none; min-width: 190px; max-width: 300px;
+    background: #0B1A38; border: 1px solid #2A4787; border-radius: 6px; padding: 8px 10px;
+    box-shadow: 0 6px 18px rgba(0,0,0,.4); font-size: 12px;
+  }
+  .dica .d-tit { font-weight: 600; margin-bottom: 2px; }
+  .dica .d-sub { color: var(--tx3); margin-bottom: 6px; }
+  .dica .d-lin { display: flex; align-items: center; gap: 6px; margin: 2px 0; }
+  .dica .d-lin i { width: 12px; border-top: 2px solid; }
+  .dica .d-lin b { font-size: 14px; }
+  .dica .d-lin span { color: var(--tx2); }
+  .dica .d-ctx { margin-top: 6px; padding-top: 5px; border-top: 1px solid var(--grade); color: var(--tx2); line-height: 1.5; }
+  .dica .d-aviso { margin-top: 4px; color: #F0DDB0; }
+
+  @media (max-width: 900px) {
+    .app { grid-template-columns: 1fr; height: auto; }
+    .principal { overflow: visible; }
+    .graficos { overflow: visible; }
+    .cartao { flex: none; height: 240px; }
+    .kpis { flex-direction: row; flex-wrap: wrap; }
+    .kpi { flex: 1 1 140px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="lateral">
+    <div class="cracha">
+      <img class="escudo" src="escudo.png" alt="Fortaleza EC">
+      <img class="foto" id="foto" alt="" hidden>
+      <div class="sub" id="cracha-sub">Goleiros · temporada 2026</div>
+      <div class="nome" id="cracha-nome">—</div>
+    </div>
+
+    <div>
+      <label class="rotulo" for="sel-gk">Goleiro</label>
+      <select id="sel-gk"></select>
+    </div>
+
+    <div>
+      <span class="rotulo">Período</span>
+      <div class="datas">
+        <input type="date" id="de" aria-label="De">
+        <input type="date" id="ate" aria-label="Até">
+      </div>
+      <div class="pilulas" id="presets">
+        <button class="pilula" data-dias="28">4 sem</button>
+        <button class="pilula" data-dias="42">6 sem</button>
+        <button class="pilula" data-dias="84">12 sem</button>
+        <button class="pilula" data-dias="0">Temporada</button>
+      </div>
+    </div>
+
+    <div>
+      <span class="rotulo">Sessões</span>
+      <div class="pilulas" id="filtro-tipo">
+        <button class="pilula" data-tipo="todos">Todas</button>
+        <button class="pilula" data-tipo="treino">Treinos</button>
+        <button class="pilula" data-tipo="jogo">Jogos</button>
+      </div>
+    </div>
+
+    <div>
+      <span class="rotulo">Referência</span>
+      <div class="pilulas" id="filtro-ref">
+        <button class="pilula" data-ref="media">Média</button>
+        <button class="pilula" data-ref="mediana">Mediana</button>
+      </div>
+    </div>
+
+    <div class="kpis" id="kpis"></div>
+
+    <div class="rodape-lateral">
+      <button class="btn" id="btn-atualizar">Atualizar dados</button>
+      <div class="status" id="status"></div>
+    </div>
+  </aside>
+
+  <main class="principal">
+    <header class="topo">
+      <div class="titulo">Monitoramento de goleiros <span>· FEC</span></div>
+      <nav class="abas" role="tablist" id="abas"></nav>
+      <div class="ferramentas">
+        <div class="legenda" aria-label="Legenda">
+          <span><i class="chave-treino"></i>Treino</span>
+          <span><i class="chave-jogo"></i>Jogo</span>
+          <span><i class="chave-ref"></i><span id="leg-ref">Média do período</span></span>
+        </div>
+        <label class="check" title="Quando as sessões não cabem lado a lado, só o maior, o menor e o último valor aparecem; os demais ficam na dica e na tabela">
+          <input type="checkbox" id="chk-rotulos" checked> Todos os valores
+        </label>
+        <button class="btn sec" id="btn-tabela">Tabela</button>
+      </div>
+    </header>
+    <div class="avisos" id="avisos"></div>
+    <section class="graficos" id="graficos" aria-live="polite"></section>
+  </main>
+</div>
+<div class="dica" id="dica" role="tooltip"></div>
+
+<script>
+'use strict';
+// =============================================================================
+//  Dashboard de Goleiros · Fortaleza EC
+//  Dados: /api/dados (Catapult + GRUPOS TAG). Último carregamento fica no
+//  navegador (localStorage) e o botão "Atualizar dados" busca de novo.
+// =============================================================================
+
+const CHAVE_CACHE = 'fec_goleiros_v1';
+const CHAVE_PREF = 'fec_goleiros_pref_v1';
+const MIN_PX_ROTULO = 22;       // abaixo disso por sessão, os rótulos de todos os pontos se sobrepõem
+
+const ABAS = {
+  especificas: {
+    titulo: 'Ações específicas',
+    graficos: [
+      { k: 'mergulhos', titulo: 'Mergulhos', un: 'n', forma: 'barras', dec: 0, kdec: 1 },
+      { k: 'carga_mergulho', titulo: 'Carga de mergulho', un: 'u.a.', forma: 'area', dec: 0, kdec: 0 },
+      { k: 'explosivos', titulo: 'Esforços explosivos', un: 'n', forma: 'area', dec: 0, kdec: 1 },
+    ],
+  },
+  interna: {
+    titulo: 'Carga interna',
+    graficos: [
+      { k: 'pse', titulo: 'PSE', sub: 'escala CR-10', un: '', forma: 'barras', dec: 1, kdec: 2, max: 10 },
+      { k: 'spse', titulo: 'PSE da sessão', sub: 'PSE × minutos da sessão do goleiro', un: 'u.a.', forma: 'area', dec: 0, kdec: 1 },
+    ],
+  },
+  locomotor: {
+    titulo: 'Contexto locomotor',
+    graficos: [
+      { k: 'dist', titulo: 'Distância total', un: 'm', forma: 'area', dec: 0, kdec: 0 },
+      { k: 'pl', titulo: 'PlayerLoad', un: 'u.a.', forma: 'area', dec: 0, kdec: 0 },
+    ],
+  },
+};
+const ROTULO_METRICA = {
+  mergulhos: 'Mergulhos', carga_mergulho: 'Carga de mergulho', explosivos: 'Esforços explosivos',
+  pse: 'PSE', spse: 'PSE da sessão', dist: 'Distância total', pl: 'PlayerLoad',
+};
+const SLUG_METRICA = { dist: 'distancia', pl: 'player_load' }; // chave do painel → chave da API
+
+// ---------------------------------------------------------------- estado
+let DADOS = null;
+const ESTADO = { gk: null, de: null, ate: null, tipo: 'todos', ref: 'media', aba: 'especificas', tabela: false, todosValores: true };
+let hoverIdx = null;
+
+const $ = id => document.getElementById(id);
+const fmt = (v, dec = 0) => (v === null || v === undefined || !Number.isFinite(v)) ? '—'
+  : v.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: dec });
+const diaSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+const dataBR = iso => { const [y, m, d] = iso.split('-'); return `${d}/${m}/${y}`; };
+const dataCurta = iso => { const [, m, d] = iso.split('-'); return `${d}/${m}`; };
+const somaDias = (iso, n) => { const t = new Date(iso + 'T12:00:00Z'); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10); };
+const el = (tag, attrs = {}, txt) => { const e = document.createElement(tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (txt !== undefined) e.textContent = txt; return e; };
+const NS = 'http://www.w3.org/2000/svg';
+const sv = (tag, attrs = {}) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); return e; };
+
+function lerLocal(chave) { try { return JSON.parse(localStorage.getItem(chave)); } catch { return null; } }
+function gravarLocal(chave, v) { try { localStorage.setItem(chave, JSON.stringify(v)); } catch { /* cota cheia ou bloqueado */ } }
+
+// valor de uma métrica numa sessão (nomes do painel → campos da API)
+const valor = (s, k) => {
+  const v = s[k];
+  return v === null || v === undefined || !Number.isFinite(Number(v)) ? null : Number(v);
+};
+
+// Métrica fora do painel? (slug pendente na Catapult ou coluna de PSE não achada)
+function motivoIndisponivel(k) {
+  if (!DADOS) return null;
+  const m = DADOS.metricas?.[SLUG_METRICA[k] || k];
+  if (m && m.status === 'pendente') {
+    return 'Aguardando a confirmação do slug na Catapult. Rode /api/sonda e confira no OpenField antes de ligar (lib/config.js).';
+  }
+  if ((k === 'pse' || k === 'spse') && DADOS.diagnostico?.tag && !DADOS.diagnostico.tag.colunaPSE) {
+    return `Coluna de PSE não encontrada na Página1 da GRUPOS TAG (${DADOS.diagnostico.tag.criterioPSE}).`;
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------- carga de dados
+async function buscar(forcar) {
+  const btn = $('btn-atualizar');
+  btn.disabled = true;
+  $('graficos').classList.add('carregando');
+  status('Buscando dados na Catapult e na GRUPOS TAG…');
+  try {
+    const r = await fetch('/api/dados' + (forcar ? `?t=${Date.now()}` : ''));
+    const j = await r.json().catch(() => ({}));
+    // 404 sem corpo da nossa API = página aberta fora do projeto de goleiros
+    // (ex.: fec-backend-sigma.vercel.app/goleiros/, que serve o HTML mas não a função)
+    if (r.status === 404 && !j.erro) {
+      throw new Error('a API do painel não existe neste endereço. Abra o painel pelo link do projeto Vercel de goleiros (Root Directory = goleiros)');
+    }
+    if (!r.ok) throw new Error(j.erro || `HTTP ${r.status}`);
+    DADOS = j;
+    gravarLocal(CHAVE_CACHE, j);
+    iniciarComDados(false);
+  } catch (e) {
+    status(`Falha ao atualizar: ${e.message}` + (DADOS ? ' — mantidos os dados anteriores.' : ''), true);
+  } finally {
+    btn.disabled = false;
+    $('graficos').classList.remove('carregando');
+  }
+}
+
+function status(msg, erro) {
+  const s = $('status');
+  s.textContent = msg || '';
+  s.classList.toggle('erro', !!erro);
+}
+
+function statusAtualizacao() {
+  if (!DADOS) return;
+  const t = new Date(DADOS.atualizado_em);
+  status(`Dados de ${t.toLocaleDateString('pt-BR')} às ${t.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} · ${DADOS.sessoes.length} sessões`);
+}
+
+function iniciarComDados(primeiraVez) {
+  const sel = $('sel-gk');
+  const anterior = ESTADO.gk;
+  sel.replaceChildren();
+  const lista = [...DADOS.goleiros].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  for (const g of lista) sel.append(el('option', { value: g.id }, `${g.nome} (${g.sessoes})`));
+  const existe = id => lista.some(g => g.id === id);
+  if (!existe(ESTADO.gk)) {
+    const pref = lerLocal(CHAVE_PREF);
+    ESTADO.gk = pref && existe(pref.gk) ? pref.gk : ([...lista].sort((a, b) => b.sessoes - a.sessoes)[0] || {}).id ?? null;
+  }
+  sel.value = ESTADO.gk ?? '';
+  if (primeiraVez || !ESTADO.ate || anterior !== ESTADO.gk) aplicarPreset(42);
+  avisos();
+  statusAtualizacao();
+  render();
+}
+
+function avisos() {
+  const box = $('avisos');
+  const lista = DADOS?.avisos || [];
+  box.replaceChildren();
+  box.style.display = lista.length ? 'block' : 'none';
+  if (!lista.length) return;
+  box.append(el('strong', {}, lista.length === 1 ? 'Aviso desta carga' : `${lista.length} avisos desta carga`));
+  const ul = el('ul');
+  for (const a of lista) ul.append(el('li', {}, a));
+  box.append(ul);
+}
+
+// ---------------------------------------------------------------- filtros
+function sessoesDoGoleiro() {
+  return (DADOS?.sessoes || []).filter(s => s.gk === ESTADO.gk);
+}
+function sessoesFiltradas() {
+  return sessoesDoGoleiro().filter(s =>
+    (!ESTADO.de || s.data >= ESTADO.de) && (!ESTADO.ate || s.data <= ESTADO.ate)
+    && (ESTADO.tipo === 'todos' || s.tipo === ESTADO.tipo));
+}
+
+function aplicarPreset(dias) {
+  const doGK = sessoesDoGoleiro();
+  const ultima = doGK.length ? doGK[doGK.length - 1].data : (DADOS?.temporada?.fim || null);
+  if (!ultima) return;
+  ESTADO.ate = ultima;
+  ESTADO.de = dias ? somaDias(ultima, -(dias - 1)) : (DADOS?.temporada?.inicio || (doGK[0] || {}).data);
+  $('de').value = ESTADO.de; $('ate').value = ESTADO.ate;
+  marcarPresets(dias);
+}
+function marcarPresets(dias) {
+  for (const b of $('presets').children) b.setAttribute('aria-pressed', String(Number(b.dataset.dias) === dias));
+}
+
+function estatistica(vals) {
+  const v = vals.filter(x => x !== null).sort((a, b) => a - b);
+  if (!v.length) return null;
+  if (ESTADO.ref === 'mediana') {
+    const m = Math.floor(v.length / 2);
+    return v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2;
+  }
+  return v.reduce((a, b) => a + b, 0) / v.length;
+}
+
+// ---------------------------------------------------------------- render geral
+function render() {
+  // Barra lateral
+  const g = (DADOS?.goleiros || []).find(x => x.id === ESTADO.gk);
+  $('cracha-nome').textContent = g ? g.nome : '—';
+  const foto = $('foto');
+  if (g && g.foto) { foto.hidden = false; foto.src = g.foto; foto.onerror = () => { foto.hidden = true; }; }
+  else foto.hidden = true;
+  for (const b of $('filtro-tipo').children) b.setAttribute('aria-pressed', String(b.dataset.tipo === ESTADO.tipo));
+  for (const b of $('filtro-ref').children) b.setAttribute('aria-pressed', String(b.dataset.ref === ESTADO.ref));
+  $('leg-ref').textContent = ESTADO.ref === 'media' ? 'Média do período' : 'Mediana do período';
+
+  // Abas
+  const nav = $('abas');
+  nav.replaceChildren();
+  for (const [k, a] of Object.entries(ABAS)) {
+    const b = el('button', { class: 'aba', role: 'tab', 'aria-selected': String(k === ESTADO.aba) }, a.titulo);
+    b.onclick = () => { ESTADO.aba = k; ESTADO.tabela = false; salvarPref(); render(); };
+    nav.append(b);
+  }
+  $('btn-tabela').textContent = ESTADO.tabela ? 'Gráficos' : 'Tabela';
+
+  const sessoes = sessoesFiltradas();
+  renderKPIs(sessoes);
+  if (ESTADO.tabela) renderTabela(sessoes); else renderGraficos(sessoes);
+}
+
+function renderKPIs(sessoes) {
+  const box = $('kpis');
+  box.replaceChildren();
+  const nome = ESTADO.ref === 'media' ? 'média' : 'mediana';
+  for (const def of ABAS[ESTADO.aba].graficos) {
+    const motivo = motivoIndisponivel(def.k);
+    const vals = sessoes.map(s => valor(s, def.k)).filter(v => v !== null);
+    const card = el('div', { class: 'kpi' + (motivo ? ' pendente' : '') });
+    card.append(el('div', { class: 'k-tit' }, def.titulo));
+    const v = el('div', { class: 'k-val' }, motivo ? 'pendente' : fmt(estatistica(vals), def.kdec));
+    if (!motivo && def.un && vals.length) v.append(el('small', {}, def.un));
+    card.append(v);
+    card.append(el('div', { class: 'k-nota' }, motivo ? 'ver aviso no gráfico' : `${nome} de ${vals.length} sessão${vals.length === 1 ? '' : 'ões'}`));
+    box.append(card);
+  }
+}
+
+function renderGraficos(sessoes) {
+  const area = $('graficos');
+  area.replaceChildren();
+  const aba = ABAS[ESTADO.aba];
+  const todos = ESTADO.todosValores;
+  const aDesenhar = [];
+  for (const def of aba.graficos) {
+    const cartao = el('article', { class: 'cartao' });
+    const h = el('h2', {}, def.titulo);
+    if (def.sub || def.un) h.append(el('small', {}, def.sub || def.un));
+    cartao.append(h);
+    const caixa = el('div', { class: 'area' });
+    cartao.append(caixa);
+    area.append(cartao);
+    const motivo = motivoIndisponivel(def.k);
+    const vazio = motivo
+      || (!sessoes.length && 'Sem sessões deste goleiro no período e filtro escolhidos.')
+      || (!sessoes.some(s => valor(s, def.k) !== null) && 'Nenhuma sessão do período tem este dado.');
+    if (vazio) {
+      cartao.classList.add('compacto');
+      caixa.append(el('div', { class: 'vazio' }, vazio));
+      continue;
+    }
+    aDesenhar.push([caixa, def]);
+  }
+  // Desenha só depois que todos os cartões estão na página: o tamanho de cada
+  // um depende de quantos dividem a altura.
+  for (const [caixa, def] of aDesenhar) desenhar(caixa, sessoes, def, todos);
+}
+
+// ---------------------------------------------------------------- gráfico
+function escalaY(maxDado, maxFixo) {
+  if (maxFixo) return { max: maxFixo, ticks: [0, 2, 4, 6, 8, 10] };
+  const alvo = maxDado > 0 ? maxDado * 1.12 : 1;
+  const bruto = alvo / 4;
+  const pot = Math.pow(10, Math.floor(Math.log10(bruto)));
+  const passo = [1, 2, 2.5, 5, 10].map(f => f * pot).find(p => p >= bruto) || 10 * pot;
+  const max = Math.ceil(alvo / passo) * passo;
+  const ticks = [];
+  for (let t = 0; t <= max + 1e-9; t += passo) ticks.push(t);
+  return { max, ticks };
+}
+
+function caminhoBarra(x, y, w, h, r) {
+  r = Math.min(r, w / 2, h);
+  return `M${x},${y + h}V${y + r}Q${x},${y} ${x + r},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h}Z`;
+}
+
+function desenhar(caixa, sessoes, def, pedeTodos) {
+  const W = caixa.clientWidth, H = caixa.clientHeight;
+  const M = { t: 18, r: 78, b: 40, l: 46 };
+  const iw = Math.max(40, W - M.l - M.r), ih = Math.max(40, H - M.t - M.b);
+  const n = sessoes.length;
+  const passo = iw / n;
+  // Todos os valores só quando cabem; senão, maior, menor e último (o resto fica na dica e na tabela)
+  const todosValores = pedeTodos && passo >= MIN_PX_ROTULO;
+  const vals = sessoes.map(s => valor(s, def.k));
+  const ref = estatistica(vals);
+  const { max, ticks } = escalaY(Math.max(...vals.filter(v => v !== null), ref || 0), def.max);
+  const X = i => M.l + passo * (i + 0.5);
+  const Y = v => M.t + ih - (v / max) * ih;
+  const fmtV = v => fmt(v, def.dec);
+
+  const svg = sv('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img',
+    'aria-label': `${def.titulo}: ${n} sessões, ${ESTADO.ref === 'media' ? 'média' : 'mediana'} ${fmtV(ref)}` });
+
+  // grade e eixo y
+  const gGrade = sv('g');
+  for (const t of ticks) {
+    const y = Y(t);
+    gGrade.append(sv('line', { x1: M.l, x2: M.l + iw, y1: y, y2: y, stroke: 'var(--grade)', 'stroke-width': 1 }));
+    const tx = sv('text', { x: M.l - 8, y: y + 4, 'text-anchor': 'end', fill: 'var(--tx3)', 'font-size': 11 });
+    tx.textContent = t >= 10000 ? `${fmt(t / 1000, 1)}K` : fmt(t, t % 1 ? 1 : 0);
+    gGrade.append(tx);
+  }
+  svg.append(gGrade);
+
+  // eixo x (datas)
+  const maxRot = Math.max(1, Math.floor(iw / 24));
+  const pularX = Math.ceil(n / maxRot);
+  const gX = sv('g');
+  sessoes.forEach((s, i) => {
+    if (i % pularX && i !== n - 1) return;
+    const tx = sv('text', {
+      x: X(i), y: M.t + ih + 12, 'text-anchor': 'end', fill: s.tipo === 'jogo' ? 'var(--tx)' : 'var(--tx3)',
+      'font-size': 10.5, 'font-weight': s.tipo === 'jogo' ? 600 : 400,
+      transform: `rotate(-40 ${X(i)} ${M.t + ih + 12})`,
+    });
+    tx.textContent = dataCurta(s.data);
+    gX.append(tx);
+  });
+  svg.append(gX);
+
+  // crosshair (escondido até o hover)
+  const mira = sv('line', { y1: M.t, y2: M.t + ih, stroke: 'var(--tx2)', 'stroke-width': 1, opacity: 0 });
+  svg.append(mira);
+
+  const cor = s => s.tipo === 'jogo' ? 'var(--jogo)' : 'var(--treino)';
+  const gMarcas = sv('g');
+  if (def.forma === 'barras') {
+    const bw = Math.min(24, Math.max(2, passo * 0.62));
+    sessoes.forEach((s, i) => {
+      const v = vals[i];
+      if (v === null) return;
+      const y = Y(v), h = Math.max(0, M.t + ih - y);
+      if (h <= 0) return;
+      gMarcas.append(sv('path', { d: caminhoBarra(X(i) - bw / 2, y, bw, h, 4), fill: cor(s), 'data-i': i }));
+      if (s.tipo === 'jogo' && passo >= 8) {
+        const yy = y - (todosValores ? 18 : 6);
+        gMarcas.append(sv('path', { d: `M${X(i)},${yy - 4}l4,4l-4,4l-4,-4z`, fill: 'var(--jogo)' }));
+      }
+    });
+  } else {
+    // área: lavagem 10% + linha 2px, quebrando nos buracos
+    let trecho = [];
+    const trechos = [];
+    vals.forEach((v, i) => { if (v === null) { if (trecho.length) trechos.push(trecho); trecho = []; } else trecho.push(i); });
+    if (trecho.length) trechos.push(trecho);
+    for (const t of trechos) {
+      const pts = t.map(i => `${X(i)},${Y(vals[i])}`).join(' L');
+      const base = M.t + ih;
+      gMarcas.append(sv('path', { d: `M${X(t[0])},${base} L${pts} L${X(t[t.length - 1])},${base}Z`, fill: 'var(--treino)', opacity: 0.12 }));
+      gMarcas.append(sv('path', { d: `M${pts}`, fill: 'none', stroke: 'var(--treino)', 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+    }
+    const rPonto = n > 90 ? 3 : 4;
+    sessoes.forEach((s, i) => {
+      const v = vals[i];
+      if (v === null) return;
+      if (s.tipo === 'jogo') {
+        const r = rPonto + 1.5;
+        gMarcas.append(sv('path', { d: `M${X(i)},${Y(v) - r}l${r},${r}l${-r},${r}l${-r},${-r}z`, fill: 'var(--jogo)', stroke: 'var(--painel)', 'stroke-width': 2 }));
+      } else {
+        gMarcas.append(sv('circle', { cx: X(i), cy: Y(v), r: rPonto, fill: 'var(--treino)', stroke: 'var(--painel)', 'stroke-width': 2 }));
+      }
+    });
+  }
+  svg.append(gMarcas);
+
+  // linha de referência (média ou mediana do período visível)
+  if (ref !== null) {
+    const y = Y(ref);
+    svg.append(sv('line', { x1: M.l, x2: M.l + iw, y1: y, y2: y, stroke: 'var(--ref)', 'stroke-width': 1.5, 'stroke-dasharray': '6 4' }));
+    const tx = sv('text', { x: M.l + iw + 8, y: y + 4, fill: 'var(--tx2)', 'font-size': 11.5 });
+    tx.textContent = `${ESTADO.ref === 'media' ? 'Média' : 'Mediana'} ${fmt(ref, def.kdec)}`;
+    svg.append(tx);
+  }
+
+  // rótulos de valor: todos (poucas sessões) ou destaques (maior, menor e último)
+  const gRot = sv('g');
+  const comValor = vals.map((v, i) => (v === null ? null : i)).filter(i => i !== null);
+  let alvo = comValor;
+  if (!todosValores && comValor.length) {
+    const iMax = comValor.reduce((a, b) => (vals[b] > vals[a] ? b : a));
+    const iMin = comValor.reduce((a, b) => (vals[b] < vals[a] ? b : a));
+    alvo = [...new Set([iMax, iMin, comValor[comValor.length - 1]])];
+  }
+  for (const i of alvo) {
+    const tx = sv('text', { x: X(i), y: Y(vals[i]) - (def.forma === 'barras' ? 5 : 9), 'text-anchor': 'middle',
+      fill: 'var(--tx)', 'font-size': n > 30 ? 9.5 : 10.5, 'font-weight': 600 });
+    tx.textContent = fmtV(vals[i]);
+    gRot.append(tx);
+  }
+  svg.append(gRot);
+
+  // camada de hover: uma faixa por sessão, mais larga que a marca
+  const gHit = sv('g');
+  sessoes.forEach((s, i) => {
+    const r = sv('rect', { x: M.l + passo * i, y: M.t - 10, width: passo, height: ih + 10, fill: 'transparent', 'data-i': i });
+    gHit.append(r);
+  });
+  gHit.addEventListener('pointermove', ev => {
+    const i = Number(ev.target.getAttribute('data-i'));
+    if (!Number.isInteger(i)) return;
+    sincronizarHover(i, ev.clientX, ev.clientY);
+  });
+  gHit.addEventListener('pointerleave', () => sincronizarHover(null));
+  svg.append(gHit);
+
+  caixa._mira = (i) => {
+    if (i === null) { mira.setAttribute('opacity', 0); return; }
+    mira.setAttribute('x1', X(i)); mira.setAttribute('x2', X(i)); mira.setAttribute('opacity', 0.6);
+  };
+  caixa.append(svg);
+}
+
+// Todos os gráficos da aba compartilham o eixo x: a mira anda junta
+function sincronizarHover(i, cx, cy) {
+  hoverIdx = i;
+  for (const c of document.querySelectorAll('.cartao .area')) if (c._mira) c._mira(i);
+  const dica = $('dica');
+  if (i === null) { dica.style.display = 'none'; return; }
+  const s = sessoesFiltradas()[i];
+  if (!s) return;
+  dica.replaceChildren();
+  const d = new Date(s.data + 'T12:00:00Z');
+  dica.append(el('div', { class: 'd-tit' }, `${diaSemana[d.getUTCDay()]} ${dataBR(s.data)} · ${s.tipo === 'jogo' ? 'Jogo' : 'Treino'}`));
+  dica.append(el('div', { class: 'd-sub' }, s.tipo === 'jogo' && s.adversario ? `x ${s.adversario}` : s.atividade));
+  for (const def of ABAS[ESTADO.aba].graficos) {
+    if (motivoIndisponivel(def.k)) continue;
+    const lin = el('div', { class: 'd-lin' });
+    const key = el('i'); key.style.borderColor = s.tipo === 'jogo' ? 'var(--jogo)' : 'var(--treino)';
+    lin.append(key, el('b', {}, fmt(valor(s, def.k), def.k === 'pse' ? 1 : def.dec)), el('span', {}, `${def.titulo}${def.un && def.un !== 'n' ? ` (${def.un})` : ''}`));
+    dica.append(lin);
+  }
+  const ctx = el('div', { class: 'd-ctx' });
+  ctx.append(el('div', {}, `Duração: ${fmt(s.dur_min, 0)} min · ${s.periodos.join(' + ')}`));
+  ctx.append(el('div', {}, `Grupo: ${s.grupo || '—'} · Dia Código: ${s.dia_codigo || '—'}`));
+  dica.append(ctx);
+  if (s.aviso_pse && ESTADO.aba === 'interna') dica.append(el('div', { class: 'd-aviso' }, s.aviso_pse));
+  dica.style.display = 'block';
+  const w = dica.offsetWidth, h = dica.offsetHeight;
+  let x = cx + 16, y = cy + 14;
+  if (x + w > innerWidth - 8) x = cx - w - 16;
+  if (y + h > innerHeight - 8) y = cy - h - 14;
+  dica.style.left = `${Math.max(8, x)}px`; dica.style.top = `${Math.max(8, y)}px`;
+}
+
+// ---------------------------------------------------------------- tabela + CSV
+const COLUNAS = [
+  { t: 'Data', f: s => dataBR(s.data), txt: true },
+  { t: 'Tipo', f: s => (s.tipo === 'jogo' ? 'Jogo' : 'Treino'), txt: true },
+  { t: 'Atividade', f: s => s.atividade, txt: true },
+  { t: 'Duração (min)', k: 'dur_min', dec: 1 },
+  { t: 'Mergulhos', k: 'mergulhos', dec: 0 },
+  { t: 'Carga de mergulho', k: 'carga_mergulho', dec: 1 },
+  { t: 'Esforços explosivos', k: 'explosivos', dec: 0 },
+  { t: 'PSE', k: 'pse', dec: 1 },
+  { t: 'PSE da sessão', k: 'spse', dec: 1 },
+  { t: 'Distância (m)', k: 'dist', dec: 0 },
+  { t: 'PlayerLoad', k: 'pl', dec: 1 },
+  { t: 'Grupo', f: s => s.grupo || '', txt: true },
+  { t: 'Dia Código', f: s => s.dia_codigo || '', txt: true },
+];
+
+function renderTabela(sessoes) {
+  const area = $('graficos');
+  area.replaceChildren();
+  const barra = el('div', { style: 'display:flex;gap:8px;align-items:center' });
+  const csv = el('button', { class: 'btn sec' }, 'Baixar CSV');
+  csv.onclick = () => baixarCSV(sessoes);
+  barra.append(el('span', { style: 'color:var(--tx2);font-size:12px' }, `${sessoes.length} sessões no período e filtro escolhidos`), csv);
+  area.append(barra);
+  const wrap = el('div', { class: 'tabela-wrap' });
+  const tb = el('table');
+  const thead = el('thead'); const trh = el('tr');
+  for (const c of COLUNAS) trh.append(el('th', { class: c.txt ? 'txt' : '' }, c.t));
+  thead.append(trh); tb.append(thead);
+  const tbody = el('tbody');
+  for (const s of [...sessoes].reverse()) {
+    const tr = el('tr', { class: s.tipo });
+    for (const c of COLUNAS) {
+      const pend = c.k && motivoIndisponivel(c.k);
+      tr.append(el('td', { class: c.txt ? 'txt' : '' }, c.txt ? c.f(s) : (pend ? 'pendente' : fmt(valor(s, c.k), c.dec))));
+    }
+    tbody.append(tr);
+  }
+  tb.append(tbody); wrap.append(tb); area.append(wrap);
+}
+
+function baixarCSV(sessoes) {
+  const esc = v => { const s = String(v ?? ''); return /[;"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+  const g = (DADOS.goleiros.find(x => x.id === ESTADO.gk) || {}).nome || ESTADO.gk;
+  const linhas = [['Goleiro', ...COLUNAS.map(c => c.t)].join(';')];
+  for (const s of sessoes) {
+    linhas.push([g, ...COLUNAS.map(c => {
+      if (c.txt) return c.f(s);
+      const v = valor(s, c.k);
+      return v === null ? '' : String(v).replace('.', ',');
+    })].map(esc).join(';'));
+  }
+  const blob = new Blob(['﻿' + linhas.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const a = el('a', { href: URL.createObjectURL(blob), download: `goleiros_${g}_${ESTADO.de}_${ESTADO.ate}.csv` });
+  document.body.append(a); a.click(); a.remove();
+}
+
+// ---------------------------------------------------------------- eventos
+function salvarPref() { gravarLocal(CHAVE_PREF, { gk: ESTADO.gk, aba: ESTADO.aba, ref: ESTADO.ref, todosValores: ESTADO.todosValores }); }
+
+$('sel-gk').onchange = e => { ESTADO.gk = Number(e.target.value); aplicarPreset(42); salvarPref(); render(); };
+$('de').onchange = e => { ESTADO.de = e.target.value || null; marcarPresets(-1); render(); };
+$('ate').onchange = e => { ESTADO.ate = e.target.value || null; marcarPresets(-1); render(); };
+for (const b of $('presets').children) b.onclick = () => { aplicarPreset(Number(b.dataset.dias)); render(); };
+for (const b of $('filtro-tipo').children) b.onclick = () => { ESTADO.tipo = b.dataset.tipo; render(); };
+for (const b of $('filtro-ref').children) b.onclick = () => { ESTADO.ref = b.dataset.ref; salvarPref(); render(); };
+$('chk-rotulos').onchange = e => { ESTADO.todosValores = e.target.checked; salvarPref(); render(); };
+$('btn-tabela').onclick = () => { ESTADO.tabela = !ESTADO.tabela; render(); };
+$('btn-atualizar').onclick = () => buscar(true);
+let _redim;
+addEventListener('resize', () => { clearTimeout(_redim); _redim = setTimeout(() => DADOS && render(), 120); });
+
+// ---------------------------------------------------------------- início
+(function iniciar() {
+  const pref = lerLocal(CHAVE_PREF);
+  if (pref) {
+    if (ABAS[pref.aba]) ESTADO.aba = pref.aba;
+    if (pref.ref === 'mediana') ESTADO.ref = 'mediana';
+    if (pref.todosValores === false) ESTADO.todosValores = false;
+  }
+  $('chk-rotulos').checked = ESTADO.todosValores;
+  const inicial = window.DADOS_INICIAIS || lerLocal(CHAVE_CACHE);
+  if (inicial && Array.isArray(inicial.sessoes)) {
+    DADOS = inicial;          // abre com o último carregamento; "Atualizar dados" busca de novo
+    iniciarComDados(true);
+  } else {
+    buscar(false);
+  }
+})();
+</script>
+</body>
+</html>
